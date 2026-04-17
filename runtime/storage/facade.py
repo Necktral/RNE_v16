@@ -13,6 +13,8 @@ from .interfaces import StorageBackend
 from .records import (
     ArtifactRecord,
     ReasoningTraceRecord,
+    RealityAssessmentRecord,
+    RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
@@ -213,6 +215,80 @@ class StorageFacade:
 
     def get_session_bridge(self, session_id: str) -> SessionBridgeRecord | None:
         return self.backend.get_session_bridge(session_id)
+
+    def write_reality_assessment(
+        self,
+        *,
+        episode_id: str,
+        closure_passed: bool,
+        continuity_score: float,
+        trace_integrity: bool,
+        collapse_detected: bool,
+        run_id: str | None = None,
+        bench_run_id: str | None = None,
+        details: Mapping[str, Any] | None = None,
+        assessment_id: str | None = None,
+        created_at: str | None = None,
+    ) -> RealityAssessmentRecord:
+        record = RealityAssessmentRecord(
+            assessment_id=assessment_id or str(uuid4()),
+            episode_id=episode_id,
+            closure_passed=bool(closure_passed),
+            continuity_score=float(continuity_score),
+            trace_integrity=bool(trace_integrity),
+            collapse_detected=bool(collapse_detected),
+            created_at=created_at or utc_now_iso(),
+            run_id=run_id,
+            bench_run_id=bench_run_id,
+            details=dict(details or {}),
+        )
+        return self.backend.write_reality_assessment(record)
+
+    def list_reality_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        bench_run_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RealityAssessmentRecord]:
+        return self.backend.list_reality_assessments(
+            run_id=run_id,
+            bench_run_id=bench_run_id,
+            limit=limit,
+        )
+
+    def write_reality_bench_run(
+        self,
+        *,
+        total_episodes: int,
+        closure_rate: float,
+        continuity_mean: float,
+        collapse_count: int,
+        gate_profile: str,
+        passed: bool,
+        run_id: str | None = None,
+        summary: Mapping[str, Any] | None = None,
+        bench_run_id: str | None = None,
+        created_at: str | None = None,
+    ) -> RealityBenchRunRecord:
+        record = RealityBenchRunRecord(
+            bench_run_id=bench_run_id or str(uuid4()),
+            total_episodes=int(total_episodes),
+            closure_rate=float(closure_rate),
+            continuity_mean=float(continuity_mean),
+            collapse_count=int(collapse_count),
+            gate_profile=gate_profile,
+            passed=bool(passed),
+            created_at=created_at or utc_now_iso(),
+            run_id=run_id,
+            summary=dict(summary or {}),
+        )
+        return self.backend.write_reality_bench_run(record)
+
+    def list_reality_bench_runs(
+        self, *, run_id: str | None = None, limit: int = 50
+    ) -> list[RealityBenchRunRecord]:
+        return self.backend.list_reality_bench_runs(run_id=run_id, limit=limit)
 
     def close(self) -> None:
         self.backend.close()

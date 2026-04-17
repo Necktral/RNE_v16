@@ -16,6 +16,8 @@ from ..interfaces import StorageBackend
 from ..records import (
     ArtifactRecord,
     ReasoningTraceRecord,
+    RealityAssessmentRecord,
+    RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
@@ -368,6 +370,156 @@ class PostgresStorageBackend(StorageBackend):
             metadata=dict(row["metadata_jsonb"] or {}),
             timestamp=row["timestamp"],
         )
+
+    def write_reality_assessment(
+        self, assessment: RealityAssessmentRecord
+    ) -> RealityAssessmentRecord:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO reality_assessments
+                (assessment_id, run_id, bench_run_id, episode_id, closure_passed,
+                 continuity_score, trace_integrity, collapse_detected, details_jsonb, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(assessment_id) DO UPDATE SET
+                    run_id = excluded.run_id,
+                    bench_run_id = excluded.bench_run_id,
+                    episode_id = excluded.episode_id,
+                    closure_passed = excluded.closure_passed,
+                    continuity_score = excluded.continuity_score,
+                    trace_integrity = excluded.trace_integrity,
+                    collapse_detected = excluded.collapse_detected,
+                    details_jsonb = excluded.details_jsonb,
+                    created_at = excluded.created_at
+                """,
+                (
+                    assessment.assessment_id,
+                    assessment.run_id,
+                    assessment.bench_run_id,
+                    assessment.episode_id,
+                    assessment.closure_passed,
+                    assessment.continuity_score,
+                    assessment.trace_integrity,
+                    assessment.collapse_detected,
+                    Jsonb(assessment.details),
+                    assessment.created_at,
+                ),
+            )
+            conn.commit()
+        return assessment
+
+    def list_reality_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        bench_run_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RealityAssessmentRecord]:
+        query = (
+            "SELECT assessment_id, run_id, bench_run_id, episode_id, closure_passed, "
+            "continuity_score, trace_integrity, collapse_detected, details_jsonb, created_at "
+            "FROM reality_assessments"
+        )
+        clauses: list[str] = []
+        params: list[Any] = []
+        if run_id:
+            clauses.append("run_id = %s")
+            params.append(run_id)
+        if bench_run_id:
+            clauses.append("bench_run_id = %s")
+            params.append(bench_run_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at ASC LIMIT %s"
+        params.append(limit)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            RealityAssessmentRecord(
+                assessment_id=row["assessment_id"],
+                run_id=row["run_id"],
+                bench_run_id=row["bench_run_id"],
+                episode_id=row["episode_id"],
+                closure_passed=bool(row["closure_passed"]),
+                continuity_score=float(row["continuity_score"]),
+                trace_integrity=bool(row["trace_integrity"]),
+                collapse_detected=bool(row["collapse_detected"]),
+                details=dict(row["details_jsonb"] or {}),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def write_reality_bench_run(
+        self, bench_run: RealityBenchRunRecord
+    ) -> RealityBenchRunRecord:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO reality_bench_runs
+                (bench_run_id, run_id, total_episodes, closure_rate, continuity_mean,
+                 collapse_count, gate_profile, passed, summary_jsonb, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(bench_run_id) DO UPDATE SET
+                    run_id = excluded.run_id,
+                    total_episodes = excluded.total_episodes,
+                    closure_rate = excluded.closure_rate,
+                    continuity_mean = excluded.continuity_mean,
+                    collapse_count = excluded.collapse_count,
+                    gate_profile = excluded.gate_profile,
+                    passed = excluded.passed,
+                    summary_jsonb = excluded.summary_jsonb,
+                    created_at = excluded.created_at
+                """,
+                (
+                    bench_run.bench_run_id,
+                    bench_run.run_id,
+                    bench_run.total_episodes,
+                    bench_run.closure_rate,
+                    bench_run.continuity_mean,
+                    bench_run.collapse_count,
+                    bench_run.gate_profile,
+                    bench_run.passed,
+                    Jsonb(bench_run.summary),
+                    bench_run.created_at,
+                ),
+            )
+            conn.commit()
+        return bench_run
+
+    def list_reality_bench_runs(
+        self, *, run_id: str | None = None, limit: int = 50
+    ) -> list[RealityBenchRunRecord]:
+        query = (
+            "SELECT bench_run_id, run_id, total_episodes, closure_rate, continuity_mean, "
+            "collapse_count, gate_profile, passed, summary_jsonb, created_at "
+            "FROM reality_bench_runs"
+        )
+        params: list[Any] = []
+        if run_id:
+            query += " WHERE run_id = %s"
+            params.append(run_id)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            RealityBenchRunRecord(
+                bench_run_id=row["bench_run_id"],
+                run_id=row["run_id"],
+                total_episodes=int(row["total_episodes"]),
+                closure_rate=float(row["closure_rate"]),
+                continuity_mean=float(row["continuity_mean"]),
+                collapse_count=int(row["collapse_count"]),
+                gate_profile=row["gate_profile"],
+                passed=bool(row["passed"]),
+                summary=dict(row["summary_jsonb"] or {}),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
 
     def close(self) -> None:
         # Conexion por operacion; no hay pool persistente.

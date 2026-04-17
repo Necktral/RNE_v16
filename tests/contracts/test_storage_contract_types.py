@@ -71,4 +71,34 @@ def test_storage_facade_sqlite_roundtrip(tmp_path: Path):
     stored = storage.list_artifacts(run_id="run-ct", kind="trace")
     assert stored and stored[0].sha256 == artifact.sha256
 
+    bench = storage.write_reality_bench_run(
+        bench_run_id="bench-ct-1",
+        run_id="run-ct",
+        total_episodes=10,
+        closure_rate=0.9,
+        continuity_mean=0.7,
+        collapse_count=1,
+        gate_profile="ci",
+        passed=True,
+        summary={"note": "contract"},
+    )
+    assert bench.gate_profile == "ci"
+    benches = storage.list_reality_bench_runs(run_id="run-ct")
+    assert benches and benches[0].bench_run_id == "bench-ct-1"
+
+    assess = storage.write_reality_assessment(
+        assessment_id="assess-ct-1",
+        run_id="run-ct",
+        bench_run_id="bench-ct-1",
+        episode_id="episode-ct-1",
+        closure_passed=True,
+        continuity_score=0.8,
+        trace_integrity=True,
+        collapse_detected=False,
+        details={"source": "contract"},
+    )
+    assert assess.episode_id == "episode-ct-1"
+    assessments = storage.list_reality_assessments(run_id="run-ct", bench_run_id="bench-ct-1")
+    assert assessments and assessments[0].assessment_id == "assess-ct-1"
+
     storage.close()

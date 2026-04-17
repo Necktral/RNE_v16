@@ -13,6 +13,8 @@ from ..interfaces import StorageBackend
 from ..records import (
     ArtifactRecord,
     ReasoningTraceRecord,
+    RealityAssessmentRecord,
+    RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
@@ -85,6 +87,32 @@ class SQLiteStorageBackend(StorageBackend):
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS reality_assessments (
+                    assessment_id TEXT PRIMARY KEY,
+                    run_id TEXT,
+                    bench_run_id TEXT,
+                    episode_id TEXT NOT NULL,
+                    closure_passed INTEGER NOT NULL,
+                    continuity_score REAL NOT NULL,
+                    trace_integrity INTEGER NOT NULL,
+                    collapse_detected INTEGER NOT NULL,
+                    details TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS reality_bench_runs (
+                    bench_run_id TEXT PRIMARY KEY,
+                    run_id TEXT,
+                    total_episodes INTEGER NOT NULL,
+                    closure_rate REAL NOT NULL,
+                    continuity_mean REAL NOT NULL,
+                    collapse_count INTEGER NOT NULL,
+                    gate_profile TEXT NOT NULL,
+                    passed INTEGER NOT NULL,
+                    summary TEXT,
+                    created_at TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_telemetry_run_ts
                 ON telemetry_snapshots(run_id, snapshot_ts);
 
@@ -93,6 +121,12 @@ class SQLiteStorageBackend(StorageBackend):
 
                 CREATE INDEX IF NOT EXISTS idx_artifacts_run_kind
                 ON artifacts(run_id, kind, created_at);
+
+                CREATE INDEX IF NOT EXISTS idx_reality_assessments_run_bench
+                ON reality_assessments(run_id, bench_run_id, created_at);
+
+                CREATE INDEX IF NOT EXISTS idx_reality_bench_runs_run
+                ON reality_bench_runs(run_id, created_at);
                 """
             )
             conn.commit()
@@ -337,6 +371,133 @@ class SQLiteStorageBackend(StorageBackend):
             timestamp=row[3],
             metadata=_safe_json_load(row[4]),
         )
+
+    def write_reality_assessment(
+        self, assessment: RealityAssessmentRecord
+    ) -> RealityAssessmentRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO reality_assessments
+                (assessment_id, run_id, bench_run_id, episode_id, closure_passed,
+                 continuity_score, trace_integrity, collapse_detected, details, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    assessment.assessment_id,
+                    assessment.run_id,
+                    assessment.bench_run_id,
+                    assessment.episode_id,
+                    int(assessment.closure_passed),
+                    assessment.continuity_score,
+                    int(assessment.trace_integrity),
+                    int(assessment.collapse_detected),
+                    json.dumps(assessment.details),
+                    assessment.created_at,
+                ),
+            )
+            conn.commit()
+        return assessment
+
+    def list_reality_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        bench_run_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RealityAssessmentRecord]:
+        query = (
+            "SELECT assessment_id, run_id, bench_run_id, episode_id, closure_passed, "
+            "continuity_score, trace_integrity, collapse_detected, details, created_at "
+            "FROM reality_assessments"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if bench_run_id:
+            clauses.append("bench_run_id = ?")
+            params.append(bench_run_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at ASC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            RealityAssessmentRecord(
+                assessment_id=row[0],
+                run_id=row[1],
+                bench_run_id=row[2],
+                episode_id=row[3],
+                closure_passed=bool(row[4]),
+                continuity_score=float(row[5]),
+                trace_integrity=bool(row[6]),
+                collapse_detected=bool(row[7]),
+                details=_safe_json_load(row[8]),
+                created_at=row[9],
+            )
+            for row in rows
+        ]
+
+    def write_reality_bench_run(
+        self, bench_run: RealityBenchRunRecord
+    ) -> RealityBenchRunRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO reality_bench_runs
+                (bench_run_id, run_id, total_episodes, closure_rate, continuity_mean,
+                 collapse_count, gate_profile, passed, summary, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    bench_run.bench_run_id,
+                    bench_run.run_id,
+                    bench_run.total_episodes,
+                    bench_run.closure_rate,
+                    bench_run.continuity_mean,
+                    bench_run.collapse_count,
+                    bench_run.gate_profile,
+                    int(bench_run.passed),
+                    json.dumps(bench_run.summary),
+                    bench_run.created_at,
+                ),
+            )
+            conn.commit()
+        return bench_run
+
+    def list_reality_bench_runs(
+        self, *, run_id: str | None = None, limit: int = 50
+    ) -> list[RealityBenchRunRecord]:
+        query = (
+            "SELECT bench_run_id, run_id, total_episodes, closure_rate, continuity_mean, "
+            "collapse_count, gate_profile, passed, summary, created_at FROM reality_bench_runs"
+        )
+        params: list[object] = []
+        if run_id:
+            query += " WHERE run_id = ?"
+            params.append(run_id)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            RealityBenchRunRecord(
+                bench_run_id=row[0],
+                run_id=row[1],
+                total_episodes=int(row[2]),
+                closure_rate=float(row[3]),
+                continuity_mean=float(row[4]),
+                collapse_count=int(row[5]),
+                gate_profile=row[6],
+                passed=bool(row[7]),
+                summary=_safe_json_load(row[8]),
+                created_at=row[9],
+            )
+            for row in rows
+        ]
 
     def close(self) -> None:
         # SQLite usa conexiones cortas por operacion; no hay pool que cerrar.
