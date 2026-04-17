@@ -1,0 +1,224 @@
+"""Interfaz base para escenarios cognitivos mínimos."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple
+
+
+@dataclass
+class ScenarioObservation:
+    """Observación del estado del escenario.
+
+    Attributes:
+        state: Diccionario con estado observable del mundo.
+        propositions: Lista de proposiciones inferibles del estado.
+        alarm: Indicador de condición de alarma/umbral.
+    """
+
+    state: Dict[str, Any]
+    propositions: List[str]
+    alarm: bool
+
+
+@dataclass
+class ScenarioTransition:
+    """Resultado de transición del escenario.
+
+    Attributes:
+        state: Nuevo estado después de la transición.
+        propositions: Proposiciones actualizadas.
+        alarm: Estado de alarma actualizado.
+    """
+
+    state: Dict[str, Any]
+    propositions: List[str]
+    alarm: bool
+
+
+@dataclass
+class ScenarioConfig:
+    """Configuración de un escenario cognitivo.
+
+    Attributes:
+        name: Nombre único del escenario.
+        description: Descripción del escenario.
+        main_variable: Variable principal del escenario.
+        alarm_threshold: Umbral para activar alarma.
+        interventions: Lista de intervenciones válidas.
+        formula_template: Plantilla de fórmula LOTF.
+        type_context: Contexto de tipos para checker LOTF.
+    """
+
+    name: str
+    description: str
+    main_variable: str
+    alarm_threshold: float
+    interventions: List[str]
+    formula_template: str
+    type_context: Dict[str, str]
+
+
+class CognitiveScenario(ABC):
+    """Interfaz base para escenarios cognitivos mínimos.
+
+    Un escenario cognitivo define:
+    - Estado observable del mundo
+    - Transiciones factual y contrafactual
+    - Proposiciones y fórmulas LOTF
+    - Mapeo a signos SMG
+    """
+
+    @property
+    @abstractmethod
+    def config(self) -> ScenarioConfig:
+        """Retorna configuración del escenario."""
+        ...
+
+    @abstractmethod
+    def observe(self) -> ScenarioObservation:
+        """Observa el estado actual del escenario.
+
+        Returns:
+            ScenarioObservation con estado, proposiciones y alarma.
+        """
+        ...
+
+    @abstractmethod
+    def factual_transition(
+        self,
+        *,
+        intervention: str,
+        external_input: float,
+    ) -> ScenarioTransition:
+        """Ejecuta transición factual con intervención.
+
+        Args:
+            intervention: Intervención a aplicar.
+            external_input: Entrada externa (perturbación).
+
+        Returns:
+            ScenarioTransition con nuevo estado.
+        """
+        ...
+
+    @abstractmethod
+    def simulate_counterfactual(
+        self,
+        *,
+        intervention: str,
+        external_input: float,
+    ) -> ScenarioTransition:
+        """Simula transición contrafactual sin mutar estado.
+
+        Args:
+            intervention: Intervención hipotética.
+            external_input: Entrada externa simulada.
+
+        Returns:
+            ScenarioTransition con estado simulado.
+        """
+        ...
+
+    @abstractmethod
+    def get_formula(self, observation: ScenarioObservation) -> str:
+        """Genera fórmula LOTF para la observación.
+
+        Args:
+            observation: Observación actual.
+
+        Returns:
+            String con fórmula LOTF.
+        """
+        ...
+
+    @abstractmethod
+    def select_intervention(self, observation: ScenarioObservation) -> str:
+        """Selecciona intervención apropiada para la observación.
+
+        Args:
+            observation: Observación actual.
+
+        Returns:
+            Nombre de la intervención a aplicar.
+        """
+        ...
+
+    @abstractmethod
+    def get_main_proposition(self, observation: ScenarioObservation) -> str:
+        """Obtiene proposición principal de la observación.
+
+        Args:
+            observation: Observación actual.
+
+        Returns:
+            Proposición principal (e.g., 'TEMP_HIGH').
+        """
+        ...
+
+    @abstractmethod
+    def get_intervention_proposition(self, intervention: str) -> str:
+        """Obtiene proposición correspondiente a la intervención.
+
+        Args:
+            intervention: Intervención aplicada.
+
+        Returns:
+            Proposición de intervención (e.g., 'ACTIVATE_COOLING').
+        """
+        ...
+
+    def evaluate_relation_kind(
+        self,
+        *,
+        factual: ScenarioTransition,
+        counterfactual: ScenarioTransition,
+    ) -> str:
+        """Evalúa tipo de relación entre factual y contrafactual.
+
+        Args:
+            factual: Transición factual.
+            counterfactual: Transición contrafactual.
+
+        Returns:
+            'support' o 'contradiction'.
+        """
+        main_var = self.config.main_variable
+        factual_val = factual.state.get(main_var, 0.0)
+        counterfactual_val = counterfactual.state.get(main_var, 0.0)
+
+        # Si factual es mejor o igual que contrafactual, es support
+        if factual_val <= counterfactual_val:
+            return "support"
+        return "contradiction"
+
+    def to_observation_dict(self, observation: ScenarioObservation) -> Dict[str, Any]:
+        """Convierte observación a diccionario para persistencia.
+
+        Args:
+            observation: Observación del escenario.
+
+        Returns:
+            Diccionario con estado y metadata.
+        """
+        return {
+            **observation.state,
+            "alarm": observation.alarm,
+            "propositions": observation.propositions,
+            "scenario": self.config.name,
+        }
+
+    def to_transition_dict(self, transition: ScenarioTransition) -> Dict[str, Any]:
+        """Convierte transición a diccionario para persistencia.
+
+        Args:
+            transition: Transición del escenario.
+
+        Returns:
+            Diccionario con estado y metadata.
+        """
+        return {
+            **transition.state,
+            "alarm": transition.alarm,
+        }

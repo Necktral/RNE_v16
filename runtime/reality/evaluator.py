@@ -82,6 +82,35 @@ def _has_episode_closed_event(storage, *, run_id: str | None, episode_id: str) -
     return False
 
 
+# Contextos de tipos conocidos por escenario
+KNOWN_TYPE_CONTEXTS: Dict[str, Dict[str, str]] = {
+    "thermal_homeostasis": {"TEMP_HIGH": "bool", "ACTIVATE_COOLING": "bool"},
+    "resource_management": {"STOCK_LOW": "bool", "START_PRODUCTION": "bool"},
+}
+
+
+def _infer_type_context(formula: str, episode: Dict[str, Any]) -> Dict[str, str]:
+    """Infiere contexto de tipos para la fórmula.
+
+    Args:
+        formula: Fórmula LOTF.
+        episode: Diccionario del episodio.
+
+    Returns:
+        Dict con símbolos y sus tipos.
+    """
+    # Intentar obtener escenario del episodio
+    scenario_name = episode.get("scenario", "thermal_homeostasis")
+    if scenario_name in KNOWN_TYPE_CONTEXTS:
+        return KNOWN_TYPE_CONTEXTS[scenario_name]
+
+    # Fallback: extraer símbolos de la fórmula y asumir bool
+    # Esto es un parser simple para símbolos
+    import re
+    symbols = re.findall(r"[A-Z][A-Z_0-9]+", formula)
+    return {sym: "bool" for sym in set(symbols)}
+
+
 def _normalize_sequence(sequence: List[str]) -> List[str]:
     """Normaliza secuencia a uppercase."""
     return [fam.upper() for fam in sequence]
@@ -211,12 +240,15 @@ def evaluate_episode_closure(
     has_observation = isinstance(context.get("observation"), dict)
     has_signs = len(smg_snapshot.get("signs", [])) >= 2
 
+    # Determinar contexto de tipos basado en el escenario
     formula_ok = False
     formula = context.get("formula")
     if isinstance(formula, str) and formula.strip():
         try:
             parsed = LOTFMin().parse(formula)
-            LOTFMin().check(parsed, {"TEMP_HIGH": "bool", "ACTIVATE_COOLING": "bool"})
+            # Inferir type_context de la fórmula o usar defaults conocidos
+            type_context = _infer_type_context(formula, episode)
+            LOTFMin().check(parsed, type_context)
             formula_ok = True
         except Exception:
             formula_ok = False
