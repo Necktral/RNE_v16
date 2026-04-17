@@ -189,12 +189,14 @@ class MinimalCognitiveEpisodeRunner:
                 "eml_run_id": eml_out["run"]["eml_run_id"],
                 "candidate_count": eml_out["run"]["candidate_count"],
                 "top_composite": top[0]["composite_score"] if top else 0.0,
+                "top_expr_signature": str(top[0]["expr"]) if top else "",
                 "artifacts": eml_out["artifacts"],
             }
             episode_result["episode"]["context"]["eml_shadow"] = {
                 "eml_run_id": eml_shadow["eml_run_id"],
                 "candidate_count": eml_shadow["candidate_count"],
                 "top_composite": eml_shadow["top_composite"],
+                "top_expr_signature": eml_shadow["top_expr_signature"],
             }
         return {
             **episode_result,
