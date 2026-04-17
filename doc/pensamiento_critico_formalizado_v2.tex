@@ -1,0 +1,518 @@
+\documentclass[12pt,a4paper]{article}
+
+% =========================================================
+% Formalizacion cerrada del pensamiento critico.
+% Este archivo incorpora y resuelve las criticas tecnicas
+% hechas al borrador previo:
+% 1) Se elimina el uso inflado del termino "tensorial" cuando
+%    la estructura real es vectorial/multicriterio.
+% 2) Se separan soporte observacional, intervencional y
+%    contrafactual para no mezclar causalidad con asociacion.
+% 3) Se introduce un operador de actualizacion temporal explicito.
+% 4) Se reemplaza la falsa "estabilidad asintotica" por un
+%    teorema de convergencia bajo contraccion.
+% 5) Se sustituye "hiperplano optimo" por una regla de seleccion
+%    bien definida sobre un conjunto admisible.
+% =========================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  urlcolor=blue!50!black,
+  pdftitle={Formalizacion cerrada del pensamiento critico},
+  pdfauthor={OpenAI - revision tecnica},
+  pdfsubject={Modelo matematico dinamico, causal y multicriterio}
+}
+
+\setlength{\parskip}{0.6em}
+\setlength{\parindent}{0pt}
+
+% ----- Notacion -----
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\argmax}{\operatorname*{arg\,max}}
+\newcommand{\argmin}{\operatorname*{arg\,min}}
+\newcommand{\doop}{\operatorname{do}}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\rel}{\operatorname{rel}}
+\newcommand{\conf}{\operatorname{conf}}
+\newcommand{\ind}{\operatorname{ind}}
+\newcommand{\frag}{\operatorname{frag}}
+\newcommand{\str}{\operatorname{str}}
+\newcommand{\uses}{\operatorname{uses}}
+\newcommand{\diam}{\operatorname{diam}}
+
+% ----- Entornos -----
+\theoremstyle{definition}
+\newtheorem{definition}{Definici\'on}[section]
+\newtheorem{remark}[definition]{Observaci\'on}
+\newtheorem{example}[definition]{Ejemplo}
+
+\theoremstyle{plain}
+\newtheorem{proposition}[definition]{Proposici\'on}
+\newtheorem{theorem}[definition]{Teorema}
+\newtheorem{corollary}[definition]{Corolario}
+\newtheorem{lemma}[definition]{Lema}
+
+\theoremstyle{remark}
+\newtheorem*{proofsketch}{Justificaci\'on}
+
+\title{\textbf{Formalizaci\'on Cerrada del Pensamiento Cr\'itico}\\
+\large Modelo din\'amico, causal y multicriterio con justificaciones formales}
+\author{Revisi\'on t\'ecnica y reconstrucci\'on matem\'atica}
+\date{2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Se presenta una reformulaci\'on matem\'atica cerrada del pensamiento cr\'itico como un proceso de selecci\'on racional sobre hip\'otesis finitas, bajo evidencia cambiante, supuestos auditables y restricciones de viabilidad. El modelo corrige cinco debilidades del borrador previo: (i) sustituye el lenguaje tensorial impropio por una estructura vectorial y multicriterio; (ii) separa soporte observacional, soporte intervencional y validez contrafactual; (iii) introduce una din\'amica temporal expl\'icita mediante un operador de actualizaci\'on; (iv) define una regla de selecci\'on sobre un conjunto admisible; y (v) proporciona condiciones suficientes de convergencia mediante el principio de contracci\'on de Banach. El resultado es una formalizaci\'on utilizable como base de paper o como especificaci\'on te\'orica de un sistema de evaluaci\'on cr\'itica.
+\end{abstract}
+
+\section{Criticas tecnicas incorporadas y su resolucion}
+
+\textbf{Critica 1:} el borrador previo llamaba \emph{tensorial} a una estructura que, en realidad, solo usaba vectores, normas y productos lineales.
+
+\textbf{Resolucion:} se reemplaza la terminologia tensorial por una formulacion \emph{vectorial multicriterio}. La justificacion es estricta: un tensor exige una ley multilineal sobre espacios y duales; un vector de puntuaciones con producto escalar no satisface esa estructura.
+
+\textbf{Critica 2:} el soporte de una hipotesis mezclaba asociacion estadistica con causalidad.
+
+\textbf{Resolucion:} se distinguen tres nociones: soporte observacional, soporte intervencional y consistencia contrafactual. La justificacion es que $P(E\mid H)$, $P(E\mid \doop(H))$ y una comparacion entre mundos factuales/contrafactuales responden a preguntas distintas.
+
+\textbf{Critica 3:} el tiempo aparecia solo como indice decorativo.
+
+\textbf{Resolucion:} se define un operador de actualizacion $T$ que transforma el estado del razonamiento de $t$ a $t+1$. La justificacion es que un sistema dinamico requiere ley de evolucion, no mera indexacion temporal.
+
+\textbf{Critica 4:} la llamada \emph{estabilidad asintotica} no estaba probada.
+
+\textbf{Resolucion:} se formula un teorema de convergencia bajo hipotesis de contraccion. La justificacion es que continuidad local no implica estabilidad asintotica; se necesita una condicion suficiente precisa.
+
+\textbf{Critica 5:} la decision final se describia como \emph{hiperplano optimo}.
+
+\textbf{Resolucion:} se sustituye por una \emph{regla de seleccion} sobre hipotesis admisibles. La justificacion es que un hiperplano es un objeto geometrico; una seleccion por $\argmax$ es una regla de decision.
+
+\section{Estructura primitiva del modelo}
+
+\begin{definition}[Instancia de evaluacion critica]
+Sea $t\in\N$. Una instancia de evaluacion critica en el tiempo $t$ es la septupla
+\begin{equation}
+X_t=(p,A_t,E_t,M,\mathcal{G}_t,H_t,W_t),
+\end{equation}
+donde:
+\begin{itemize}[leftmargin=1.4em]
+    \item $p$ es el planteamiento inicial o problema de analisis;
+    \item $A_t=\{a_1^{(t)},\dots,a_{n_t}^{(t)}\}$ es el conjunto finito de supuestos activos;
+    \item $E_t=\{e_1^{(t)},\dots,e_{m_t}^{(t)}\}$ es el conjunto finito de evidencias disponibles;
+    \item $M$ es el marco de referencia, compuesto por restricciones l\'ogicas, sem\'anticas, normativas o f\'isicas;
+    \item $\mathcal{G}_t$ es un modelo causal estructural v\'alido en el instante $t$;
+    \item $H_t=\{h_1^{(t)},\dots,h_{k_t}^{(t)}\}$ es el conjunto finito de hip\'otesis candidatas;
+    \item $W_t\in\R_+^7$ es el vector de pesos del funcional global, con $\|W_t\|_1=1$.
+\end{itemize}
+\end{definition}
+
+\begin{remark}
+La finitud de $A_t$, $E_t$ y $H_t$ no es una simplificacion mediocre sino una clausura matem\'atica deliberada: garantiza existencia de maximos y evita ambig\"uedades de medibilidad innecesarias en esta etapa.
+\end{remark}
+
+\begin{definition}[Modelo causal estructural]
+Se entiende por $\mathcal{G}_t$ un modelo causal estructural en el sentido de Pearl, formado por variables ex\'ogenas $U_t$, variables end\'ogenas $V_t$, ecuaciones estructurales $F_t$ y una distribucion sobre $U_t$. Se asume que una variable $\mathsf{H}_t\in V_t$ codifica la hip\'otesis activa.
+\end{definition}
+
+\begin{remark}
+Esta definicion justifica el uso del operador $\doop(\mathsf{H}_t=h)$: sin una variable estructural de hipotesis, la intervencion causal seria solo notacion retorica.
+\end{remark}
+
+\section{Operadores elementales}
+
+% CRITICA INCORPORADA: todos los operadores se tipan con dominio y codominio.
+
+\subsection{Auditoria de supuestos}
+
+\begin{definition}[Robustez de supuestos]
+Para cada supuesto $a_i^{(t)}\in A_t$ se define su fragilidad como
+\begin{equation}
+\frag(a_i^{(t)})\in[0,1],
+\end{equation}
+y su robustez como
+\begin{equation}
+\omega_i(t)=1-\frag(a_i^{(t)})\in[0,1].
+\end{equation}
+El vector de robustez de supuestos es
+\begin{equation}
+\Omega_t=(\omega_1(t),\dots,\omega_{n_t}(t)).
+\end{equation}
+\end{definition}
+
+\begin{remark}
+La eleccion $\omega_i=1-\frag(a_i)$ no es arbitraria: preserva interpretabilidad, mantiene el rango unitario y convierte debilidad epistemica en penalizacion directa.
+\end{remark}
+
+\subsection{Ponderacion de la evidencia}
+
+\begin{definition}[Peso de evidencia]
+Para cada evidencia $e_j^{(t)}\in E_t$ definimos tres evaluadores normalizados:
+\begin{equation}
+\rel(e_j^{(t)}),\quad \conf(e_j^{(t)}),\quad \ind(e_j^{(t)})\in[0,1],
+\end{equation}
+que representan relevancia, confiabilidad e independencia informativa, respectivamente. El peso de evidencia se define por
+\begin{equation}
+\eta_j(t)=\rel(e_j^{(t)})\,\conf(e_j^{(t)})\,\ind(e_j^{(t)})\in[0,1].
+\end{equation}
+El vector de pesos evidenciales es
+\begin{equation}
+\mathbf{\eta}_t=(\eta_1(t),\dots,\eta_{m_t}(t)).
+\end{equation}
+\end{definition}
+
+\begin{remark}
+La multiplicacion de factores y no su suma responde a una exigencia estricta: si una evidencia es irrelevante, no confiable o dependiente en exceso, su peso debe colapsar. La suma permitiria compensaciones que epistemicamente no son admisibles.
+\end{remark}
+
+\subsection{Consistencia logica}
+
+\begin{definition}[Consistencia de una hipotesis]
+La coherencia logica de $h\in H_t$ se representa por
+\begin{equation}
+\kappa(h,t)\in[0,1],
+\end{equation}
+con las condiciones:
+\begin{itemize}[leftmargin=1.4em]
+    \item $\kappa(h,t)=1$ si $h$ es plenamente consistente con $M$, con $A_t$ y con las inferencias aceptadas en $t$;
+    \item $\kappa(h,t)=0$ si $h$ induce contradiccion directa o incompatibilidad estructural.
+\end{itemize}
+\end{definition}
+
+\begin{remark}
+Se deja abierta la forma exacta de $\kappa$ porque depende del formalismo logico subyacente (clasico, paraconsistente, modal, etc.). Esa flexibilidad es intencional y no debilita el cierre del modelo; lo importante aqui es el dominio, el rango y el papel funcional.
+\end{remark}
+
+\section{Tres nociones distintas de soporte}
+
+% CRITICA INCORPORADA: separacion explicita entre observacion, intervencion y contrafactual.
+
+\subsection{Soporte observacional}
+
+\begin{definition}[Soporte observacional]
+Para cada $h\in H_t$ y cada canal de evidencia $e_j^{(t)}$, definimos
+\begin{equation}
+\supp_{\mathrm{obs},j}(h,t)=P\bigl(e_j^{(t)}\mid \mathsf{H}_t=h\bigr).
+\end{equation}
+El soporte observacional agregado se define por
+\begin{equation}
+\sigma_{\mathrm{obs}}(h,t)=
+\frac{\sum_{j=1}^{m_t}\eta_j(t)\,\supp_{\mathrm{obs},j}(h,t)}{\sum_{j=1}^{m_t}\eta_j(t)}.
+\end{equation}
+\end{definition}
+
+\begin{remark}
+$\sigma_{\mathrm{obs}}$ mide compatibilidad estadistica. No prueba causalidad. Esta separacion es obligatoria para evitar la falacia de identificar correlacion con mecanismo.
+\end{remark}
+
+\subsection{Soporte intervencional}
+
+\begin{definition}[Soporte intervencional]
+Sea $\mathcal{G}_t$ un modelo causal estructural. El soporte intervencional por canal se define como
+\begin{equation}
+\supp_{\mathrm{int},j}(h,t)=P_{\mathcal{G}_t}\bigl(e_j^{(t)}\mid \doop(\mathsf{H}_t=h)\bigr).
+\end{equation}
+Su agregacion ponderada es
+\begin{equation}
+\sigma_{\mathrm{int}}(h,t)=
+\frac{\sum_{j=1}^{m_t}\eta_j(t)\,\supp_{\mathrm{int},j}(h,t)}{\sum_{j=1}^{m_t}\eta_j(t)}.
+\end{equation}
+\end{definition}
+
+\begin{remark}
+La definicion anterior responde exactamente a la critica hecha al archivo previo. Antes se hablaba de causalidad, pero no se fijaba con claridad que la pregunta correcta es: \emph{que evidencia esperariamos observar si intervienieramos fijando la hipotesis como activa?}
+\end{remark}
+
+\subsection{Consistencia contrafactual}
+
+\begin{definition}[Consistencia contrafactual]
+Sea $y$ una variable de interes del modelo causal. Para $h\in H_t$, definimos un indice de consistencia contrafactual
+\begin{equation}
+\chi(h,t)=1-\E\Bigl[\bigl|Y_{\doop(\mathsf{H}_t=h)}-Y_{\doop(\mathsf{H}_t\neq h)}\bigr|\Bigr]_{\mathrm{norm}},
+\end{equation}
+donde la expresion normalizada toma valores en $[0,1]$.
+\end{definition}
+
+\begin{remark}
+$\chi(h,t)$ no mide apoyo de evidencia, sino estabilidad de consecuencias bajo comparacion entre mundos. Se incluye porque la critica anterior exigia no comprimir observacion, intervencion y contrafactualidad en una sola funcion opaca.
+\end{remark}
+
+\section{Robustez, refutacion, viabilidad e incertidumbre}
+
+\begin{definition}[Robustez de una hipotesis respecto de sus supuestos]
+Sea
+\begin{equation}
+\uses(h,t)\subseteq A_t
+\end{equation}
+el subconjunto de supuestos requeridos por $h$. Si $\uses(h,t)\neq\varnothing$, definimos
+\begin{equation}
+\rho(h,t)=\frac{1}{|\uses(h,t)|}\sum_{a_i^{(t)}\in \uses(h,t)}\omega_i(t).
+\end{equation}
+Si $\uses(h,t)=\varnothing$, fijamos $\rho(h,t)=1$.
+\end{definition}
+
+\begin{remark}
+La convencion $\rho=1$ para hipotesis sin supuestos adicionales evita una division por cero y expresa una idea epistemica coherente: si no hay dependencia suplementaria, no hay fragilidad inducida por supuestos.
+\end{remark}
+
+\begin{definition}[Resistencia adversarial]
+Sea $\mathcal{R}(h,t)$ el conjunto de refutaciones pertinentes contra $h$ en el instante $t$. Para cada $r\in\mathcal{R}(h,t)$, sea
+\begin{equation}
+\str(r,h,t)\in[0,1]
+\end{equation}
+la fuerza de la refutacion. Definimos la resistencia adversarial por
+\begin{equation}
+\alpha(h,t)=1-\sup_{r\in\mathcal{R}(h,t)}\str(r,h,t).
+\end{equation}
+\end{definition}
+
+\begin{remark}
+Se usa el supremo, y no un promedio, porque el pensamiento critico serio debe sobrevivir al \emph{mejor} contraargumento, no al promedio de objeciones mediocres.
+\end{remark}
+
+\begin{definition}[Viabilidad e incertidumbre residual]
+La viabilidad global de $h$ bajo el marco $M$ se denota por
+\begin{equation}
+\nu(h,t)\in[0,1],
+\end{equation}
+y la incertidumbre residual por
+\begin{equation}
+ u(h,t)\in[0,1].
+\end{equation}
+Para evitar signos negativos en el funcional global, definimos la certidumbre residual complementaria como
+\begin{equation}
+\bar{u}(h,t)=1-u(h,t)\in[0,1].
+\end{equation}
+\end{definition}
+
+\begin{remark}
+El uso de $\bar{u}=1-u$ en lugar de $-u$ permite que todos los componentes del vector de desempeno vivan en $[0,1]$. Esto simplifica pruebas de cotacion y hace interpretable el funcional como indice normalizado.
+\end{remark}
+
+\section{Vector de desempeno y funcional global}
+
+\begin{definition}[Vector de desempeno]
+Para cada $h\in H_t$, definimos
+\begin{equation}
+\Phi(h,t)=
+\begin{bmatrix}
+\kappa(h,t)\\
+\sigma_{\mathrm{obs}}(h,t)\\
+\sigma_{\mathrm{int}}(h,t)\\
+\rho(h,t)\\
+\alpha(h,t)\\
+\nu(h,t)\\
+\bar{u}(h,t)
+\end{bmatrix}
+\in[0,1]^7.
+\end{equation}
+\end{definition}
+
+\begin{definition}[Funcional global de evaluacion critica]
+Dado $W_t=(w_1(t),\dots,w_7(t))\in\R_+^7$ con $\|W_t\|_1=1$, el funcional global se define por
+\begin{equation}\label{eq:score}
+J(h\mid X_t)=W_t^\top \Phi(h,t)=\sum_{i=1}^7 w_i(t)\,\Phi_i(h,t).
+\end{equation}
+\end{definition}
+
+\begin{remark}
+La linealidad del funcional no es una renuncia de nivel, sino una eleccion inicial de cierre. Permite monotonicidad componente a componente, interpretacion inmediata de pesos y existencia de frontera de seleccion sin introducir no linealidades que compliquen la teoria sin necesidad. Extensiones no lineales pueden anadirse despues.
+\end{remark}
+
+\section{Admisibilidad y regla de seleccion}
+
+\begin{definition}[Conjunto admisible]
+Sea $\tau\in[0,1]^5$ un vector de umbrales criticos para coherencia, soporte observacional, soporte intervencional, robustez y viabilidad. Definimos
+\begin{equation}
+H_{\mathrm{adm}}(t)=\Bigl\{h\in H_t:\, \kappa(h,t)\ge \tau_1,\, \sigma_{\mathrm{obs}}(h,t)\ge \tau_2,\, \sigma_{\mathrm{int}}(h,t)\ge \tau_3,\, \rho(h,t)\ge \tau_4,\, \nu(h,t)\ge \tau_5\Bigr\}.
+\end{equation}
+\end{definition}
+
+\begin{definition}[Decision critica]
+Si $H_{\mathrm{adm}}(t)\neq\varnothing$, la conclusion critica en el tiempo $t$ es
+\begin{equation}
+\Psi(X_t)=\argmax_{h\in H_{\mathrm{adm}}(t)} J(h\mid X_t).
+\end{equation}
+Si $H_{\mathrm{adm}}(t)=\varnothing$, el sistema devuelve el estado \emph{indeterminacion racional}.
+\end{definition}
+
+\begin{remark}
+La salida \emph{indeterminacion racional} no es fallo del modelo; es una conclusion correcta cuando ninguna hipotesis supera los criterios minimos. Esto evita sobreconclusion, que es precisamente un defecto del pensamiento no critico.
+\end{remark}
+
+\section{Dinamica temporal y no monotonicidad}
+
+% CRITICA INCORPORADA: el tiempo ya no es indice decorativo; existe un operador T.
+
+\begin{definition}[Actualizacion de estado]
+Sea $\Delta_t=(\Delta A_t,\Delta E_t,\Delta \mathcal{G}_t)$ la informacion nueva incorporada entre $t$ y $t+1$. Definimos el operador de actualizacion
+\begin{equation}
+T:\mathcal{X}\times\mathcal{D}\to\mathcal{X},
+\qquad
+X_{t+1}=T(X_t,\Delta_t),
+\end{equation}
+donde:
+\begin{align}
+A_{t+1} &= U_A(A_t,\Delta A_t),\\
+E_{t+1} &= U_E(E_t,\Delta E_t),\\
+\mathcal{G}_{t+1} &= U_G(\mathcal{G}_t,\Delta \mathcal{G}_t),\\
+H_{t+1} &= U_H(p,A_{t+1},E_{t+1},M,\mathcal{G}_{t+1}),\\
+W_{t+1} &= U_W(W_t, X_t, \Delta_t).
+\end{align}
+\end{definition}
+
+\begin{remark}
+La no monotonicidad queda formalizada asi: puede ocurrir que $h\in H_{\mathrm{adm}}(t)$ pero $h\notin H_{\mathrm{adm}}(t+1)$ si nueva evidencia, nuevos supuestos o un nuevo modelo causal reducen alguno de sus puntajes bajo el umbral.
+\end{remark}
+
+\section{Propiedades te\'oricas con justificacion}
+
+\begin{proposition}[Cota del funcional]
+Para todo $h\in H_t$ se cumple
+\begin{equation}
+0\le J(h\mid X_t)\le 1.
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Por construccion, cada componente de $\Phi(h,t)$ pertenece a $[0,1]$ y cada peso $w_i(t)$ es no negativo. Como $\sum_i w_i(t)=1$, la expresion \eqref{eq:score} es una combinacion convexa de numeros en $[0,1]$. Por lo tanto, el resultado tambien pertenece a $[0,1]$.
+\end{proof}
+
+\begin{proposition}[Monotonicidad componente a componente]
+Fijado $t$, si dos hipotesis $h,g\in H_t$ satisfacen
+\begin{equation}
+\Phi_i(h,t)\ge \Phi_i(g,t)\quad \text{para todo }i\in\{1,\dots,7\},
+\end{equation}
+entonces
+\begin{equation}
+J(h\mid X_t)\ge J(g\mid X_t).
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Se resta miembro a miembro:
+\begin{equation}
+J(h\mid X_t)-J(g\mid X_t)=\sum_{i=1}^7 w_i(t)\bigl(\Phi_i(h,t)-\Phi_i(g,t)\bigr).
+\end{equation}
+Cada sumando es no negativo porque $w_i(t)\ge 0$ y $\Phi_i(h,t)-\Phi_i(g,t)\ge 0$. Luego la suma total es no negativa.
+\end{proof}
+
+\begin{proposition}[Existencia de seleccion optima]
+Si $H_{\mathrm{adm}}(t)\neq\varnothing$, entonces existe al menos una hipotesis $h^*_t\in H_{\mathrm{adm}}(t)$ tal que
+\begin{equation}
+J(h^*_t\mid X_t)=\max_{h\in H_{\mathrm{adm}}(t)}J(h\mid X_t).
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+$H_{\mathrm{adm}}(t)$ es un subconjunto de $H_t$ y por definicion $H_t$ es finito. Toda funcion real sobre un conjunto finito alcanza su maximo. Aplicando esto a $J(\cdot\mid X_t)$ se obtiene la existencia de $h^*_t$.
+\end{proof}
+
+\begin{proposition}[Penalizacion por mejor refutacion]
+Sea $h\in H_t$. Si existe $r^*\in\mathcal{R}(h,t)$ tal que $\str(r^*,h,t)=1$, entonces
+\begin{equation}
+\alpha(h,t)=0.
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Por definicion,
+\begin{equation}
+\alpha(h,t)=1-\sup_{r\in\mathcal{R}(h,t)}\str(r,h,t).
+\end{equation}
+Si existe una refutacion de fuerza 1, entonces el supremo es 1 y por tanto $\alpha(h,t)=0$.
+\end{proof}
+
+\begin{remark}
+Esta proposicion justifica una conclusion central: una sola refutacion decisiva debe ser suficiente para colapsar la resistencia adversarial. Eso es exactamente lo que se espera de un esquema de pensamiento critico fuerte.
+\end{remark}
+
+\section{Convergencia: condicion suficiente bien formulada}
+
+% CRITICA INCORPORADA: se reemplaza la pseudoestabilidad por una condicion suficiente real.
+
+\begin{definition}[Espacio metrico de estados]
+Sea $(\mathcal{X},d)$ un espacio metrico completo que contiene todos los estados $X_t$ admisibles.
+\end{definition}
+
+\begin{theorem}[Convergencia bajo contraccion]
+Supongase que existe $\lambda\in(0,1)$ tal que, para todo par de estados $X,Y\in\mathcal{X}$,
+\begin{equation}\label{eq:contract}
+d\bigl(T(X,\Delta),T(Y,\Delta)\bigr)\le \lambda\, d(X,Y)
+\end{equation}
+para toda innovacion fija $\Delta$ en una clase estacionaria de actualizacion. Supongase ademas que, para cada hipotesis persistente $h$, la funcion $X\mapsto J(h\mid X)$ es continua. Entonces:
+\begin{enumerate}[label=(\roman*),leftmargin=1.7em]
+    \item existe un unico punto fijo $X^*\in\mathcal{X}$ tal que $T(X^*,\Delta)=X^*$;
+    \item para todo $X_0\in\mathcal{X}$, la sucesion $X_t$ converge a $X^*$;
+    \item para toda hipotesis persistente $h$, la sucesion $J(h\mid X_t)$ converge a $J(h\mid X^*)$.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+La condicion \eqref{eq:contract} implica que $T(\cdot,\Delta)$ es una contraccion sobre el espacio metrico completo $(\mathcal{X},d)$. Por el teorema del punto fijo de Banach, existe un unico punto fijo $X^*$ y toda orbita iniciada en $X_0$ converge a $X^*$. La continuidad de $J(h\mid X)$ respecto a $X$ implica entonces, por paso al limite, que
+\begin{equation}
+J(h\mid X_t)\longrightarrow J(h\mid X^*).
+\end{equation}
+\end{proof}
+
+\begin{remark}
+Esta es una conclusion realmente justificable. No se afirma convergencia sin hipotesis; se afirma una \emph{condicion suficiente} precisa. Esto corrige de forma formal la debilidad del archivo previo.
+\end{remark}
+
+\begin{corollary}[Estabilizacion de la decision bajo separacion de maximos]
+Supongase ademas que en el punto fijo existe una hipotesis unica $h^*$ tal que
+\begin{equation}
+J(h^*\mid X^*)>J(h\mid X^*)\quad \text{para todo } h\neq h^*.
+\end{equation}
+Entonces existe $t_0\in\N$ tal que, para todo $t\ge t_0$,
+\begin{equation}
+\Psi(X_t)=h^*.
+\end{equation}
+\end{corollary}
+
+\begin{proof}
+Como $J(h\mid X_t)\to J(h\mid X^*)$ para cada hipotesis persistente, y la desigualdad en el punto fijo es estricta, existe un margen positivo entre $h^*$ y cualquier competidor. Por convergencia puntual, a partir de cierto tiempo ese margen se preserva, y la regla de seleccion devuelve de forma estable a $h^*$.
+\end{proof}
+
+\section{Algoritmo matematico sintetico}
+
+\begin{enumerate}[leftmargin=1.7em,label=\textbf{Paso \arabic*.}]
+    \item Construir el estado $X_t=(p,A_t,E_t,M,\mathcal{G}_t,H_t,W_t)$.
+    \item Auditar supuestos y obtener $\Omega_t$.
+    \item Ponderar evidencia y obtener $\mathbf{\eta}_t$.
+    \item Para cada $h\in H_t$, calcular $\kappa(h,t)$, $\sigma_{\mathrm{obs}}(h,t)$, $\sigma_{\mathrm{int}}(h,t)$, $\rho(h,t)$, $\alpha(h,t)$, $\nu(h,t)$ y $\bar u(h,t)$.
+    \item Formar el vector $\Phi(h,t)$ y evaluar $J(h\mid X_t)$.
+    \item Construir el conjunto admisible $H_{\mathrm{adm}}(t)$.
+    \item Si $H_{\mathrm{adm}}(t)=\varnothing$, devolver \emph{indeterminacion racional}.
+    \item Si $H_{\mathrm{adm}}(t)\neq\varnothing$, devolver $\Psi(X_t)=\argmax_{h\in H_{\mathrm{adm}}(t)}J(h\mid X_t)$.
+    \item Si llega nueva informacion $\Delta_t$, actualizar $X_{t+1}=T(X_t,\Delta_t)$ y repetir.
+\end{enumerate}
+
+\section{Cierre tecnico}
+
+La conclusion general es la siguiente. El borrador previo era conceptualmente prometedor, pero mezclaba niveles de formalizacion. La version presente corrige eso de forma explicita y justificada:
+\begin{itemize}[leftmargin=1.5em]
+    \item la geometria del problema es vectorial, no tensorial;
+    \item la causalidad queda separada de la asociacion;
+    \item la dinamica temporal queda definida por un operador de actualizacion;
+    \item la decision final se formula como seleccion optimizante sobre hipotesis admisibles;
+    \item la convergencia se afirma solo bajo hipotesis suficientes correctamente enunciadas.
+\end{itemize}
+
+Estas conclusiones no son opiniones de estilo. Cada una se deduce de la tipificacion de objetos, de la semantica causal adoptada y de los resultados demostrados en las proposiciones y el teorema central.
+
+\end{document}

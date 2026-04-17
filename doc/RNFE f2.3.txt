@@ -1,0 +1,629 @@
+Parto del bloque de definición de RNFE f2.2 y lo reestructuro integrando los nuevos módulos fractales (MFE, TFI, memoria IFS–FDE, perceptores fractales y política de modos), sin romper nada: todos los términos nuevos son aditivos y, si se ponen a cero sus pesos, recuperas exactamente f2.2. 
+
+A continuación tienes el bloque LaTeX listo para producción (puedes pegarlo como reemplazo/actualización de la sección de H-Net y coherencia fractal):
+
+```latex
+% ============================================================
+\section{Reindexación de HNet y formalización jerárquica H-Net (dynamic chunking) con mejoras fractales}
+% ============================================================
+
+% En esta sección:
+% - Renombramos la red homeostática de RNFE para evitar colisión con el H-Net jerárquico.
+% - Introducimos el operador H-Net de chunking dinámico como módulo de Forma y front–end del núcleo secuencial F_\theta.
+% - Integramos sus pérdidas (ratio loss) y jerarquía multi–escala en PAI, Edge, F–M–S y MRO.
+% - Añadimos los módulos fractales de meta–aprendizaje y memoria (MFE, TFI, memoria IFS–FDE, perceptores fractales).
+% - Formalizamos una política fractal de modos de razonamiento acoplada al espectro multi–escala.
+
+% ------------------------------------------------------------
+\subsection{Renombrado de la red homeostática RNFE}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Red de control homeostático \texorpdfstring{$\Hctrl$}{H\_ctrl}]
+En las versiones previas de RNFE se utilizaba la notación $\Hnet$ para la red homeostática que observa la telemetría física y estructural
+\[
+\mathcal{T}_t = \big(\VRAM_t,\ \TEMP_t,\ \LAT_t,\ \spec{\J_t},\ \widehat{\FD}_t,\ \IoC_t,\ \dots\big)
+\]
+y decide acciones de control (modos de razonamiento activos, rutas, budgets de energía, granularidad, etc.).
+
+A partir de esta versión, renombramos ese módulo a
+\[
+\Hctrl : \mathcal{T}_t \mapsto a^{\text{ctrl}}_t,
+\]
+donde $a^{\text{ctrl}}_t$ parametriza decisiones de control homeostático (por ejemplo, límites de profundidad, activación de agentes, restricción de imaginación, tolerancias de Edge). Esta red sigue implementando el esquema de MPC robusto y las restricciones $\safe$ descritas en secciones anteriores, pero nunca más se denota como H-Net.
+\end{definitionenv}
+
+\begin{remark}[Convención de notación]
+Dondequiera que en versiones anteriores aparezca $\Hnet$ como red homeostática, debe entenderse ahora $\Hctrl$. La notación \emph{H-Net} (sin subíndice) se reserva estrictamente para la red jerárquica con chunking dinámico que definimos a continuación.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Arquitectura jerárquica H-Net con chunking dinámico}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Representaciones jerárquicas por etapas]
+Sea una secuencia de entrada de longitud $L_0$,
+\[
+x^{(0)}_{1:L_0} = \big(x^{(0)}_1,\dots,x^{(0)}_{L_0}\big),
+\quad x^{(0)}_t \in \R^{d_0},
+\]
+por ejemplo bytes embebidos u observaciones de mundo a resolución fina. H-Net construye una familia jerárquica de secuencias
+\[
+x^{(s)}_{1:L_s} = \big(x^{(s)}_1,\dots,x^{(s)}_{L_s}\big),
+\quad x^{(s)}_t \in \R^{d_s},
+\quad s=0,1,\dots,S,
+\]
+donde $L_{s+1} < L_s$ para $s<S$, y $S$ es el número de niveles jerárquicos.
+\end{definitionenv}
+
+\begin{definitionenv}[Router y puntuaciones de frontera]
+En cada nivel $s\in\{0,\dots,S-1\}$, se define un \emph{router} parametrizado por $\phi^{(s)}$ que, para $t=2,\dots,L_s$, produce una puntuación de frontera
+\[
+p^{(s)}_t
+=
+\sigma\!\big( r^{(s)}(x^{(s)}_t,x^{(s)}_{t-1};\phi^{(s)}) \big)
+\in (0,1),
+\]
+donde $\sigma$ es una función sigmoide y $r^{(s)}$ puede depender de, por ejemplo, la similitud coseno entre $x^{(s)}_t$ y $x^{(s)}_{t-1}$:
+\[
+r^{(s)}(x^{(s)}_t,x^{(s)}_{t-1})
+=
+\beta^{(s)}\,\cos\big(x^{(s)}_t,x^{(s)}_{t-1}\big)+b^{(s)}.
+\]
+Definimos indicadores de frontera ``duros'' $b^{(s)}_t\in\{0,1\}$ mediante una relajación tipo straight–through estimator (STE):
+\[
+b^{(s)}_t
+=
+\mathbf{1}\big[p^{(s)}_t \ge \tau^{(s)}\big],
+\quad t=2,\dots,L_s,
+\]
+donde $\tau^{(s)}\in(0,1)$ es un umbral aprendido o fijado, y en backprop se usa $\partial b^{(s)}_t / \partial p^{(s)}_t \approx 1$ en la vecindad de $\tau^{(s)}$.
+\end{definitionenv}
+
+\begin{definitionenv}[Downsampling por chunking dinámico]
+Sea
+\[
+\mathcal{B}^{(s)} = \big\{t\in\{1,\dots,L_s\} : b^{(s)}_t = 1\big\}\cup\{1\},
+\]
+el conjunto de índices marcados como frontera (siempre incluimos $t=1$). Ordenando
+\[
+\mathcal{B}^{(s)} = \{t^{(s)}_1 < t^{(s)}_2 < \dots < t^{(s)}_{L_{s+1}}\},
+\]
+definimos la secuencia comprimida
+\[
+x^{(s+1)}_k := x^{(s)}_{t^{(s)}_k},
+\quad k=1,\dots,L_{s+1}.
+\]
+El \emph{ratio de compresión} efectivo en el nivel $s$ es
+\[
+r^{(s)} := \frac{L_{s+1}}{L_s} \in (0,1].
+\]
+\end{definitionenv}
+
+\begin{definitionenv}[Upsampling y suavizado]
+Para reconstruir una secuencia a resolución $L_s$ a partir de $x^{(s+1)}_{1:L_{s+1}}$, definimos un mapeo
+\[
+\mathrm{Up}^{(s)} : \R^{L_{s+1}\times d_{s+1}} \to \R^{L_s\times d_{s+1}},
+\]
+que asigna a cada posición $t$ el embedding del chunk vigente. Sea
+\[
+\kappa^{(s)}(t) := \max\{k : t^{(s)}_k \le t\},
+\]
+entonces
+\[
+\tilde x^{(s+1)}_t := x^{(s+1)}_{\kappa^{(s)}(t)},\quad t=1,\dots,L_s.
+\]
+Para evitar discontinuidades, introducimos un suavizado exponencial:
+\[
+\bar x^{(s+1)}_t
+=
+P^{(s)}_t\,\tilde x^{(s+1)}_t
++
+\big(1-P^{(s)}_t\big)\bar x^{(s+1)}_{t-1},
+\quad t\ge 2,
+\]
+con $\bar x^{(s+1)}_1 = \tilde x^{(s+1)}_1$ y pesos $P^{(s)}_t\in[0,1]$ derivados de $p^{(s)}_t$ o de una función de confianza en la frontera.
+\end{definitionenv}
+
+\begin{definitionenv}[Arquitectura jerárquica H-Net]
+Definimos la red jerárquica H-Net (dynamic chunking) como el operador
+\[
+\Hnet_{\phi} : \R^{L_0\times d_0} \to \R^{L_S\times d_S},
+\]
+compuesto por:
+\begin{itemize}
+  \item Encoders $E^{(s)}$ (por ejemplo, bloques Mamba o transformadores) que producen $x^{(s)}$ a partir de $x^{(s-1)}$ y, cuando corresponde, de $\bar x^{(s)}$ reinyectado,
+  \item Routers y módulos de chunking dinámico $(p^{(s)}_t,b^{(s)}_t)$ y downsampling $x^{(s)} \mapsto x^{(s+1)}$,
+  \item Un \emph{main network} $M$ que opera en la secuencia de nivel más alto $x^{(S)}$ (por ejemplo, un modelo grande autoregresivo o DEQ secuencial),
+  \item Decoders $D^{(s)}$ y upsamplers $\mathrm{Up}^{(s)}$ que proyectan información de vuelta a niveles de resolución inferiores cuando sea necesario.
+\end{itemize}
+Parametrizamos todo este stack por $\phi$, separándolo de los parámetros $\thetaPar$ del núcleo RNFE restante.
+\end{definitionenv}
+
+% ------------------------------------------------------------
+\subsection{Pérdida de ratio y coste jerárquico}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Pérdida de ratio por nivel]
+Sea $\rho^{(s)}\in(0,1]$ el ratio objetivo para el nivel $s$, interpretado como fracción deseada de posiciones conservadas. Definimos la \emph{ratio loss} por nivel:
+\[
+\Lratio^{(s)}
+:=
+\big( r^{(s)} - \rho^{(s)} \big)^2,
+\qquad
+r^{(s)} = \frac{L_{s+1}}{L_s}.
+\]
+El coste jerárquico total se define como
+\[
+\Lratio = \sum_{s=0}^{S-1} \lambda^{(s)}_{\text{ratio}}\, \Lratio^{(s)},
+\]
+con pesos $\lambda^{(s)}_{\text{ratio}}\ge 0$ que reflejan la tolerancia a compresión en cada escala.
+\end{definitionenv}
+
+\begin{remark}[Interpretación física y fractal]
+$\Lratio$ captura un compromiso entre:
+(i) reducir el número de vectores activos (menos FLOPs, menor $\Wdis$),
+(ii) preservar suficiente resolución semántica para que \IoC y las métricas de semiótica (SMG) no colapsen.
+Desde la perspectiva fractal, los ratios $r^{(s)}$ controlan un espectro multi–escala análogo a una cascada de IFS, donde los niveles profundos corresponden a estructuras de mayor escala (menor resolución temporal/espacial, mayor agregación semántica).
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{H-Net como módulo de Forma y front–end del núcleo secuencial}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Módulo de Forma basado en H-Net]
+Sea $y_t$ la observación del mundo en el episodio $t$ (texto, series temporales, etc.), y $E_{\text{in}}$ un embedding inicial (por ejemplo, mapeo de bytes a $\R^{d_0}$). Definimos:
+\[
+x^{(0)}_{1:L_0} := E_{\text{in}}(y_t),
+\quad
+z^{\text{F}}_{1:L_S} := \Hnet_{\phi}\big(x^{(0)}_{1:L_0}\big).
+\]
+El estado de \emph{Forma} en el episodio $t$ queda entonces
+\[
+F_t := \big(z^{\text{F}}_{1:L_S},\, \{r^{(s)}\}_{s=0}^{S-1},\, \{p^{(s)}_t\}\big),
+\]
+que resume no sólo los embeddings jerárquicos, sino también la estructura de chunking dinámico (fronteras y ratios) relevante para Edge y \Hctrl.
+\end{definitionenv}
+
+\begin{definitionenv}[Composición con el núcleo secuencial \texorpdfstring{$F_\theta$}{F\_theta}]
+Sea $F^{\text{core}}_\theta$ el núcleo secuencial/de equilibrio (DEQ/mamba/transformer) definido en el resto de RNFE, que opera sobre secuencias ya normalizadas:
+\[
+h_{1:L_S} = F^{\text{core}}_\theta\big(z^{\text{F}}_{1:L_S}\big).
+\]
+Definimos el operador compuesto
+\[
+\widehat{F}_{\Theta}
+:=
+F^{\text{core}}_\theta \circ \Hnet_{\phi},
+\quad
+\Theta := (\thetaPar,\phi),
+\]
+de forma que el núcleo RNFE “efectivo” actúa directamente sobre entradas crudas:
+\[
+h_{1:L_S}
+=
+\widehat{F}_{\Theta}\big(x^{(0)}_{1:L_0}\big).
+\]
+\end{definitionenv}
+
+\begin{remark}
+En esta formulación, $\Hnet_{\phi}$ es parte estructural del ADN: no es un preprocesamiento externo, sino un sub–módulo explícito del núcleo, cuyos parámetros $\phi$ se optimizan conjuntamente con $\thetaPar$ bajo PAI, Edge, S–I–E y las nuevas pérdidas jerárquicas.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Integración en el Principio de Acción Informacional (PAI)}
+% ------------------------------------------------------------
+
+Sea $\mathcal{A}[\thetaPar(\cdot)]$ el funcional de acción informacional previamente definido, con términos de variación de información, complejidad estructural y coste meta–físico. Extendemos ahora $\thetaPar$ a $\Theta=(\thetaPar,\phi)$ e incorporamos el coste jerárquico:
+
+\begin{definitionenv}[Acción informacional con coste jerárquico]
+Definimos el funcional
+\[
+\mathcal{A}_{\text{H-Net}}[\Theta(\cdot)]
+=
+\int_0^T
+\Big[
+-\dot I\big(\Theta,t\big)
++
+\lambda_{\text{MDL}}\,\Cstruct\big(\Theta,t\big)
++
+\lambda_{\text{meta}}(t)\,\Cmeta\big(\Theta,t\big)
++
+\lambda_{\text{ratio}}\, \Lratio\big(\Theta,t\big)
+\Big] dt.
+\]
+Las ecuaciones de Euler–Lagrange se modifican en consecuencia, acoplando los gradientes de $\phi$ (H-Net jerárquico) con los de $\thetaPar$ (núcleo secuencial y resto de módulos RNFE).
+\end{definitionenv}
+
+\begin{remark}[Enchufe con Edge y \texorpdfstring{$\Hctrl$}{H\_ctrl}]
+Los ratios $r^{(s)}$ y la telemetría de chunking (densidad de fronteras, varianza de $p^{(s)}_t$, etc.) se incorporan en la telemetría $\mathcal{T}_t$ que observa \Hctrl y en la métrica fractal (\FD, \RR, \DET) usada por Edge. De este modo, decisiones de compresión excesiva o errática se reflejan como aumentos en $\mathcal{B}_{\text{safe}}$ o degradaciones en \IoC, forzando a \Hctrl a actuar (por ejemplo, relajando compresión, reduciendo profundidad del main network o cambiando de modo de razonamiento).
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Integración con F–M–S y semiótica (SMG)}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Pipeline F–M–S con H-Net]
+El cierre Forma–Mundo–Significado se reescribe, para cada episodio $t$, como:
+\[
+y_t \xrightarrow{E_{\text{in}}}
+x^{(0)}_{1:L_0}
+\xrightarrow{\Hnet_{\phi}}
+z^{\text{F}}_{1:L_S}
+\xrightarrow{\text{F$\to$M}}
+M_t
+\xrightarrow{\text{M$\to$S}}
+S_t,
+\]
+donde:
+\begin{itemize}
+  \item $F_t$ está dado por los estados jerárquicos $z^{\text{F}}$ y las estructuras de chunking,
+  \item $M_t$ es el estado de modelo del mundo (\CGWM) actuando sobre $z^{\text{F}}$ (variables latentes, relaciones causales, contrafactuales),
+  \item $S_t$ es la configuración del grafo semiótico \SMG construido a partir de $M_t$ y de los embeddings en $z^{\text{F}}$ (nodos de concepto, metas, compromisos, etc.).
+\end{itemize}
+\end{definitionenv}
+
+\begin{remark}[Impacto en las métricas de cierre]
+La métrica de cierre $\IoC$ se ve ahora afectada por:
+(i) la calidad de las representaciones jerárquicas $z^{\text{F}}$,
+(ii) la consistencia de chunking (fronteras alineadas con cambios semánticos),
+(iii) la integración de $z^{\text{F}}$ en \CGWM y \SMG.
+Errores sistemáticos en las fronteras (por ejemplo, cortar unidades semánticas “a la mitad”) se traducen en penalizaciones en \GC, \CPS, \kgeo/\ktop y, por tanto, en la acción informacional y las decisiones S–I–E.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Coherencia fractal y modos de razonamiento con H-Net}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Espectro fractal jerárquico inducido por H-Net]
+Asociamos a cada nivel $s$ los siguientes invariantes:
+\[
+\mathcal{F}^{(s)}_t
+:=
+\big(
+L_s,\ r^{(s)}_t,\ \widehat{\FD}^{(s)}_t,\ \RR^{(s)}_t,\ \DET^{(s)}_t
+\big),
+\]
+donde $\widehat{\FD}^{(s)}_t$ es la dimensión fractal estimada en el nivel $s$ y $(\RR^{(s)}_t,\DET^{(s)}_t)$ provienen de análisis de recurrencia sobre las trayectorias en dicho nivel. El conjunto
+\[
+\big\{\mathcal{F}^{(s)}_t\big\}_{s=0}^{S}
+\]
+define un espectro multi–escala que relaciona granularidad temporal/espacial, complejidad fractal y estabilidad en cada escala.
+\end{definitionenv}
+
+\begin{definitionenv}[Asignación de modos de razonamiento a niveles]
+Sea $\mathcal{R}$ el conjunto de modos de razonamiento (DED, IND, ABD, CAU, CTF, ANA, CSTR/OPT, PLAN, RAZ, EVO, etc.). Definimos una asignación
+\[
+\chi : \mathcal{R} \to \{0,1,\dots,S\},
+\]
+que indica en qué nivel jerárquico opera principalmente cada modo (por ejemplo, DED/IND en niveles bajos, CAU/CTF/PLAN en niveles intermedios y RAZ/EVO en niveles altos). El scheduler de modos, junto con \Hctrl, decide en tiempo de ejecución qué subconjunto de niveles y modos activar dada la telemetría $\mathcal{F}^{(s)}_t$ y $\mathcal{T}_t$.
+\end{definitionenv}
+
+\begin{remark}[Correspondencia fractal entre niveles y modos]
+La existencia de mapas de correspondencia bi–Lipschitz entre atractores de distintos modos, tal como se formalizó en la sección de correspondencia fractal entre modos, se apoya ahora en la arquitectura concreta de H-Net: las transiciones entre niveles (down/upsampling) y las interacciones entre $F^{\text{core}}_\theta$ y $\Hnet_{\phi}$ proporcionan la estructura de “escalas” sobre la cual esos mapas se construyen.
+\end{remark}
+
+% ============================================================
+% NUEVAS MEJORAS FRACTALES (SIN ROMPER RNFE f2.2)
+% ============================================================
+
+% ------------------------------------------------------------
+\subsection{Mapa Fractal de Entrenabilidad (MFE) para los agentes de hiperparámetros}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Espacio de hiperparámetros y región de entrenabilidad]
+Sea $\Lambda \subset \R^d$ el espacio de hiperparámetros relevantes (por ejemplo, tasas de aprendizaje, coeficientes de regularización, escalas de inicialización). Para cada módulo $m$ (H-Net, núcleo secuencial, perceptores, etc.) definimos un procedimiento de entrenamiento $\Train_m(\lambda)$ y una etiqueta binaria de éxito
+\[
+Y_m(\lambda) \in \{0,1\},
+\]
+donde $Y_m(\lambda)=1$ denota convergencia satisfactoria según criterios internos (pérdida, estabilidad, \IoC, etc.).
+La región de entrenabilidad para $m$ se define como
+\[
+\mathcal{S}_m := \{\lambda \in \Lambda : Y_m(\lambda)=1\}.
+\]
+Su frontera
+\[
+\partial\mathcal{S}_m := \overline{\mathcal{S}_m} \setminus \mathring{\mathcal{S}}_m
+\]
+es, en general, un conjunto fractal de dimensión no entera.
+\end{definitionenv}
+
+\begin{definitionenv}[Aproximación discreta y dimensión fractal]
+Sea $G \subset \Lambda$ una rejilla finita de hiperparámetros explorada por el Agente de Hiperparámetros (AH) y/o ADC–PRIME. Definimos
+\[
+G_m^{(1)} := \{\lambda \in G : Y_m(\lambda)=1\},\quad
+G_m^{(0)} := \{\lambda \in G : Y_m(\lambda)=0\}.
+\]
+Un punto de frontera discreta es aquel cuya vecindad contiene al menos un punto de cada clase:
+\[
+B_m := \Big\{\lambda \in G : \exists \lambda'\in G_m^{(1)},\ \lambda''\in G_m^{(0)}\ \text{con}\ \|\lambda-\lambda'\|\le \varepsilon,\ \|\lambda-\lambda''\|\le \varepsilon\Big\}.
+\]
+La dimensión fractal aproximada de la frontera se puede estimar mediante box–counting:
+\[
+\hat d_{f,m}
+:=
+\frac{\log N_m(\varepsilon_2) - \log N_m(\varepsilon_1)}
+     {\log(\varepsilon_1^{-1}) - \log(\varepsilon_2^{-1})},
+\]
+donde $N_m(\varepsilon)$ es el número de cajas de lado $\varepsilon$ necesarias para cubrir $B_m$ y $\varepsilon_1,\varepsilon_2$ dos escalas de muestreo.
+\end{definitionenv}
+
+\begin{definitionenv}[Mapa Fractal de Entrenabilidad (MFE)]
+Definimos el \emph{Mapa Fractal de Entrenabilidad} de módulo $m$ como el conjunto de tuplas
+\[
+\mathcal{M}^{(m)}_{\text{train}}
+:=
+\big\{ (\lambda_i, Y_m(\lambda_i), d_{m}(\lambda_i), \hat d_{f,m}) \big\}_{i},
+\]
+donde $d_{m}(\lambda_i)$ es una estimación de la distancia de $\lambda_i$ a la frontera discreta $B_m$ (por ejemplo, distancia mínima a un punto de clase opuesta) y $\hat d_{f,m}$ la dimensión fractal estimada. El MFE global de RNFE es la colección
+\[
+\mathcal{M}_{\text{MFE}} := \{\mathcal{M}^{(m)}_{\text{train}}\}_m.
+\]
+\end{definitionenv}
+
+\begin{definitionenv}[Coste de operación en el borde fractal]
+Para cada módulo $m$ definimos una distancia deseada $d^*_m>0$ al borde (demasiado cerca $\Rightarrow$ riesgo de inestabilidad, demasiado lejos $\Rightarrow$ baja plasticidad). Si $\lambda^{(m)}_t$ es el vector de hiperparámetros actual elegido por AH/ADC–PRIME para $m$ en el tiempo $t$, definimos el coste:
+\[
+\CMFE(\Theta,t)
+:=
+\sum_m \omega_m
+\Big( d_{m}(\lambda^{(m)}_t) - d^*_m \Big)^2,
+\]
+con pesos $\omega_m\ge 0$.
+\end{definitionenv}
+
+\begin{remark}[Integración de MFE en PAI]
+El término $\CMFE$ se añade a la acción informacional con un peso global $\lambda_{\text{MFE}}\ge 0$:
+\[
+\mathcal{A}_{\text{MFE}}[\Theta(\cdot)]
+=
+\int_0^T
+\lambda_{\text{MFE}}\,
+\CMFE(\Theta,t)\, dt.
+\]
+Si $\lambda_{\text{MFE}}=0$ se recupera exactamente la formulación de RNFE f2.2; si $\lambda_{\text{MFE}}>0$, los agentes de hiperparámetros son empujados a operar en una banda controlada alrededor del borde fractal de entrenabilidad, maximizando plasticidad sin perder estabilidad.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Tracker de Frontera de Información (TFI) acoplado al espectro fractal}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Indicador de propagación de información por nivel]
+Para cada nivel $s$ definimos un Jacobiano efectivo $J^{(s)}_t$ del operador compuesto $\widehat{F}_\Theta$ restringido a las variables asociadas a dicho nivel. Sea
+\[
+\kappa^{(s)}_{\text{info}}(t)
+:=
+\rho\big(J^{(s)}_t\big),
+\]
+donde $\rho(\cdot)$ denota, por ejemplo, el radio espectral o la mayor singular de $J^{(s)}_t$. Este escalar mide si las perturbaciones se expanden ($\kappa>1$) o se contraen ($\kappa<1$) en esa escala.
+\end{definitionenv}
+
+\begin{definitionenv}[Frontera crítica y coste de alineamiento]
+Para cada nivel $s$ definimos un valor crítico aprendido $\kappa^{(s)}_{\text{crit}}$ que aproxima el borde entre régimen ordenado y caótico óptimo para propagación de información. Definimos el coste de desalineamiento:
+\[
+\Cinfo(\Theta,t)
+:=
+\sum_{s=0}^{S}
+\beta_s\,
+\big(
+\kappa^{(s)}_{\text{info}}(t) - \kappa^{(s)}_{\text{crit}}
+\big)^2,
+\]
+con pesos $\beta_s\ge 0$.
+\end{definitionenv}
+
+\begin{remark}[Integración de TFI en PAI y telemetría]
+El término $\Cinfo$ se incorpora a la acción con peso $\lambda_{\text{info}}\ge 0$:
+\[
+\mathcal{A}_{\text{info}}[\Theta(\cdot)]
+=
+\int_0^T
+\lambda_{\text{info}}\,
+\Cinfo(\Theta,t)\, dt.
+\]
+Además, los valores $\kappa^{(s)}_{\text{info}}(t)$ se añaden a la telemetría $\mathcal{T}_t$ observada por \Hctrl, que puede, por ejemplo, reducir profundidad efectiva o activar modos de razonamiento más conservadores si $\kappa^{(s)}_{\text{info}}$ se aleja demasiado del régimen crítico.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Módulo de memoria fractal IFS–FDE para trayectorias de mundo}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Sistema de funciones iteradas (IFS) para memoria]
+Sea $\{y_k\}_{k=0}^{T}$ una serie temporal vectorial que RNFE desea memorizar (por ejemplo, precios, señales de entorno, observables internos). Definimos un sistema de funciones iteradas (IFS) con $K$ mapas contractivos
+\[
+w_i(z)
+=
+A_i z + b_i,\quad i=1,\dots,K,
+\]
+donde $A_i\in\R^{d\times d}$ satisfacen $\rho(A_i)<1$ y $b_i\in\R^d$. El conjunto de parámetros
+\[
+\psi := (A_1,\dots,A_K,b_1,\dots,b_K)
+\]
+define un atractor fractal $A(\psi)$ asociado al IFS, que puede usarse para construir funciones de interpolación fractal.
+\end{definitionenv}
+
+\begin{definitionenv}[Curva de interpolación fractal \texorpdfstring{$\Gamma_\psi$}{Gamma}]
+Sea $\Gamma_\psi:[0,1]\to\R^d$ una curva de interpolación fractal (por ejemplo, un spline cúbico fractal racional) parametrizada por $\psi$, tal que para nodos normalizados $u_k := k/T$ se busca aproximar
+\[
+\Gamma_\psi(u_k) \approx y_k,\quad k=0,\dots,T.
+\]
+Definimos la pérdida de ajuste fractal
+\[
+\LIFS(\psi)
+:=
+\sum_{k=0}^{T}
+\big\|
+y_k - \Gamma_\psi(u_k)
+\big\|^2
++ \gamma\,R(\psi),
+\]
+donde $R(\psi)$ es un término de regularización (por ejemplo, penalización sobre las normas de $A_i$ para reforzar la contractividad) y $\gamma\ge 0$.
+\end{definitionenv}
+
+\begin{definitionenv}[Optimización evolutiva fractal (FDE)]
+Sea una población $\{\psi^{(j)}\}_j$ de candidatos de parámetros. Un \emph{Fractal Differential Evolution} (FDE) es un esquema de actualización iterativa
+\[
+\psi^{(j)}_{\text{new}}
+=
+\psi^{(j)}_{\text{base}}
++
+\eta_{\text{FDE}}\,
+\Big(
+\psi^{(j_1)} - \psi^{(j_2)}
+\Big),
+\]
+con selección y reemplazo basados en la reducción de $\LIFS(\psi)$ (mantenemos los mejores individuos), donde $\eta_{\text{FDE}}>0$ es una tasa efectiva de mutación diferencial. En términos RNFE, el detalle del operador FDE puede abstraerse como una caja negra que produce
+\[
+\psi^* := \argmin_{\psi}\ \LIFS(\psi).
+\]
+\end{definitionenv}
+
+\begin{definitionenv}[Estado de memoria fractal y coste asociado]
+Para cada señal $j$ de interés (serie temporal, trayectoria latente, etc.) definimos un estado de memoria fractal
+\[
+\Xi^{(j)}_t := \psi^{*(j)}_t,
+\]
+obtenido ajustando un IFS–spline fractal a la ventana de datos relevante. El coste total de memoria fractal en el episodio $t$ es
+\[
+\CIFS(\Theta,t)
+:=
+\sum_j \omega^{\text{IFS}}_j\,
+\LIFS\big(\psi^{*(j)}_t\big),
+\]
+con pesos $\omega^{\text{IFS}}_j\ge 0$.
+\end{definitionenv}
+
+\begin{remark}[Integración de la memoria IFS en RNFE]
+Los parámetros $\Xi^{(j)}_t$ se incorporan al estado de Mundo $M_t$ como representaciones compactas de memoria de largo plazo. La acción informacional recibe un término adicional
+\[
+\mathcal{A}_{\text{IFS}}[\Theta(\cdot)]
+=
+\int_0^T
+\lambda_{\text{IFS}}\,
+\CIFS(\Theta,t)\, dt,
+\]
+con $\lambda_{\text{IFS}}\ge 0$. Este término fuerza a RNFE a descubrir representaciones fractales eficientes de trayectorias, aumentando el horizonte efectivo de predicción y memoria sin incrementar linealmente los recursos.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Perceptores fractales especializados y canalización en H-Net}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Perceptores fractales especializados]
+Sea $\mathcal{J}$ un conjunto de perceptores fractales especializados (por ejemplo, redes fractales entrenadas para texturas, imágenes satelitales, EEG, etc.). Cada perceptor
+\[
+E^{(j)}_{\text{fr}} : \mathcal{Y} \to \R^{d^{(j)}_{\text{fr}}},
+\quad j\in\mathcal{J},
+\]
+mapea una observación bruta $y_t\in\mathcal{Y}$ a un vector de características fractales (dimensiones locales, mapas multi–escala, etc.).
+\end{definitionenv}
+
+\begin{definitionenv}[Embedding de entrada extendido]
+Definimos un embedding base $E_{\text{base}}:\mathcal{Y}\to\R^{d_0}$ (por ejemplo, bytes embebidos) y concatenamos los canales fractales:
+\[
+\tilde x^{(0)}_t
+:=
+\Big(
+E_{\text{base}}(y_t),
+\ \big(E^{(j)}_{\text{fr}}(y_t)\big)_{j\in\mathcal{J}}
+\Big)
+\in\R^{d_0 + \sum_j d^{(j)}_{\text{fr}}}.
+\]
+La secuencia inicial para H-Net es entonces
+\[
+x^{(0)}_{1:L_0} := \big(\tilde x^{(0)}_1,\dots,\tilde x^{(0)}_{L_0}\big).
+\]
+\end{definitionenv}
+
+\begin{remark}[Impacto estructural]
+Los perceptores fractales no alteran la estructura de H-Net ni de $F^{\text{core}}_\theta$; simplemente amplían el espacio de entrada con canales ya destilados que codifican propiedades fractales del entorno. Su complejidad se contabiliza en la complejidad estructural $\Cstruct$, pero no modifica las ecuaciones de movimiento internas del núcleo RNFE.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Política fractal de modos de razonamiento}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Score de adecuación fractal por modo]
+Sea $r\in\mathcal{R}$ un modo de razonamiento y $s=\chi(r)$ el nivel jerárquico al que está asignado. Definimos objetivos fractales por modo:
+\[
+\FD^*_r,\quad
+\kappa^*_r,
+\]
+representando la dimensión fractal y el indicador de propagación de información deseados para el modo $r$. En el episodio $t$, definimos un score de desajuste
+\[
+g_t(r)
+:=
+\alpha^{\FD}_r
+\big(\widehat{\FD}^{(s)}_t - \FD^*_r\big)^2
++
+\alpha^{\kappa}_r
+\big(\kappa^{(s)}_{\text{info}}(t) - \kappa^*_r\big)^2,
+\]
+con pesos $\alpha^{\FD}_r,\alpha^{\kappa}_r\ge 0$.
+\end{definitionenv}
+
+\begin{definitionenv}[Distribución de activación de modos]
+A partir de los scores $g_t(r)$ definimos una distribución de activación
+\[
+\pi_t(r)
+:=
+\frac{\exp\big(-g_t(r)\big)}
+     {\sum_{r'\in\mathcal{R}}\exp\big(-g_t(r')\big)}.
+\]
+Esta distribución puede interpretarse como una política de mezcla sobre modos. El scheduler de MRO y \Hctrl seleccionan modos activos $\mathcal{R}_t^{\text{act}}$ por ejemplo mediante muestreo o umbral:
+\[
+\mathcal{R}_t^{\text{act}}
+:=
+\big\{ r\in\mathcal{R} : \pi_t(r) \ge \tau_{\text{mode}} \big\},
+\]
+con $\tau_{\text{mode}}\in(0,1)$.
+\end{definitionenv}
+
+\begin{remark}[Acoplamiento F–M–S, TFI y MFE]
+La política $\pi_t(r)$ depende explícitamente del espectro fractal jerárquico $\{\mathcal{F}^{(s)}_t\}$ y del tracker de información $\kappa^{(s)}_{\text{info}}(t)$, cerrando el lazo entre:
+\begin{itemize}
+  \item la estructura de Forma (H-Net y espectro fractal),
+  \item la dinámica de propagación de información (TFI),
+  \item y la selección de modos de razonamiento (MRO).
+\end{itemize}
+Las decisiones de hiperparámetros tomadas en la vecindad del borde fractal de entrenabilidad (MFE) afectan a estos indicadores y, por tanto, a la política de razonamiento, creando un meta–aprendizaje fractal auto–consistente.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Acción informacional total con mejoras fractales}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Acción total reestructurada (compatible con RNFE f2.2)]
+Agrupando todos los términos, la acción informacional extendida se puede escribir como
+\[
+\mathcal{A}_{\text{total}}[\Theta(\cdot)]
+=
+\int_0^T
+\Big[
+-\dot I\big(\Theta,t\big)
++
+\lambda_{\text{MDL}}\,\Cstruct\big(\Theta,t\big)
++
+\lambda_{\text{meta}}(t)\,\Cmeta\big(\Theta,t\big)
++
+\lambda_{\text{ratio}}\, \Lratio\big(\Theta,t\big)
++
+\lambda_{\text{MFE}}\, \CMFE(\Theta,t)
++
+\lambda_{\text{info}}\, \Cinfo(\Theta,t)
++
+\lambda_{\text{IFS}}\, \CIFS(\Theta,t)
+\Big] dt.
+\]
+Si fijamos
+\[
+\lambda_{\text{MFE}}=\lambda_{\text{info}}=\lambda_{\text{IFS}}=0,
+\]
+se recupera exactamente la formulación de RNFE f2.2 con H-Net jerárquico, sin mejoras fractales adicionales. Para valores positivos de estos parámetros, RNFE incorpora:
+\begin{itemize}
+  \item navegación explícita del borde fractal de entrenabilidad (MFE),
+  \item regulación de la propagación de información alrededor de una frontera crítica (TFI),
+  \item memorias de mundo comprimidas en forma de atractores fractales (IFS–FDE),
+  \item y una política de razonamiento guiada por la geometría fractal interna y externa.
+\end{itemize}
+\end{definitionenv}
+```
