@@ -161,3 +161,48 @@ class TestScenarioMetadataFlow:
         assert "scenario_metadata" in assessment.details
         assert assessment.details["scenario_metadata"]["scenario_name"] == "thermal_homeostasis"
         storage.close()
+
+    def test_scenario_metadata_flow_preserves_closure_profile(self, tmp_path: Path):
+        """closure_profile travels from runner → episode → assessment → certificate → decision."""
+        from runtime.reality.service import RealityValidationService
+
+        storage = _storage(tmp_path)
+
+        # Run with explicit closure_profile
+        runner = ScenarioEpisodeRunner(
+            storage=storage,
+            run_id="run-cp-flow",
+            scenario="thermal_homeostasis",
+            closure_profile="baseline_fixed",
+        )
+        result = runner.run_episode(external_input=0.04)
+
+        # Episode stores closure_profile at top-level and in context
+        ep = result["episode"]
+        assert ep["closure_profile"] == "baseline_fixed"
+        assert ep["context"]["closure_profile"] == "baseline_fixed"
+
+        # Assessment preserves closure_profile in details
+        service = RealityValidationService(storage=storage)
+        assessment = service.evaluate_episode_result(
+            run_id="run-cp-flow",
+            bench_run_id="bench-cp",
+            result=result,
+            previous_result=None,
+            recent_assessments=[],
+            scenario_name="thermal_homeostasis",
+        )
+        assert assessment.details["closure_profile"] == "baseline_fixed"
+        assert assessment.details["sequence_validation"] is not None
+
+        # Certificate carries closure_profile
+        certs = storage.list_episode_certificates(run_id="run-cp-flow", limit=5)
+        assert certs
+        assert certs[0].metadata.get("closure_profile") == "baseline_fixed"
+
+        # Decision carries closure_profile
+        decisions = storage.list_promotion_decisions(run_id="run-cp-flow", limit=5)
+        assert decisions
+        assert decisions[0].metadata.get("closure_profile") == "baseline_fixed"
+
+        storage.close()

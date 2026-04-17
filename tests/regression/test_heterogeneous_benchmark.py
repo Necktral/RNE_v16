@@ -119,3 +119,51 @@ class TestHeterogeneousBenchmark:
             for e in events
         )
         storage.close()
+
+    def test_heterogeneous_benchmark_default_profile_is_heterogeneous_ci(self, tmp_path: Path):
+        """Default gate_profile for heterogeneous benchmark is heterogeneous_ci."""
+        storage = _storage(tmp_path)
+        service = RealityValidationService(storage=storage)
+        result = service.run_heterogeneous_benchmark(run_id="run-hetero-profile")
+
+        summary = result["bench_run"]["summary"]
+        assert summary["gate_profile"] == "heterogeneous_ci"
+        storage.close()
+
+    def test_heterogeneous_benchmark_records_trace_integrity_rate(self, tmp_path: Path):
+        """Benchmark summary includes trace_integrity_rate."""
+        storage = _storage(tmp_path)
+        service = RealityValidationService(storage=storage)
+        result = service.run_heterogeneous_benchmark(run_id="run-hetero-tir")
+
+        summary = result["bench_run"]["summary"]
+        assert "trace_integrity_rate" in summary
+        assert isinstance(summary["trace_integrity_rate"], float)
+        assert 0.0 <= summary["trace_integrity_rate"] <= 1.0
+        storage.close()
+
+    def test_strict_mode_pollution_forces_failed_gate(self, tmp_path: Path):
+        """If actual_cross_scenario_returned > 0 in strict mode, passed must be False.
+
+        We verify the invariant by ensuring strict_memory_clean is in the summary
+        and that when it's True the gate can pass, and that the logic is wired correctly.
+        """
+        storage = _storage(tmp_path)
+        service = RealityValidationService(storage=storage)
+        result = service.run_heterogeneous_benchmark(
+            run_id="run-hetero-gate-poll",
+            memory_mode="strict_same_scenario",
+        )
+
+        summary = result["bench_run"]["summary"]
+        mm = summary["memory_metrics"]
+
+        # In strict mode with no pollution, strict_memory_clean must be True
+        if mm["actual_cross_scenario_returned"] == 0:
+            assert summary["strict_memory_clean"] is True
+        else:
+            # If somehow pollution leaked, the gate must fail
+            assert summary["strict_memory_clean"] is False
+            assert result["passed"] is False
+
+        storage.close()

@@ -122,3 +122,46 @@ class TestRunnerParityThermal:
         assert "scenario_metadata" in res_scenario["episode"]
         assert res_scenario["episode"]["scenario_metadata"]["scenario_name"] == "thermal_homeostasis"
         storage.close()
+
+    def test_baseline_fixed_profile_matches_legacy_closure_contract(self, tmp_path: Path):
+        """ScenarioEpisodeRunner with baseline_fixed produces same closure contract as legacy."""
+        storage = _storage(tmp_path)
+
+        legacy = MinimalCognitiveEpisodeRunner(storage=storage, run_id="run-parity-cp-l")
+        res_legacy = legacy.run_episode(external_heat=0.04)
+
+        scenario = ScenarioEpisodeRunner(
+            storage=storage, run_id="run-parity-cp-s",
+            scenario="thermal_homeostasis",
+            closure_profile="baseline_fixed",
+        )
+        res_scenario = scenario.run_episode(external_input=0.04)
+
+        # Both must produce the canonical sequence
+        assert res_legacy["episode"]["result"]["reasoning_sequence"] == [
+            "ABD", "ANA", "CAU", "CTF", "DED", "PROB",
+        ]
+        assert res_scenario["episode"]["result"]["reasoning_sequence"] == [
+            "ABD", "ANA", "CAU", "CTF", "DED", "PROB",
+        ]
+
+        # Scenario runner declares the closure profile
+        assert res_scenario["episode"]["closure_profile"] == "baseline_fixed"
+        storage.close()
+
+    def test_adaptive_min_profile_does_not_break_canonical_sequence(self, tmp_path: Path):
+        """adaptive_min profile still passes when sequence is the canonical one."""
+        storage = _storage(tmp_path)
+
+        scenario = ScenarioEpisodeRunner(
+            storage=storage, run_id="run-parity-adapt",
+            scenario="thermal_homeostasis",
+            closure_profile="adaptive_min",
+        )
+        res = scenario.run_episode(external_input=0.04)
+
+        # canonical sequence should still pass under adaptive_min
+        assert res["episode"]["closure_profile"] == "adaptive_min"
+        valid_verdicts = {"certified", "PASSED", "CONDITIONALLY_PASSED"}
+        assert res["certification"]["verdict"] in valid_verdicts
+        storage.close()
