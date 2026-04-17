@@ -27,10 +27,16 @@ from .infrastructure import Event, EventBus, WorkerPool, ConfigLoader
 from .probabilistic_models import GenerativeModel, ApproximatePosterior
 from .metrics import SelfAwarenessMetrics, MAX_VRAM_GB, THERMAL_THRESHOLD, MAX_ENTROPY, CRITICAL_TEMP
 from .train import QuantumDistributedTrainer
+from .orchestration import OrchestratorLifecycle, RuntimeRunner
+from .training.training_loop import TrainingLoop
 from ..evolution.neurogenesis import NeurogenesisManager
 from ..evolution.katana_pruner import KatanaPruner
 from ..evolution.auto_mutator import AutoMutator
+from ..control.adaptation_controller import AdaptationController
+from ..control.crisis_router import CrisisRouter
 from .homeo_controller import HomeoController
+from ..telemetry.collector import TelemetryCollector
+from ..telemetry.snapshot_service import SnapshotService
 from src.core.epistemic_drift_predictor import EpistemicDriftPredictor
 from src.evolution.meta_optimizer import QuantumExponentialOptimizer, QuantumExponentialConfig
 from src.core.event_bus import event_bus  # EventBus centralizado para integración AGI
@@ -100,6 +106,20 @@ class Orchestrator:
             self.logger = logging.getLogger("aeon.orchestrator.test")
             self.log_sparsity = lambda *a, **kw: None
             self.homeo_controller = HomeoController(lambda: self.metrics.as_dict())
+            self.event_bus = event_bus
+            self.current_run_id = "test-run"
+            self.drift_predictor = type(
+                "DummyDriftPredictor",
+                (),
+                {
+                    "update": lambda *a, **kw: None,
+                    "check_drift": lambda *a, **kw: (False, ""),
+                    "force_mutation": lambda *a, **kw: None,
+                },
+            )()
+            self.meta_optimizer = type("DummyMetaOptimizer", (), {"step": lambda *a, **kw: None})()
+            self.scheduler = None
+            self._init_runtime_services()
             return
 
         self.bus = EventBus()
@@ -250,349 +270,88 @@ class Orchestrator:
 
         # Integración EventBus centralizado
         self.event_bus = event_bus
-        # Suscribirse a eventos críticos globales
-        self.event_bus.on('crisis', self._on_crisis_event)
-        self.event_bus.on('homeostasis_violation', self._on_homeostasis_violation)
-        self.event_bus.on('quantum_mutation_applied', self._on_quantum_mutation)
-        self.event_bus.on('module_pruned', self._on_module_pruned)
-        self.event_bus.on('module_spawned', self._on_module_spawned)
+        self.current_run_id = f"run-{int(time.time())}"
+        self._init_runtime_services()
+
+    def _init_runtime_services(self):
+        self.lifecycle = OrchestratorLifecycle()
+        self.telemetry_collector = TelemetryCollector()
+        self.snapshot_service = SnapshotService()
+        self.adaptation_controller = AdaptationController()
+        self.crisis_router = CrisisRouter(
+            logger=self.logger,
+            bus=self.bus,
+            global_event_bus=self.event_bus,
+            metrics=self.metrics,
+            shutdown_event=self._shutdown,
+        )
+        self.crisis_router.wire_global_handlers()
+        self.training_loop_service = TrainingLoop(
+            orchestrator=self,
+            telemetry_collector=self.telemetry_collector,
+            snapshot_service=self.snapshot_service,
+            adaptation_controller=self.adaptation_controller,
+            lifecycle=self.lifecycle,
+        )
+        self.runner = RuntimeRunner(
+            orchestrator=self,
+            lifecycle=self.lifecycle,
+            training_loop=self.training_loop_service,
+            crisis_router=self.crisis_router,
+        )
 
     def _on_crisis_event(self, payload):
-        self.logger.warning(f"[EventBus] Crisis global detectada en Orchestrator | Payload: {payload}")
-        # Hook: lógica de respuesta a crisis global (extensible)
+        self.crisis_router._on_crisis_event(payload)
 
     def _on_homeostasis_violation(self, payload):
-        self.logger.warning(f"[EventBus] Homeostasis violation detectada | Payload: {payload}")
-        # Hook: lógica de respuesta a violación homeostática
+        self.crisis_router._on_homeostasis_violation(payload)
 
     def _on_quantum_mutation(self, payload):
-        self.logger.info(f"[EventBus] Mutación cuántica aplicada | Payload: {payload}")
-        # Hook: lógica de respuesta a mutación cuántica
+        self.crisis_router._on_quantum_mutation(payload)
 
     def _on_module_pruned(self, payload):
-        self.logger.info(f"[EventBus] Módulo podado | Payload: {payload}")
-        # Hook: lógica de respuesta a poda
+        self.crisis_router._on_module_pruned(payload)
 
     def _on_module_spawned(self, payload):
-        self.logger.info(f"[EventBus] Nuevo módulo creado | Payload: {payload}")
-        # Hook: lógica de respuesta a creación de módulo
+        self.crisis_router._on_module_spawned(payload)
 
     async def run_forever(self):
-        tracemalloc.start()
-        self.logger.info("[DEBUG] run_forever iniciado")
-        await self.bus.start()
-
-        # Suscribir handlers
-        self.bus.subscribe("VRAMUsageHigh", self.handle_adaptation_pressure)
-        self.bus.subscribe("ThermalAlert", self.handle_adaptation_pressure)
-        self.bus.subscribe("EntropyMax", self.handle_adaptation_pressure)
-        self.bus.subscribe("StabilityLoss", self.handle_adaptation_pressure)
-
-        # Tareas principales
-        self._tasks += [
-            asyncio.create_task(self._main_loop()),
-            asyncio.create_task(self._monitor_vitals())
-        ]
-
-        await self._shutdown.wait()
-        self.logger.info("[DEBUG] run_forever: shutdown recibido, cancelando tareas...")
-        for t in self._tasks:
-            t.cancel()
-        await asyncio.gather(*self._tasks, return_exceptions=True)
-        self.executor.shutdown()
-        self.logger.info("[DEBUG] run_forever finalizado")
+        await self.runner.run_forever()
 
     async def _get_next_observation(self):
-        """Obtiene la siguiente observación del 'entorno' (DataLoader)."""
-        try:
-            return next(self.train_iter)[0]
-        except StopIteration:
-            # Reiniciar el iterador si se acaban los datos
-            self.train_iter = iter(self.train_loader)
-            return next(self.train_iter)[0]
+        return await self.training_loop_service._get_next_observation()
 
     async def _main_loop(self):
-        self.logger.info("[DEBUG] _main_loop iniciado")
-        challenger = None
-        if hasattr(self, 'modules') and self.modules:
-            from src.cognition.cognitive_self_challenge import CognitiveSelfChallenge
-            challenger = CognitiveSelfChallenge(self.modules)
-        cycle = 0
-        # Log de hiperparámetros al inicio
-        if self.tensorboard_writer is not None:
-            hparams = {
-                'latent_dim': getattr(self, 'latent_dim', 32),
-                'optimizer': type(self.optimizer).__name__,
-                'lr': self.optimizer.param_groups[0]['lr'] if hasattr(self.optimizer, 'param_groups') else None,
-            }
-            self.tensorboard_writer.add_text('hparams', str(hparams), 0)
-        while not self._shutdown.is_set():
-            try:
-                cycle += 1
-                self.logger.info(f"Ciclo {cycle} iniciado.")
-                # 1. Obtener estado y observación
-                z_prev = self.z
-                a_prev = self.a
-                o_t = await self._get_next_observation()
-                self.logger.info(f"Observación obtenida: {o_t.shape if hasattr(o_t, 'shape') else type(o_t)}")
-
-                # --- Asegurar que todos los tensores estén en el mismo dispositivo ---
-                z_prev = z_prev.to(self.device)
-                a_prev = a_prev.to(self.device)
-                o_t = o_t.to(self.device)
-
-                # 2. Ejecutar un paso de entrenamiento y obtener la pérdida y el nuevo estado
-                result = await asyncio.get_event_loop().run_in_executor(
-                    self.executor,
-                    lambda: self.trainer._distributed_train_step(z_prev, a_prev, o_t.view(1, -1))
-                )
-                if result is None:
-                    self.logger.warning("Paso de entrenamiento devolvió None. Esperando...")
-                    await asyncio.sleep(0.1)
-                    continue
-                loss, new_z = result
-                if loss is None or new_z is None:
-                    self.logger.warning("Paso de entrenamiento devolvió None para loss o new_z. Ciclo omitido.")
-                    await asyncio.sleep(0.1)
-                    continue
-
-                self.logger.info(f"Loss: {loss}")
-                self.z = new_z
-                self.history.append(loss)
-                # --- LOGGING TENSORBOARD ---
-                if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar("train/loss", loss, cycle)
-                    self.tensorboard_writer.add_scalar("system/vram_gb", self.metrics.vram_usage_gb, cycle)
-                    self.tensorboard_writer.add_scalar("system/temp", self.metrics.temperature, cycle)
-                    self.tensorboard_writer.add_scalar("system/entropy", self.metrics.entropy, cycle)
-                    self.tensorboard_writer.add_scalar("system/stability", self.metrics.stability, cycle)
-                    # Histogramas de pesos y gradientes cada 1000 ciclos
-                    if cycle % 1000 == 0:
-                        for name, param in getattr(self.combined_model, 'named_parameters', lambda:[])():
-                            self.tensorboard_writer.add_histogram(f"weights/{name}", param.data.cpu().numpy(), cycle)
-                            if param.grad is not None:
-                                self.tensorboard_writer.add_histogram(f"grads/{name}", param.grad.cpu().numpy(), cycle)
-                # 3. Actualizar métricas
-                self._update_metrics()
-                self.logger.info(f"Métricas actualizadas: {self.metrics.as_dict()}")
-                # Emitir evento de métricas actualizadas
-                self.event_bus.emit('orchestrator_metrics', {
-                    'cycle': cycle,
-                    'metrics': self.metrics.as_dict()
-                })
-
-                # --- INTEGRACIÓN DERIVA EPISTÉMICA Y META-OPTIMIZADOR ---
-                vfe = getattr(self.metrics, 'vfe', None)
-                eta = getattr(self.metrics, 'eta_bayes', None)
-                self.drift_predictor.update(eta, vfe)
-                alerta, razon = self.drift_predictor.check_drift(cycle)
-                if alerta:
-                    self.logger.warning(f"[DERIVA EPISTÉMICA] Detectada: {razon}. Ejecutando intervención de emergencia.")
-                    self.drift_predictor.force_mutation(razon)
-                if self.metrics.vram_usage_gb < 0.95 * MAX_VRAM_GB and self.metrics.temperature < 0.95 * CRITICAL_TEMP:
-                    self.meta_optimizer.step(
-                        {
-                            'vram': self.metrics.vram_usage_gb / MAX_VRAM_GB,
-                            'thermal': self.metrics.temperature / CRITICAL_TEMP,
-                            'entropy': self.metrics.entropy,
-                            'cognitive_load': self.metrics.stability
-                        },
-                        lambda uid: eta if eta is not None else 1.0
-                    )
-                else:
-                    self.logger.warning(f"Mutación/NAS bloqueada por límites físicos: vram={self.metrics.vram_usage_gb:.2f}, temp={self.metrics.temperature:.2f}")
-
-                # 4. Construir contexto y tomar decisiones de adaptación
-                ctx = self._build_adaptation_context()
-                self.logger.info(f"Contexto de adaptación construido.")
-                adaptation_payloads = None
-                if self.auto_mutator is not None:
-                    adaptation_payloads = await asyncio.get_event_loop().run_in_executor(
-                        self.executor,
-                        lambda: self.auto_mutator.step(ctx)
-                    )
-
-                # 5. Aplicar las adaptaciones si existen
-                if adaptation_payloads:
-                    self.logger.info(f"Aplicando {len(adaptation_payloads)} adaptación(es)...")
-                    for payload in adaptation_payloads:
-                        if hasattr(self.trainer, 'apply_adaptation'):
-                            await asyncio.get_event_loop().run_in_executor(
-                                self.executor,
-                                lambda: self.trainer.apply_adaptation(payload)
-                            )
-                    if hasattr(self.trainer, 'optimizer') and self.trainer.optimizer is not None:
-                        self.optimizer = self.trainer.optimizer
-                    self.logger.info("Adaptación(es) aplicada(s) correctamente.")
-
-                # --- DESAFÍO COGNITIVO INTERNO (Self-Challenge) ---
-                if challenger is not None:
-                    resultado = challenger.generate_challenge(cycle)
-                    if resultado is not None:
-                        self.logger.info(f"[AEON] Resultado del desafío cognitivo en ciclo {cycle}: {resultado}")
-                        # Emitir evento de desafío cognitivo
-                        self.event_bus.emit('cognitive_challenge', {
-                            'cycle': cycle,
-                            'result': resultado
-                        })
-
-                # 6. Publicar heartbeat con las métricas actualizadas
-                await self.bus.publish(Event(
-                    topic=self.HEARTBEAT_TOPIC,
-                    payload=self.metrics.as_dict(),
-                    severity="INFO"
-                ))
-                # Emitir evento heartbeat global
-                self.event_bus.emit('heartbeat', {
-                    'cycle': cycle,
-                    'metrics': self.metrics.as_dict()
-                })
-                # 7. Validación y checkpoint cada 1000 pasos
-                if cycle % 1000 == 0 and hasattr(self, 'scheduler') and self.scheduler is not None:
-                    try:
-                        val_loss = await asyncio.get_event_loop().run_in_executor(
-                            self.executor,
-                            lambda: self.eval_loop(self.combined_model, self.val_loader)
-                        )
-                        if not isinstance(val_loss, (float, int)) or not np.isfinite(val_loss):
-                            self.logger.warning(f"Val Loss no numérico o infinito: {val_loss}")
-                            val_loss = float('nan')
-                        self.logger.info(f"Val Loss: {val_loss}")
-                        if self.tensorboard_writer is not None:
-                            self.tensorboard_writer.add_scalar("val/loss", val_loss, cycle)
-                        if hasattr(torch, 'save') and hasattr(self.combined_model, 'state_dict'):
-                            torch.save(self.combined_model.state_dict(), f"checkpoints/aeon_{cycle}.pt")
-                        # Actualiza el scheduler con el val_loss
-                        if hasattr(self, 'scheduler') and self.scheduler is not None and val_loss is not None and np.isfinite(val_loss):
-                            self.scheduler.step(val_loss)
-                            lr = self.optimizer.param_groups[0]['lr'] if hasattr(self.optimizer, 'param_groups') and getattr(self.optimizer, 'param_groups', None) else None
-                            self.logger.info(f"LR actualizado: {lr}")
-                    except Exception as e:
-                        self.logger.exception(f"Error en validación/checkpoint: {e}")
-                self.logger.info(f"Ciclo {cycle} finalizado. Esperando próximo ciclo...")
-                await asyncio.sleep(0.1)
-
-                # ─── DETENER SI ALCANZAMOS EL LÍMITE ───
-                if self.max_cycles and cycle >= self.max_cycles:
-                    self.logger.info(f"✓ Alcanzados {cycle} ciclos — apagando Orchestrator.")
-                    self._shutdown.set()
-                    break
-            except Exception as e:
-                self.logger.exception(f"Excepción inesperada en ciclo {cycle}: {e}")
-                break
-        # --- Cierre seguro del writer ---
-        if self.tensorboard_writer is not None:
-            self.tensorboard_writer.flush()
-            self.tensorboard_writer.close()
-        self.logger.info("[DEBUG] _main_loop finalizado")
+        await self.training_loop_service.run()
 
     async def _heartbeat_loop(self):
-        """Este método queda obsoleto y es reemplazado por _main_loop."""
+        """Compatibilidad temporal: heartbeat se emite dentro de TrainingLoop."""
         pass
 
     async def _monitor_vitals(self):
-        self.logger.info("[DEBUG] _monitor_vitals iniciado")
-        while not self._shutdown.is_set():
-            m = self.metrics.as_dict()
-            if m["Mem"] >= 0.95:
-                await self.bus.publish(Event("VRAMUsageHigh", m, "CRITICAL"))
-            if m["Temp"] >= 0.9:
-                await self.bus.publish(Event("ThermalAlert", m, "CRITICAL"))
-            if m["Entropy"] >= 0.98:
-                await self.bus.publish(Event("EntropyMax", m, "WARN"))
-            if m["Stability"] >= 1e3:
-                await self.bus.publish(Event("StabilityLoss", m, "CRITICAL"))
-            await asyncio.sleep(5)
-        self.logger.info("[DEBUG] _monitor_vitals finalizado")
+        await self.crisis_router.monitor_vitals()
 
     def _update_metrics(self):
-        # VRAM y temperatura
-        if self.pynvml:
-            vmem = self.pynvml.nvmlDeviceGetMemoryInfo(self.gpu_handle)
-            self.metrics.vram_usage_gb = vmem.used / (1024 ** 3)
-            self.metrics.temperature = self.pynvml.nvmlDeviceGetTemperature(
-                self.gpu_handle, self.pynvml.NVML_TEMPERATURE_GPU
-            )
-            self.metrics.dissipated_power = self.pynvml.nvmlDeviceGetPowerUsage(
-                self.gpu_handle
-            ) / 1000
-        else:
-            cur, _ = tracemalloc.get_traced_memory()
-            self.metrics.vram_usage_gb = cur / (1024 ** 3)
-            self.metrics.temperature = 40.0
-
-        # Entropía del sistema
-        try:
-            import psutil
-            cpu = psutil.cpu_percent() / 100
-            mem = psutil.virtual_memory().percent / 100
-            self.metrics.entropy = 0.7 * cpu + 0.3 * mem
-        except ImportError:
-            self.metrics.entropy = 0.5
-
-        # Estabilidad (λ_max) -> Ahora basado en la VFE real
-        if len(self.history) > 1:
-            # Usamos la fluctuación de la pérdida como indicador de estabilidad
-            self.metrics.stability = abs(self.history[-1] - self.history[-2])
-        else:
-            self.metrics.stability = 0.0
+        self.telemetry_collector.update_metrics(
+            metrics=self.metrics,
+            history=list(self.history),
+            pynvml_module=self.pynvml,
+            gpu_handle=getattr(self, "gpu_handle", None),
+        )
 
     def _build_adaptation_context(self, event: Optional[Event] = None) -> Dict[str, Any]:
-        """Construye el diccionario de contexto para el AutoMutator."""
-        ctx = {
-            "delta_epist": self.history[-1] - self.history[-2] if len(self.history) > 1 else 0.0,
-            "mutual_info": self.metrics.stability, # Proxy para información mutua
-            "thermal_risk": self.metrics.temperature / CRITICAL_TEMP,
-            "vram_usage": self.metrics.vram_usage_gb / MAX_VRAM_GB,
-            "pruning_intensity": 0.0, # Será actualizado por el mutator
-            "neurogenesis_impact": {}, # Será actualizado por el mutator
-            "model": self.combined_model,
-            "optimizer": self.optimizer,
-            "device": self.device,
-            # --- Claves necesarias para testing ---
-            "vram_usage_gb": self.metrics.vram_usage_gb,
-            "MAX_VRAM_GB": MAX_VRAM_GB,
-            "history": list(self.history),
-        }
-        if event:
-            ctx.update({
-                "event_topic": event.topic,
-                "event_severity": event.severity
-            })
-        return ctx
+        return self.adaptation_controller.build_context(
+            metrics=self.metrics,
+            history=list(self.history),
+            model=self.combined_model,
+            optimizer=self.optimizer,
+            device=self.device,
+            event_topic=event.topic if event else None,
+            event_severity=event.severity if event else None,
+        )
 
-    # ─────────────────── HANDLERS DE CRISIS ───────────────────
     async def handle_adaptation_pressure(self, event: Event):
-        """Centraliza la respuesta a cualquier tipo de presión homeostática."""
-        logging.info(f"Evento de adaptación recibido: {event.topic} con severidad {event.severity}. La lógica de adaptación ahora está en el bucle principal.")
-        # La lógica de adaptación ahora es proactiva en el _main_loop.
-        # Este handler podría usarse en el futuro para acciones de emergencia
-        # que no forman parte del ciclo normal de adaptación (ej. guardado forzoso).
-        pass
-
-    # ─────────────────── ACCIONES HOMEOSTÁTICAS (OBSOLETAS) ───────────────────
-    # Las siguientes funciones son ahora manejadas por el AutoMutator y sus sub-módulos.
-    # Se mantienen aquí como referencia de la lógica anterior pero no serán llamadas.
-
-    async def _trigger_pruning(self):
-        logging.info("Poda simulada... (OBSOLETO)")
-        # Lógica ahora en KatanaPruner
-
-    async def _memory_offloading(self):
-        logging.info("Off-loading a CPU… (OBSOLETO)")
-        # Esta lógica podría ser re-introducida si es necesario
-
-    async def _thermal_veto(self):
-        logging.info("Veto térmico: pausa workers (OBSOLETO)")
-        # Lógica de control de workers puede ser reimplementada si es necesario
-
-    async def _inject_noise(self):
-        logging.info("Inyectando ruido latente… (OBSOLETO)")
-        # Lógica ahora puede ser parte de una estrategia de exploración
-
-    async def _reduce_complexity(self):
-        logging.info("Reduciendo complejidad de transición… (OBSOLETO)")
-        # Lógica ahora en KatanaPruner/NeurogenesisManager
+        await self.crisis_router.handle_adaptation_pressure(event)
 
     async def eval_loop(self, model, val_loader):
         model.eval()
