@@ -11,10 +11,13 @@ from runtime.storage.migrations import migrate_sqlite_ledger_to_postgres
 
 RUN_PG_TESTS = os.environ.get("RNFE_RUN_PG_TESTS") == "1"
 
-pytestmark = pytest.mark.skipif(
-    not RUN_PG_TESTS,
-    reason="Set RNFE_RUN_PG_TESTS=1 para ejecutar tests de integracion PostgreSQL.",
-)
+pytestmark = [
+    pytest.mark.requires_postgres,
+    pytest.mark.skipif(
+        not RUN_PG_TESTS,
+        reason="Set RNFE_RUN_PG_TESTS=1 para ejecutar tests de integracion PostgreSQL.",
+    ),
+]
 
 
 def _postgres_dsn() -> str:
