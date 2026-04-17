@@ -21,6 +21,7 @@ from .records import (
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TransferAssessmentRecord,
     utc_now_iso,
 )
 
@@ -418,6 +419,51 @@ class StorageFacade:
             run_id=run_id,
             scales=scales,
             min_ioc_proxy=min_ioc_proxy,
+            limit=limit,
+        )
+
+    # ───────────────  Transfer Assessment  ────────────────────────────────────
+
+    def write_transfer_assessment(
+        self,
+        *,
+        assessment_id: str,
+        run_id: str,
+        episode_id: str,
+        source_scenario: str,
+        target_scenario: str,
+        compatibility_class: str,
+        transfer_verdict: str,
+        memory_purity_score: float,
+        transition_stability_score: float,
+        metadata: Mapping[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> TransferAssessmentRecord:
+        record = TransferAssessmentRecord(
+            assessment_id=assessment_id,
+            run_id=run_id,
+            episode_id=episode_id,
+            source_scenario=source_scenario,
+            target_scenario=target_scenario,
+            compatibility_class=compatibility_class,
+            transfer_verdict=transfer_verdict,
+            memory_purity_score=float(memory_purity_score),
+            transition_stability_score=float(transition_stability_score),
+            created_at=created_at or utc_now_iso(),
+            metadata=dict(metadata or {}),
+        )
+        return self.backend.write_transfer_assessment(record)
+
+    def list_transfer_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        episode_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TransferAssessmentRecord]:
+        return self.backend.list_transfer_assessments(
+            run_id=run_id,
+            episode_id=episode_id,
             limit=limit,
         )
 

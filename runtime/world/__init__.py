@@ -3,6 +3,32 @@
 
 from .cgwm_min import CGWMMin, WorldState
 from .min_cognitive_episode import MinimalCognitiveEpisodeRunner
+from .compatibility import (
+    CompatibilityAssessment,
+    CompatibilityClass,
+    ControlTopology,
+    OptimizationDirection,
+    ScenarioCompatibilityGraph,
+    ScenarioStructuralProfile,
+)
+from .causal_signature import (
+    CausalEdge,
+    InterventionEffect,
+    ScenarioCausalSignature,
+)
+from .alignment import (
+    AlignmentPair,
+    AlignmentResult,
+    align_causal_graphs,
+    align_interventions,
+    align_propositions,
+)
+from .morphism_engine import (
+    DirectedScenarioMorphism,
+    MorphismClass,
+    MorphismEngine,
+    TransportOperator,
+)
 from .scenario import (
     CognitiveScenario,
     ScenarioConfig,
@@ -16,6 +42,8 @@ from .registry import (
     DEFAULT_SCENARIO,
     get_scenario,
     list_scenarios,
+    list_structural_profiles,
+    list_causal_signatures,
     register_scenario,
 )
 from .scenario_runner import ScenarioEpisodeRunner
@@ -25,6 +53,28 @@ __all__ = [
     "CGWMMin",
     "WorldState",
     "MinimalCognitiveEpisodeRunner",
+    # Compatibility graph
+    "CompatibilityAssessment",
+    "CompatibilityClass",
+    "ControlTopology",
+    "OptimizationDirection",
+    "ScenarioCompatibilityGraph",
+    "ScenarioStructuralProfile",
+    # Causal signatures
+    "CausalEdge",
+    "InterventionEffect",
+    "ScenarioCausalSignature",
+    # Alignment
+    "AlignmentPair",
+    "AlignmentResult",
+    "align_causal_graphs",
+    "align_interventions",
+    "align_propositions",
+    # Morphism engine
+    "DirectedScenarioMorphism",
+    "MorphismClass",
+    "MorphismEngine",
+    "TransportOperator",
     # Scenario interface
     "CognitiveScenario",
     "ScenarioConfig",
@@ -40,6 +90,8 @@ __all__ = [
     "DEFAULT_SCENARIO",
     "get_scenario",
     "list_scenarios",
+    "list_structural_profiles",
+    "list_causal_signatures",
     "register_scenario",
     # Runner
     "ScenarioEpisodeRunner",

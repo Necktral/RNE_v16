@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 
+from .compatibility import ScenarioStructuralProfile
+from .causal_signature import (
+    CausalEdge,
+    InterventionEffect,
+    ScenarioCausalSignature,
+)
 from .scenario import (
     CognitiveScenario,
     ScenarioConfig,
@@ -69,6 +77,76 @@ class ResourceScenario(CognitiveScenario):
     @property
     def config(self) -> ScenarioConfig:
         return self._config
+
+    @property
+    def structural_profile(self) -> ScenarioStructuralProfile:
+        """Perfil estructural para evaluación de compatibilidad."""
+        cfg = self._config
+        config_blob = json.dumps(
+            {
+                "name": cfg.name,
+                "main_variable": cfg.main_variable,
+                "alarm_threshold": cfg.alarm_threshold,
+                "interventions": cfg.interventions,
+                "formula_template": cfg.formula_template,
+                "type_context": cfg.type_context,
+            },
+            sort_keys=True,
+        )
+        config_hash = hashlib.sha256(config_blob.encode()).hexdigest()[:12]
+        return ScenarioStructuralProfile(
+            scenario_name=cfg.name,
+            scenario_version="1.0",
+            scenario_config_hash=config_hash,
+            control_topology="threshold_recovery_loop",
+            optimization_direction="maximize",
+            intervention_semantics=tuple(cfg.interventions),
+            counterfactual_policy="opposite_intervention",
+            relation_polarity="higher_is_better",
+            main_variable=cfg.main_variable,
+        )
+
+    @property
+    def causal_signature(self) -> ScenarioCausalSignature:
+        """Firma causal completa para morfismos dirigidos."""
+        cfg = self._config
+        return ScenarioCausalSignature(
+            scenario_name=cfg.name,
+            scenario_version="1.0",
+            observable_variables=frozenset({"stock_level", "production_active"}),
+            control_variables=frozenset({"production_active"}),
+            main_variable="stock_level",
+            optimization_direction="maximize",
+            causal_polarity="higher_is_better",
+            alarm_semantics="threshold_below",
+            intervention_effects=(
+                InterventionEffect(
+                    intervention_name="start_production",
+                    target_variable="stock_level",
+                    expected_direction="+",
+                    expected_magnitude=self._production_rate,
+                    semantic_role="corrective",
+                ),
+                InterventionEffect(
+                    intervention_name="stop_production",
+                    target_variable="stock_level",
+                    expected_direction="-",
+                    expected_magnitude=0.0,
+                    semantic_role="neutral",
+                ),
+            ),
+            counterfactual_policy="opposite_intervention",
+            counterfactual_variable="stock_level",
+            causal_edges=(
+                CausalEdge(source="external_consumption", target="stock_level", polarity="-"),
+                CausalEdge(source="production_active", target="stock_level", polarity="+"),
+                CausalEdge(source="stock_level", target="scarcity_alert", polarity="-"),
+            ),
+            proposition_vocabulary=frozenset({
+                "STOCK_LOW", "STOCK_ADEQUATE", "PRODUCTION_ACTIVE",
+                "START_PRODUCTION", "KEEP_IDLE",
+            }),
+        )
 
     @property
     def alarm_threshold(self) -> float:

@@ -75,3 +75,51 @@ def continuity_score(
     integrity = 1.0 if trace_integrity else 0.0
     score = (0.4 * overlap) + (0.3 * causal) + (0.2 * sequence) + (0.1 * integrity)
     return max(0.0, min(1.0, score))
+
+
+def continuity_vector(
+    *,
+    previous_result: Dict[str, Any],
+    current_result: Dict[str, Any],
+    compatibility: Any,
+    retrieval_metrics: Dict[str, Any] | None = None,
+) -> Any:
+    """Computa vector de continuidad tensorial (delegación a transition_analysis).
+
+    Esta función es el punto de acceso nuevo desde continuity.py
+    que envuelve la implementación vectorial/tensorial.
+
+    Args:
+        previous_result: Resultado del episodio anterior.
+        current_result: Resultado del episodio actual.
+        compatibility: CompatibilityAssessment del grafo.
+        retrieval_metrics: Métricas de retrieval de memoria.
+
+    Returns:
+        TransitionContinuityVector con todos los componentes.
+    """
+    from .transition_analysis import compute_transition_vector
+
+    return compute_transition_vector(
+        previous_result=previous_result,
+        current_result=current_result,
+        compatibility=compatibility,
+        retrieval_metrics=retrieval_metrics,
+    )
+
+
+def continuity_tensor(
+    *,
+    vectors: list,
+) -> Dict[str, Any]:
+    """Construye tensor de continuidad (delegación a transition_analysis).
+
+    Args:
+        vectors: Lista de TransitionContinuityVector.
+
+    Returns:
+        Dict anidado [source][target] -> ContinuityTensorCell.
+    """
+    from .transition_analysis import build_continuity_tensor
+
+    return build_continuity_tensor(vectors=vectors)

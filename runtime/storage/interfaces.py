@@ -15,6 +15,7 @@ from .records import (
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TransferAssessmentRecord,
 )
 
 
@@ -157,6 +158,23 @@ class MemoryStore(Protocol):
 
 
 @runtime_checkable
+class TransferAssessmentStore(Protocol):
+    def write_transfer_assessment(
+        self, assessment: TransferAssessmentRecord
+    ) -> TransferAssessmentRecord:
+        ...
+
+    def list_transfer_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        episode_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TransferAssessmentRecord]:
+        ...
+
+
+@runtime_checkable
 class StorageBackend(
     LedgerStore,
     TelemetryStore,
@@ -166,6 +184,7 @@ class StorageBackend(
     RealityStore,
     CertificationStore,
     MemoryStore,
+    TransferAssessmentStore,
     Protocol,
 ):
     def close(self) -> None:

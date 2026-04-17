@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .compatibility import ScenarioStructuralProfile
+    from .causal_signature import ScenarioCausalSignature
 
 
 @dataclass
@@ -74,6 +78,18 @@ class CognitiveScenario(ABC):
     @abstractmethod
     def config(self) -> ScenarioConfig:
         """Retorna configuración del escenario."""
+        ...
+
+    @property
+    @abstractmethod
+    def structural_profile(self) -> ScenarioStructuralProfile:
+        """Retorna perfil estructural para evaluación de compatibilidad."""
+        ...
+
+    @property
+    @abstractmethod
+    def causal_signature(self) -> ScenarioCausalSignature:
+        """Retorna firma causal completa para morfismos dirigidos."""
         ...
 
     @abstractmethod
