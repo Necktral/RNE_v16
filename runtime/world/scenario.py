@@ -177,6 +177,11 @@ class CognitiveScenario(ABC):
     ) -> str:
         """Evalúa tipo de relación entre factual y contrafactual.
 
+        Default implementation assumes lower values are better (e.g., temperature
+        in thermal scenarios where lower = cooler = better). Scenarios with different
+        optimization goals (e.g., resources where higher stock = better) should
+        override this method to provide appropriate comparison logic.
+
         Args:
             factual: Transición factual.
             counterfactual: Transición contrafactual.
@@ -188,7 +193,8 @@ class CognitiveScenario(ABC):
         factual_val = factual.state.get(main_var, 0.0)
         counterfactual_val = counterfactual.state.get(main_var, 0.0)
 
-        # Si factual es mejor o igual que contrafactual, es support
+        # Default: lower values are better (suitable for thermal scenario)
+        # Override in scenarios where higher values are better
         if factual_val <= counterfactual_val:
             return "support"
         return "contradiction"

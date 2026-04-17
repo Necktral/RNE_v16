@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Set
 
@@ -106,7 +107,6 @@ def _infer_type_context(formula: str, episode: Dict[str, Any]) -> Dict[str, str]
 
     # Fallback: extraer símbolos de la fórmula y asumir bool
     # Esto es un parser simple para símbolos
-    import re
     symbols = re.findall(r"[A-Z][A-Z_0-9]+", formula)
     return {sym: "bool" for sym in set(symbols)}
 
