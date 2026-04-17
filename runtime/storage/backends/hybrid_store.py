@@ -16,6 +16,7 @@ from ..records import (
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TransferAssessmentRecord,
 )
 
 
@@ -256,6 +257,25 @@ class HybridStorageBackend(StorageBackend):
             run_id=run_id,
             scales=scales,
             min_ioc_proxy=min_ioc_proxy,
+            limit=limit,
+        )
+
+    def write_transfer_assessment(
+        self, assessment: TransferAssessmentRecord,
+    ) -> TransferAssessmentRecord:
+        return self._dual_write("write_transfer_assessment", assessment)  # type: ignore[return-value]
+
+    def list_transfer_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        episode_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TransferAssessmentRecord]:
+        return self._read_with_fallback(
+            "list_transfer_assessments",
+            run_id=run_id,
+            episode_id=episode_id,
             limit=limit,
         )
 

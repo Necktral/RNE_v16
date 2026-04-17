@@ -30,6 +30,8 @@ class PromotionGate:
         run_id: str,
         episode_result: Dict[str, Any],
         reality_assessment=None,
+        compatibility=None,
+        transition_vector=None,
     ) -> Dict[str, Any]:
         episode = episode_result.get("episode", {})
 
@@ -72,6 +74,23 @@ class PromotionGate:
             uncertainty=uncertainty,
         )
 
+        # Transfer assessment
+        from .transfer_assessment import assess_transfer
+
+        transfer = assess_transfer(
+            episode_result=episode_result,
+            compatibility=compatibility,
+            transition_vector=transition_vector,
+        )
+        transfer_metadata = {
+            "compatibility_class": transfer.compatibility_class,
+            "transfer_verdict": transfer.transfer_verdict,
+            "memory_purity_score": transfer.memory_purity_score,
+            "transition_stability_score": transfer.transition_stability_score,
+            "cross_scenario_evidence_used": transfer.cross_scenario_evidence_used,
+            "analogical_source_present": transfer.analogical_source_present,
+        }
+
         proposal = {
             "proposal_id": f"proposal-{uuid4()}",
             "origin": "promotion_gate",
@@ -82,6 +101,7 @@ class PromotionGate:
                 "continuity_score": continuity,
                 "scenario_metadata": scenario_metadata,
                 "closure_profile": closure_profile,
+                "transfer_assessment": transfer_metadata,
             },
         }
         self.storage.append_event(
@@ -100,6 +120,7 @@ class PromotionGate:
             closure_passed=closure["closure_passed"],
             trace_integrity=closure["trace_integrity"],
             collapse_detected=collapse_detected,
+            transfer_assessment=transfer_metadata,
         )
         decision_verdict = "promote" if certificate.promotion_candidate else "reject"
         decision_reason = (

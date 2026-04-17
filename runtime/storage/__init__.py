@@ -28,6 +28,7 @@ from .records import (
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TransferAssessmentRecord,
 )
 
 _storage_lock = threading.Lock()
@@ -80,6 +81,7 @@ __all__ = [
     "StoredEvent",
     "TelemetrySnapshotRecord",
     "TelemetryStore",
+    "TransferAssessmentRecord",
     "get_storage",
     "reset_storage",
 ]

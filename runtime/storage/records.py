@@ -141,3 +141,20 @@ class MemoryRecord:
     support_count: int = 0
     created_at: str = field(default_factory=utc_now_iso)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class TransferAssessmentRecord:
+    """Record persistente para evaluación de transferibilidad entre escenarios."""
+
+    assessment_id: str
+    run_id: str
+    episode_id: str
+    source_scenario: str
+    target_scenario: str
+    compatibility_class: str
+    transfer_verdict: str
+    memory_purity_score: float
+    transition_stability_score: float
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)

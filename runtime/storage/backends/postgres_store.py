@@ -24,6 +24,7 @@ from ..records import (
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TransferAssessmentRecord,
 )
 
 
@@ -801,6 +802,83 @@ class PostgresStorageBackend(StorageBackend):
                 certificate_id=row["certificate_id"],
                 ioc_proxy=float(row["ioc_proxy"]) if row["ioc_proxy"] is not None else None,
                 support_count=int(row["support_count"]),
+                metadata=dict(row["metadata_jsonb"] or {}),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def write_transfer_assessment(
+        self, assessment: TransferAssessmentRecord,
+    ) -> TransferAssessmentRecord:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO transfer_assessments
+                (assessment_id, run_id, episode_id, source_scenario, target_scenario,
+                 compatibility_class, transfer_verdict, memory_purity_score,
+                 transition_stability_score, metadata_jsonb, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (assessment_id) DO UPDATE SET
+                    transfer_verdict = EXCLUDED.transfer_verdict,
+                    metadata_jsonb = EXCLUDED.metadata_jsonb
+                """,
+                (
+                    assessment.assessment_id,
+                    assessment.run_id,
+                    assessment.episode_id,
+                    assessment.source_scenario,
+                    assessment.target_scenario,
+                    assessment.compatibility_class,
+                    assessment.transfer_verdict,
+                    assessment.memory_purity_score,
+                    assessment.transition_stability_score,
+                    Jsonb(assessment.metadata),
+                    assessment.created_at,
+                ),
+            )
+            conn.commit()
+        return assessment
+
+    def list_transfer_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        episode_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TransferAssessmentRecord]:
+        query = (
+            "SELECT assessment_id, run_id, episode_id, source_scenario, target_scenario, "
+            "compatibility_class, transfer_verdict, memory_purity_score, "
+            "transition_stability_score, metadata_jsonb, created_at "
+            "FROM transfer_assessments"
+        )
+        clauses: list[str] = []
+        params: list[Any] = []
+        if run_id:
+            clauses.append("run_id = %s")
+            params.append(run_id)
+        if episode_id:
+            clauses.append("episode_id = %s")
+            params.append(episode_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            TransferAssessmentRecord(
+                assessment_id=row["assessment_id"],
+                run_id=row["run_id"],
+                episode_id=row["episode_id"],
+                source_scenario=row["source_scenario"],
+                target_scenario=row["target_scenario"],
+                compatibility_class=row["compatibility_class"],
+                transfer_verdict=row["transfer_verdict"],
+                memory_purity_score=float(row["memory_purity_score"]),
+                transition_stability_score=float(row["transition_stability_score"]),
                 metadata=dict(row["metadata_jsonb"] or {}),
                 created_at=row["created_at"],
             )

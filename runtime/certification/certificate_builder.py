@@ -22,6 +22,7 @@ class CertificateBuilder:
         closure_passed: bool,
         trace_integrity: bool,
         collapse_detected: bool,
+        transfer_assessment: Dict[str, Any] | None = None,
     ):
         episode = episode_result.get("episode", {})
         episode_id = episode.get("episode_id", "")
@@ -95,6 +96,7 @@ class CertificateBuilder:
                 "world_temperature": world.get("temperature"),
                 "scenario_metadata": scenario_metadata,
                 "closure_profile": episode.get("closure_profile", "baseline_fixed"),
+                "transfer_assessment": transfer_assessment or {},
             },
         )
         return certificate

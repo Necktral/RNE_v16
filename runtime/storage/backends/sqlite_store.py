@@ -21,6 +21,7 @@ from ..records import (
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TransferAssessmentRecord,
 )
 
 
@@ -184,6 +185,23 @@ class SQLiteStorageBackend(StorageBackend):
 
                 CREATE INDEX IF NOT EXISTS idx_memory_records_run_scale
                 ON memory_records(run_id, scale, created_at);
+
+                CREATE TABLE IF NOT EXISTS transfer_assessments (
+                    assessment_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    episode_id TEXT NOT NULL,
+                    source_scenario TEXT NOT NULL,
+                    target_scenario TEXT NOT NULL,
+                    compatibility_class TEXT NOT NULL,
+                    transfer_verdict TEXT NOT NULL,
+                    memory_purity_score REAL NOT NULL,
+                    transition_stability_score REAL NOT NULL,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_transfer_assessments_run
+                ON transfer_assessments(run_id, created_at);
                 """
             )
             conn.commit()
@@ -796,6 +814,79 @@ class SQLiteStorageBackend(StorageBackend):
                 support_count=int(row[9]),
                 metadata=_safe_json_load(row[10]),
                 created_at=row[11],
+            )
+            for row in rows
+        ]
+
+    def write_transfer_assessment(
+        self, assessment: TransferAssessmentRecord,
+    ) -> TransferAssessmentRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO transfer_assessments
+                (assessment_id, run_id, episode_id, source_scenario, target_scenario,
+                 compatibility_class, transfer_verdict, memory_purity_score,
+                 transition_stability_score, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    assessment.assessment_id,
+                    assessment.run_id,
+                    assessment.episode_id,
+                    assessment.source_scenario,
+                    assessment.target_scenario,
+                    assessment.compatibility_class,
+                    assessment.transfer_verdict,
+                    assessment.memory_purity_score,
+                    assessment.transition_stability_score,
+                    json.dumps(assessment.metadata),
+                    assessment.created_at,
+                ),
+            )
+            conn.commit()
+        return assessment
+
+    def list_transfer_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        episode_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TransferAssessmentRecord]:
+        query = (
+            "SELECT assessment_id, run_id, episode_id, source_scenario, target_scenario, "
+            "compatibility_class, transfer_verdict, memory_purity_score, "
+            "transition_stability_score, metadata, created_at "
+            "FROM transfer_assessments"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if episode_id:
+            clauses.append("episode_id = ?")
+            params.append(episode_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            TransferAssessmentRecord(
+                assessment_id=row[0],
+                run_id=row[1],
+                episode_id=row[2],
+                source_scenario=row[3],
+                target_scenario=row[4],
+                compatibility_class=row[5],
+                transfer_verdict=row[6],
+                memory_purity_score=float(row[7]),
+                transition_stability_score=float(row[8]),
+                metadata=_safe_json_load(row[9]),
+                created_at=row[10],
             )
             for row in rows
         ]
