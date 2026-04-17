@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "session_bridge",
+  "type": "object",
+  "required": ["session_id", "episode_id", "channel", "timestamp"],
+  "properties": {
+    "session_id": { "type": "string" },
+    "episode_id": { "type": "string" },
+    "channel": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}
+

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "episode",
+  "type": "object",
+  "required": ["episode_id", "timestamp", "context", "result"],
+  "properties": {
+    "episode_id": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "context": { "type": "object" },
+    "result": { "type": "object" },
+    "trace": { "type": "array" }
+  },
+  "additionalProperties": true
+}
+

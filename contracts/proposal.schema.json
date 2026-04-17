@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "proposal",
+  "type": "object",
+  "required": ["proposal_id", "origin", "change", "risk"],
+  "properties": {
+    "proposal_id": { "type": "string" },
+    "origin": { "type": "string" },
+    "change": { "type": "object" },
+    "risk": { "type": "string" },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}
+

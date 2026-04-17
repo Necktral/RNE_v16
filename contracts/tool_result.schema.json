@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tool_result",
+  "type": "object",
+  "required": ["request_id", "status", "output"],
+  "properties": {
+    "request_id": { "type": "string" },
+    "status": { "type": "string" },
+    "output": { "type": "object" },
+    "timestamp": { "type": "string" }
+  },
+  "additionalProperties": true
+}
+

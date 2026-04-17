@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "telemetry_snapshot",
+  "type": "object",
+  "required": ["snapshot_id", "timestamp", "metrics"],
+  "properties": {
+    "snapshot_id": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "metrics": { "type": "object" }
+  },
+  "additionalProperties": true
+}
+

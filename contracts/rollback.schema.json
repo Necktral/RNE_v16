@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rollback",
+  "type": "object",
+  "required": ["rollback_id", "target", "reason", "timestamp"],
+  "properties": {
+    "rollback_id": { "type": "string" },
+    "target": { "type": "string" },
+    "reason": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "artifacts": { "type": "array" }
+  },
+  "additionalProperties": true
+}
+
