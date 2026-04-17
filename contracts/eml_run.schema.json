@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "eml_run",
+  "type": "object",
+  "required": [
+    "eml_run_id",
+    "run_id",
+    "episode_id",
+    "config",
+    "rows_count",
+    "candidate_count",
+    "top_candidates"
+  ],
+  "properties": {
+    "eml_run_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "episode_id": { "type": "string" },
+    "config": { "type": "object" },
+    "rows_count": { "type": "integer", "minimum": 0 },
+    "candidate_count": { "type": "integer", "minimum": 0 },
+    "top_candidates": {
+      "type": "array",
+      "items": { "$ref": "eml_candidate.schema.json" }
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}
+
