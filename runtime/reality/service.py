@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from dataclasses import asdict
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, List
 from uuid import uuid4
 
 from runtime.storage import get_storage
 from runtime.storage.records import utc_now_iso
 from runtime.world.min_cognitive_episode import MinimalCognitiveEpisodeRunner
+from runtime.world.scenario_runner import ScenarioEpisodeRunner
 
 from .collapse import CollapseDetector
 from .continuity import continuity_score
@@ -53,6 +55,7 @@ class RealityValidationService:
         result: Dict[str, Any],
         previous_result: Dict[str, Any] | None,
         recent_assessments,
+        scenario_name: str | None = None,
     ):
         closure = evaluate_episode_closure(storage=self.storage, run_id=run_id, result=result)
         continuity = continuity_score(
@@ -73,6 +76,7 @@ class RealityValidationService:
             "reasoning_sequence": result.get("episode", {})
             .get("result", {})
             .get("reasoning_sequence", []),
+            "scenario_name": scenario_name or "thermal_homeostasis",  # backward compat
         }
         return self.storage.write_reality_assessment(
             assessment_id=f"assess-{uuid4()}",
@@ -96,6 +100,45 @@ class RealityValidationService:
             and summary["continuity_mean"] >= cfg["continuity_mean_min"]
             and summary["collapse_count"] <= cfg["collapse_count_max"]
         )
+
+    def _compute_scenario_metrics(
+        self, assessments: List[Any]
+    ) -> Dict[str, Dict[str, float]]:
+        """Computa métricas agregadas por escenario.
+
+        Args:
+            assessments: Lista de assessments con campo details.scenario_name.
+
+        Returns:
+            Dict con métricas por escenario: {scenario_name: {closure_rate, continuity_mean, ...}}
+        """
+        by_scenario = defaultdict(list)
+        for assessment in assessments:
+            scenario = assessment.details.get("scenario_name", "thermal_homeostasis")
+            by_scenario[scenario].append(assessment)
+
+        metrics = {}
+        for scenario_name, scenario_assessments in by_scenario.items():
+            closure_pass = [
+                1.0 if item.closure_passed else 0.0 for item in scenario_assessments
+            ]
+            continuity_values = [item.continuity_score for item in scenario_assessments]
+            collapse_count = sum(1 for item in scenario_assessments if item.collapse_detected)
+
+            metrics[scenario_name] = {
+                "total_episodes": len(scenario_assessments),
+                "closure_rate": (
+                    sum(closure_pass) / len(closure_pass) if closure_pass else 0.0
+                ),
+                "continuity_mean": (
+                    sum(continuity_values) / len(continuity_values)
+                    if continuity_values
+                    else 0.0
+                ),
+                "collapse_count": collapse_count,
+            }
+
+        return metrics
 
     def run_benchmark(
         self,
@@ -121,19 +164,29 @@ class RealityValidationService:
 
         for external_heat in pack[:target_episodes]:
             result = runner.run_episode(external_heat=float(external_heat))
+            # Extraer scenario_name del episodio si está disponible
+            episode = result.get("episode", {})
+            scenario_name = episode.get("scenario", "thermal_homeostasis")
+            
             assessment = self.evaluate_episode_result(
                 run_id=run_id,
                 bench_run_id=bench_run_id,
                 result=result,
                 previous_result=previous_result,
                 recent_assessments=assessments[-2:],
+                scenario_name=scenario_name,
             )
             assessments.append(assessment)
             previous_result = result
 
+        # Métricas globales
         closure_pass = [1.0 if item.closure_passed else 0.0 for item in assessments]
         continuity_values = [item.continuity_score for item in assessments]
         collapse_count = sum(1 for item in assessments if item.collapse_detected)
+        
+        # Métricas por escenario
+        scenario_metrics = self._compute_scenario_metrics(assessments)
+        
         summary = {
             "bench_run_id": bench_run_id,
             "run_id": run_id,
@@ -144,6 +197,7 @@ class RealityValidationService:
             ),
             "collapse_count": collapse_count,
             "gate_profile": profile,
+            "scenario_metrics": scenario_metrics,  # Nuevo: métricas por escenario
         }
         passed = self._evaluate_gate(gate_profile=profile, summary=summary)
 
