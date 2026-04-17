@@ -11,6 +11,24 @@ from .compatibility import (
     ScenarioCompatibilityGraph,
     ScenarioStructuralProfile,
 )
+from .causal_signature import (
+    CausalEdge,
+    InterventionEffect,
+    ScenarioCausalSignature,
+)
+from .alignment import (
+    AlignmentPair,
+    AlignmentResult,
+    align_causal_graphs,
+    align_interventions,
+    align_propositions,
+)
+from .morphism_engine import (
+    DirectedScenarioMorphism,
+    MorphismClass,
+    MorphismEngine,
+    TransportOperator,
+)
 from .scenario import (
     CognitiveScenario,
     ScenarioConfig,
@@ -25,6 +43,7 @@ from .registry import (
     get_scenario,
     list_scenarios,
     list_structural_profiles,
+    list_causal_signatures,
     register_scenario,
 )
 from .scenario_runner import ScenarioEpisodeRunner
@@ -41,6 +60,21 @@ __all__ = [
     "OptimizationDirection",
     "ScenarioCompatibilityGraph",
     "ScenarioStructuralProfile",
+    # Causal signatures
+    "CausalEdge",
+    "InterventionEffect",
+    "ScenarioCausalSignature",
+    # Alignment
+    "AlignmentPair",
+    "AlignmentResult",
+    "align_causal_graphs",
+    "align_interventions",
+    "align_propositions",
+    # Morphism engine
+    "DirectedScenarioMorphism",
+    "MorphismClass",
+    "MorphismEngine",
+    "TransportOperator",
     # Scenario interface
     "CognitiveScenario",
     "ScenarioConfig",
@@ -57,6 +91,7 @@ __all__ = [
     "get_scenario",
     "list_scenarios",
     "list_structural_profiles",
+    "list_causal_signatures",
     "register_scenario",
     # Runner
     "ScenarioEpisodeRunner",

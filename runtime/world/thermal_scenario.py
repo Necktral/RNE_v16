@@ -7,6 +7,11 @@ import json
 from dataclasses import dataclass
 
 from .compatibility import ScenarioStructuralProfile
+from .causal_signature import (
+    CausalEdge,
+    InterventionEffect,
+    ScenarioCausalSignature,
+)
 from .scenario import (
     CognitiveScenario,
     ScenarioConfig,
@@ -95,6 +100,47 @@ class ThermalScenario(CognitiveScenario):
             counterfactual_policy="opposite_intervention",
             relation_polarity="lower_is_better",
             main_variable=cfg.main_variable,
+        )
+
+    @property
+    def causal_signature(self) -> ScenarioCausalSignature:
+        """Firma causal completa para morfismos dirigidos."""
+        cfg = self._config
+        return ScenarioCausalSignature(
+            scenario_name=cfg.name,
+            scenario_version="1.0",
+            observable_variables=frozenset({"temperature", "cooling_active"}),
+            control_variables=frozenset({"cooling_active"}),
+            main_variable="temperature",
+            optimization_direction="minimize",
+            causal_polarity="lower_is_better",
+            alarm_semantics="threshold_above",
+            intervention_effects=(
+                InterventionEffect(
+                    intervention_name="activate_cooling",
+                    target_variable="temperature",
+                    expected_direction="-",
+                    expected_magnitude=self._cooling_effect,
+                    semantic_role="corrective",
+                ),
+                InterventionEffect(
+                    intervention_name="deactivate_cooling",
+                    target_variable="temperature",
+                    expected_direction="+",
+                    expected_magnitude=0.0,
+                    semantic_role="neutral",
+                ),
+            ),
+            counterfactual_policy="opposite_intervention",
+            counterfactual_variable="temperature",
+            causal_edges=(
+                CausalEdge(source="external_heat", target="temperature", polarity="+"),
+                CausalEdge(source="cooling_active", target="temperature", polarity="-"),
+                CausalEdge(source="temperature", target="alarm", polarity="+"),
+            ),
+            proposition_vocabulary=frozenset({
+                "TEMP_HIGH", "TEMP_NORMAL", "COOLING_ACTIVE", "ACTIVATE_COOLING", "KEEP_IDLE",
+            }),
         )
 
     @property

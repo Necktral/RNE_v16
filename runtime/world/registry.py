@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Dict, Type
 
 from .compatibility import ScenarioStructuralProfile
+from .causal_signature import ScenarioCausalSignature
 from .scenario import CognitiveScenario, ScenarioConfig
 from .thermal_scenario import ThermalScenario
 from .resource_scenario import ResourceScenario
@@ -75,3 +76,16 @@ def register_scenario(name: str, scenario_class: Type[CognitiveScenario]) -> Non
         scenario_class: Clase del escenario (debe heredar de CognitiveScenario).
     """
     SCENARIO_REGISTRY[name] = scenario_class
+
+
+def list_causal_signatures() -> Dict[str, ScenarioCausalSignature]:
+    """Lista firmas causales de todos los escenarios registrados.
+
+    Returns:
+        Dict con nombre -> ScenarioCausalSignature de cada escenario.
+    """
+    signatures = {}
+    for name, scenario_class in SCENARIO_REGISTRY.items():
+        instance = scenario_class()
+        signatures[name] = instance.causal_signature
+    return signatures
