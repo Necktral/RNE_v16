@@ -89,6 +89,10 @@ class PromotionGate:
             "transition_stability_score": transfer.transition_stability_score,
             "cross_scenario_evidence_used": transfer.cross_scenario_evidence_used,
             "analogical_source_present": transfer.analogical_source_present,
+            "transfer_posterior": transfer.transfer_posterior,
+            "lower_confidence_bound": transfer.lower_confidence_bound,
+            "certificate_scope": transfer.certificate_scope,
+            "failure_mode_count": transfer.failure_mode_count,
         }
 
         proposal = {

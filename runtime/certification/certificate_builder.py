@@ -97,6 +97,7 @@ class CertificateBuilder:
                 "scenario_metadata": scenario_metadata,
                 "closure_profile": episode.get("closure_profile", "baseline_fixed"),
                 "transfer_assessment": transfer_assessment or {},
+                "belief_state": episode_result.get("belief_state"),
             },
         )
         return certificate
