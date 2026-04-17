@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Type
 
+from .compatibility import ScenarioStructuralProfile
 from .scenario import CognitiveScenario, ScenarioConfig
 from .thermal_scenario import ThermalScenario
 from .resource_scenario import ResourceScenario
@@ -51,6 +52,19 @@ def list_scenarios() -> Dict[str, ScenarioConfig]:
         instance = scenario_class()
         configs[name] = instance.config
     return configs
+
+
+def list_structural_profiles() -> Dict[str, ScenarioStructuralProfile]:
+    """Lista perfiles estructurales de todos los escenarios registrados.
+
+    Returns:
+        Dict con nombre -> ScenarioStructuralProfile de cada escenario.
+    """
+    profiles = {}
+    for name, scenario_class in SCENARIO_REGISTRY.items():
+        instance = scenario_class()
+        profiles[name] = instance.structural_profile
+    return profiles
 
 
 def register_scenario(name: str, scenario_class: Type[CognitiveScenario]) -> None:

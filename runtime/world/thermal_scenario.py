@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 
+from .compatibility import ScenarioStructuralProfile
 from .scenario import (
     CognitiveScenario,
     ScenarioConfig,
@@ -65,6 +68,34 @@ class ThermalScenario(CognitiveScenario):
     @property
     def config(self) -> ScenarioConfig:
         return self._config
+
+    @property
+    def structural_profile(self) -> ScenarioStructuralProfile:
+        """Perfil estructural para evaluación de compatibilidad."""
+        cfg = self._config
+        config_blob = json.dumps(
+            {
+                "name": cfg.name,
+                "main_variable": cfg.main_variable,
+                "alarm_threshold": cfg.alarm_threshold,
+                "interventions": cfg.interventions,
+                "formula_template": cfg.formula_template,
+                "type_context": cfg.type_context,
+            },
+            sort_keys=True,
+        )
+        config_hash = hashlib.sha256(config_blob.encode()).hexdigest()[:12]
+        return ScenarioStructuralProfile(
+            scenario_name=cfg.name,
+            scenario_version="1.0",
+            scenario_config_hash=config_hash,
+            control_topology="threshold_single_loop",
+            optimization_direction="minimize",
+            intervention_semantics=tuple(cfg.interventions),
+            counterfactual_policy="opposite_intervention",
+            relation_polarity="lower_is_better",
+            main_variable=cfg.main_variable,
+        )
 
     @property
     def alarm_threshold(self) -> float:

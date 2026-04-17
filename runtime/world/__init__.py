@@ -3,6 +3,14 @@
 
 from .cgwm_min import CGWMMin, WorldState
 from .min_cognitive_episode import MinimalCognitiveEpisodeRunner
+from .compatibility import (
+    CompatibilityAssessment,
+    CompatibilityClass,
+    ControlTopology,
+    OptimizationDirection,
+    ScenarioCompatibilityGraph,
+    ScenarioStructuralProfile,
+)
 from .scenario import (
     CognitiveScenario,
     ScenarioConfig,
@@ -16,6 +24,7 @@ from .registry import (
     DEFAULT_SCENARIO,
     get_scenario,
     list_scenarios,
+    list_structural_profiles,
     register_scenario,
 )
 from .scenario_runner import ScenarioEpisodeRunner
@@ -25,6 +34,13 @@ __all__ = [
     "CGWMMin",
     "WorldState",
     "MinimalCognitiveEpisodeRunner",
+    # Compatibility graph
+    "CompatibilityAssessment",
+    "CompatibilityClass",
+    "ControlTopology",
+    "OptimizationDirection",
+    "ScenarioCompatibilityGraph",
+    "ScenarioStructuralProfile",
     # Scenario interface
     "CognitiveScenario",
     "ScenarioConfig",
@@ -40,6 +56,7 @@ __all__ = [
     "DEFAULT_SCENARIO",
     "get_scenario",
     "list_scenarios",
+    "list_structural_profiles",
     "register_scenario",
     # Runner
     "ScenarioEpisodeRunner",
