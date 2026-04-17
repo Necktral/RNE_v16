@@ -1,6 +1,10 @@
 """Servicios de validación de realidad operativa del organismo."""
 
-__all__ = ["RealityValidationService"]
+__all__ = [
+    "RealityValidationService",
+    "RealityValidationHook",
+    "run_reality_validation",
+]
 
 
 def __getattr__(name: str):
@@ -8,4 +12,12 @@ def __getattr__(name: str):
         from .service import RealityValidationService
 
         return RealityValidationService
+    if name == "RealityValidationHook":
+        from .hook import RealityValidationHook
+
+        return RealityValidationHook
+    if name == "run_reality_validation":
+        from .cli import run_reality_validation
+
+        return run_reality_validation
     raise AttributeError(name)
