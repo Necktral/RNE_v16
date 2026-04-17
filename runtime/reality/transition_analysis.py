@@ -167,14 +167,19 @@ def compute_transition_vector(
     current_result: Dict[str, Any],
     compatibility: CompatibilityAssessment,
     retrieval_metrics: Dict[str, Any] | None = None,
+    morphism_score: float | None = None,
 ) -> TransitionContinuityVector:
     """Computa vector de continuidad para una transición entre episodios.
+
+    When belief states are available in the episode results, uses them
+    to compute a more accurate causal stability and intervention stability.
 
     Args:
         previous_result: Resultado del episodio anterior (episode payload).
         current_result: Resultado del episodio actual (episode payload).
         compatibility: Evaluación de compatibilidad entre escenarios.
         retrieval_metrics: Métricas de retrieval de memoria del episodio actual.
+        morphism_score: Optional directed morphism score (overrides structural).
 
     Returns:
         TransitionContinuityVector con todos los componentes.
@@ -196,11 +201,27 @@ def compute_transition_vector(
     main_var = curr_episode.get("scenario_metadata", {}).get("main_variable")
     causal = _causal_stability_generic(curr_episode, main_variable=main_var)
 
+    # Belief-enhanced causal stability: if belief states are available
+    belief_data = current_result.get("belief_state")
+    if belief_data and belief_data.get("posterior"):
+        posterior = belief_data["posterior"]
+        causal_conf = posterior.get("causal_support_confidence")
+        if causal_conf is not None:
+            # Blend heuristic causal with belief-derived causal
+            causal = 0.4 * causal + 0.6 * float(causal_conf)
+
     # Intervention policy stability
     intervention = _intervention_stability(prev_episode, curr_episode)
 
-    # Structural compatibility (del grafo)
-    structural = compatibility.overall_score
+    # Belief-enhanced intervention stability
+    if belief_data and belief_data.get("posterior"):
+        posterior = belief_data["posterior"]
+        policy_conf = posterior.get("policy_confidence")
+        if policy_conf is not None:
+            intervention = 0.4 * intervention + 0.6 * float(policy_conf)
+
+    # Structural compatibility (from graph or morphism)
+    structural = morphism_score if morphism_score is not None else compatibility.overall_score
 
     # Memory purity
     purity = _memory_purity(retrieval_metrics)

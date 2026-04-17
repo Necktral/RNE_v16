@@ -13,6 +13,7 @@ from runtime.certification.promotion_gate import PromotionGate
 from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
+from runtime.reality.belief_state import BeliefState, build_belief_state
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
 from runtime.storage.records import utc_now_iso
@@ -88,6 +89,7 @@ class ScenarioEpisodeRunner:
         self.promotion_gate = PromotionGate(storage=self.storage)
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
         self.eml_runner = EMLRunner(storage=self.storage)
+        self._previous_belief: BeliefState | None = None
 
     def _build_scenario_metadata(self) -> Dict[str, Any]:
         """Construye metadata formal del escenario activo.
@@ -241,6 +243,12 @@ class ScenarioEpisodeRunner:
         })
 
         # 10. Construir payload de episodio
+        factual_delta = float(factual.state.get(self.scenario.config.main_variable, 0.0)) - float(
+            observation.state.get(self.scenario.config.main_variable, 0.0)
+        )
+        counterfactual_delta = float(counterfactual.state.get(self.scenario.config.main_variable, 0.0)) - float(
+            observation.state.get(self.scenario.config.main_variable, 0.0)
+        )
         episode_payload = {
             "episode_id": episode_id,
             "timestamp": utc_now_iso(),
@@ -259,6 +267,10 @@ class ScenarioEpisodeRunner:
                 "updated_world": self.scenario.to_transition_dict(factual),
                 "relation_kind": relation_kind,
                 "reasoning_sequence": reasoning["sequence"],
+                "factual_delta": factual_delta,
+                "counterfactual_delta": counterfactual_delta,
+                "intervention_effect": relation_kind,
+                "alarm_transition": observation.alarm,
             },
             "trace": reasoning["trace"],
         }
@@ -301,6 +313,15 @@ class ScenarioEpisodeRunner:
             "artifact": asdict(artifact),
             "run_id": self.run_id,
         }
+
+        # 12b. Build and persist belief state
+        current_belief = build_belief_state(episode_result=episode_result)
+        belief_prior = self._previous_belief
+        episode_result["belief_state"] = {
+            "prior": asdict(belief_prior) if belief_prior else None,
+            "posterior": asdict(current_belief),
+        }
+        self._previous_belief = current_belief
 
         # 13. Certificación
         certification = self.promotion_gate.process_episode(
