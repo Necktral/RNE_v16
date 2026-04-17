@@ -57,6 +57,7 @@ class MemoryRetrieval:
             score = self._score(query=query, structure=structure)
 
             # Scenario filtering
+            is_cross_scenario = False
             if scenario_name is not None:
                 item_scenario = (
                     meta.get("scenario_metadata", {}).get("scenario_name")
@@ -71,15 +72,14 @@ class MemoryRetrieval:
                     same_scenario_count += 1
                 else:
                     cross_scenario_count += 1
+                    is_cross_scenario = True
                     if scenario_filter_mode == "strict_same_scenario":
                         continue  # Discard cross-scenario memory
                     # Analogical mode: penalize but keep
                     score *= _CROSS_SCENARIO_PENALTY
                     penalty_applied = True
 
-            scored.append((score, item, not (scenario_name is None or
-                           (meta.get("scenario_metadata", {}).get("scenario_name") or
-                            meta.get("scenario_name")) == scenario_name)))
+            scored.append((score, item, is_cross_scenario))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
         out = []
