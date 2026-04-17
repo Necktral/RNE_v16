@@ -61,6 +61,32 @@ CREATE TABLE IF NOT EXISTS artifacts (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS reality_assessments (
+    assessment_id TEXT PRIMARY KEY,
+    run_id TEXT,
+    bench_run_id TEXT,
+    episode_id TEXT NOT NULL,
+    closure_passed BOOLEAN NOT NULL,
+    continuity_score DOUBLE PRECISION NOT NULL,
+    trace_integrity BOOLEAN NOT NULL,
+    collapse_detected BOOLEAN NOT NULL,
+    details_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reality_bench_runs (
+    bench_run_id TEXT PRIMARY KEY,
+    run_id TEXT,
+    total_episodes INTEGER NOT NULL,
+    closure_rate DOUBLE PRECISION NOT NULL,
+    continuity_mean DOUBLE PRECISION NOT NULL,
+    collapse_count INTEGER NOT NULL,
+    gate_profile TEXT NOT NULL,
+    passed BOOLEAN NOT NULL,
+    summary_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ledger_events_run_id_ts
 ON ledger_events(run_id, event_ts);
 
@@ -75,3 +101,9 @@ ON reasoning_traces(run_id, step_index);
 
 CREATE INDEX IF NOT EXISTS idx_artifacts_run_kind_ts
 ON artifacts(run_id, kind, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_reality_assessments_run_bench_ts
+ON reality_assessments(run_id, bench_run_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_reality_bench_runs_run_ts
+ON reality_bench_runs(run_id, created_at);

@@ -65,3 +65,31 @@ class SessionBridgeRecord:
     channel: str
     timestamp: str = field(default_factory=utc_now_iso)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class RealityAssessmentRecord:
+    assessment_id: str
+    episode_id: str
+    closure_passed: bool
+    continuity_score: float
+    trace_integrity: bool
+    collapse_detected: bool
+    created_at: str = field(default_factory=utc_now_iso)
+    run_id: Optional[str] = None
+    bench_run_id: Optional[str] = None
+    details: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class RealityBenchRunRecord:
+    bench_run_id: str
+    total_episodes: int
+    closure_rate: float
+    continuity_mean: float
+    collapse_count: int
+    gate_profile: str
+    passed: bool
+    created_at: str = field(default_factory=utc_now_iso)
+    run_id: Optional[str] = None
+    summary: Dict[str, Any] = field(default_factory=dict)

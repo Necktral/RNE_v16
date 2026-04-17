@@ -8,6 +8,8 @@ from ..interfaces import StorageBackend
 from ..records import (
     ArtifactRecord,
     ReasoningTraceRecord,
+    RealityAssessmentRecord,
+    RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
@@ -154,6 +156,39 @@ class HybridStorageBackend(StorageBackend):
         except Exception:  # pragma: no cover - cubierto en integracion
             pass
         return second.get_session_bridge(session_id)
+
+    def write_reality_assessment(
+        self, assessment: RealityAssessmentRecord
+    ) -> RealityAssessmentRecord:
+        return self._dual_write("write_reality_assessment", assessment)  # type: ignore[return-value]
+
+    def list_reality_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        bench_run_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RealityAssessmentRecord]:
+        return self._read_with_fallback(
+            "list_reality_assessments",
+            run_id=run_id,
+            bench_run_id=bench_run_id,
+            limit=limit,
+        )
+
+    def write_reality_bench_run(
+        self, bench_run: RealityBenchRunRecord
+    ) -> RealityBenchRunRecord:
+        return self._dual_write("write_reality_bench_run", bench_run)  # type: ignore[return-value]
+
+    def list_reality_bench_runs(
+        self, *, run_id: str | None = None, limit: int = 50
+    ) -> list[RealityBenchRunRecord]:
+        return self._read_with_fallback(
+            "list_reality_bench_runs",
+            run_id=run_id,
+            limit=limit,
+        )
 
     def close(self) -> None:
         self.primary.close()

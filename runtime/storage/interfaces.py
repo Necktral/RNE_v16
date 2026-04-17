@@ -7,6 +7,8 @@ from typing import Protocol, Sequence, runtime_checkable
 from .records import (
     ArtifactRecord,
     ReasoningTraceRecord,
+    RealityAssessmentRecord,
+    RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
@@ -81,12 +83,40 @@ class SessionStore(Protocol):
 
 
 @runtime_checkable
+class RealityStore(Protocol):
+    def write_reality_assessment(
+        self, assessment: RealityAssessmentRecord
+    ) -> RealityAssessmentRecord:
+        ...
+
+    def list_reality_assessments(
+        self,
+        *,
+        run_id: str | None = None,
+        bench_run_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RealityAssessmentRecord]:
+        ...
+
+    def write_reality_bench_run(
+        self, bench_run: RealityBenchRunRecord
+    ) -> RealityBenchRunRecord:
+        ...
+
+    def list_reality_bench_runs(
+        self, *, run_id: str | None = None, limit: int = 50
+    ) -> list[RealityBenchRunRecord]:
+        ...
+
+
+@runtime_checkable
 class StorageBackend(
     LedgerStore,
     TelemetryStore,
     ReasoningTraceStore,
     ArtifactIndexStore,
     SessionStore,
+    RealityStore,
     Protocol,
 ):
     def close(self) -> None:

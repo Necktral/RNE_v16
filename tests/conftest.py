@@ -22,6 +22,10 @@ def pytest_configure(config: pytest.Config) -> None:
         "requires_postgres: test requiere PostgreSQL y RNFE_POSTGRES_DSN",
     )
     config.addinivalue_line("markers", "requires_cuda: test requiere CUDA")
+    config.addinivalue_line(
+        "markers",
+        "requires_extended_bench: test requiere RNFE_RUN_EXTENDED_BENCH=1",
+    )
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
@@ -41,3 +45,7 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 
         if not torch.cuda.is_available():
             pytest.skip("Saltado: CUDA no está disponible.")
+
+    if item.get_closest_marker("requires_extended_bench"):
+        if os.environ.get("RNFE_RUN_EXTENDED_BENCH") != "1":
+            pytest.skip("Saltado: RNFE_RUN_EXTENDED_BENCH=1 no está activo.")
