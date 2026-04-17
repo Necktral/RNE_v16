@@ -31,6 +31,11 @@ class ClosureProfile:
 
 
 # Perfil baseline fijo: la secuencia exacta original
+# Este perfil es un contrato duro que garantiza:
+# - misma longitud exacta
+# - mismo orden exacto
+# - sin duplicados
+# - sin intercalaciones de otras familias
 BASELINE_FIXED_PROFILE = ClosureProfile(
     name="baseline_fixed",
     required_sequence=["ABD", "ANA", "CAU", "CTF", "DED", "PROB"],
@@ -41,11 +46,15 @@ BASELINE_FIXED_PROFILE = ClosureProfile(
         "CTF": {"DED", "PROB"},
         "DED": {"PROB"},
     },
-    optional_families=set(),
+    optional_families=set(),  # baseline NO permite familias opcionales
     prob_must_close=True,
 )
 
 # Perfil adaptativo mínimo: orden parcial obligatorio + familias extra permitidas
+# Este perfil permite ecología adaptativa:
+# - Familias obligatorias en orden parcial
+# - Familias opcionales intercaladas (DIA_ADV, HEUR, FAL_GUARD, EML_SR)
+# - PROB debe cerrar la calibración
 ADAPTIVE_MIN_PROFILE = ClosureProfile(
     name="adaptive_min",
     required_sequence=["ABD", "ANA", "CAU", "CTF", "DED", "PROB"],
@@ -168,6 +177,17 @@ def _validate_no_unknown_families(
     return all(fam in valid_families for fam in sequence)
 
 
+def _validate_exact_sequence(
+    sequence: List[str],
+    required: List[str],
+) -> bool:
+    """Verifica que la secuencia sea exactamente igual a la requerida.
+    
+    Para baseline_fixed: misma longitud, mismo orden, sin duplicados, sin intercalaciones.
+    """
+    return sequence == required
+
+
 def validate_sequence_with_profile(
     sequence: List[str],
     profile: ClosureProfile,
@@ -183,22 +203,41 @@ def validate_sequence_with_profile(
     """
     normalized = _normalize_sequence(sequence)
 
-    checks = {
-        "required_families_present": _validate_required_families(
-            normalized, profile.required_sequence
-        ),
-        "partial_order_respected": _validate_partial_order(
-            normalized, profile.partial_order
-        ),
-        "no_unknown_families": _validate_no_unknown_families(
-            normalized, profile.required_sequence, profile.optional_families
-        ),
-    }
+    # Para baseline_fixed, usar validación exacta estricta
+    if profile.name == "baseline_fixed":
+        exact_match = _validate_exact_sequence(normalized, profile.required_sequence)
+        checks = {
+            "exact_sequence_match": exact_match,
+            "required_families_present": _validate_required_families(
+                normalized, profile.required_sequence
+            ),
+            "partial_order_respected": _validate_partial_order(
+                normalized, profile.partial_order
+            ),
+            "no_unknown_families": _validate_no_unknown_families(
+                normalized, profile.required_sequence, profile.optional_families
+            ),
+            "prob_closes_calibration": _validate_prob_closes(normalized),
+        }
+        passed = exact_match  # baseline_fixed requiere match exacto
+    else:
+        # Para otros perfiles (adaptive_min), usar validación flexible
+        checks = {
+            "required_families_present": _validate_required_families(
+                normalized, profile.required_sequence
+            ),
+            "partial_order_respected": _validate_partial_order(
+                normalized, profile.partial_order
+            ),
+            "no_unknown_families": _validate_no_unknown_families(
+                normalized, profile.required_sequence, profile.optional_families
+            ),
+        }
 
-    if profile.prob_must_close:
-        checks["prob_closes_calibration"] = _validate_prob_closes(normalized)
+        if profile.prob_must_close:
+            checks["prob_closes_calibration"] = _validate_prob_closes(normalized)
 
-    passed = all(checks.values())
+        passed = all(checks.values())
 
     return {
         "profile": profile.name,
