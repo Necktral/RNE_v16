@@ -15,6 +15,7 @@ CONTRACT_FILES = [
     "reasoning_trace.schema.json",
     "artifact_index.schema.json",
     "reality_assessment.schema.json",
+    "memory_record.schema.json",
 ]
 
 

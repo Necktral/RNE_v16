@@ -7,6 +7,9 @@ from typing import Sequence
 from ..interfaces import StorageBackend
 from ..records import (
     ArtifactRecord,
+    EpisodeCertificateRecord,
+    MemoryRecord,
+    PromotionDecisionRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
@@ -187,6 +190,72 @@ class HybridStorageBackend(StorageBackend):
         return self._read_with_fallback(
             "list_reality_bench_runs",
             run_id=run_id,
+            limit=limit,
+        )
+
+    def write_episode_certificate(
+        self, certificate: EpisodeCertificateRecord
+    ) -> EpisodeCertificateRecord:
+        return self._dual_write("write_episode_certificate", certificate)  # type: ignore[return-value]
+
+    def get_episode_certificate(
+        self, *, certificate_id: str | None = None, episode_id: str | None = None
+    ) -> EpisodeCertificateRecord | None:
+        first = self.primary if self.prefer_primary_reads else self.fallback
+        second = self.fallback if self.prefer_primary_reads else self.primary
+        try:
+            row = first.get_episode_certificate(
+                certificate_id=certificate_id,
+                episode_id=episode_id,
+            )
+            if row is not None:
+                return row
+        except Exception:  # pragma: no cover
+            pass
+        return second.get_episode_certificate(
+            certificate_id=certificate_id,
+            episode_id=episode_id,
+        )
+
+    def list_episode_certificates(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[EpisodeCertificateRecord]:
+        return self._read_with_fallback(
+            "list_episode_certificates",
+            run_id=run_id,
+            limit=limit,
+        )
+
+    def write_promotion_decision(
+        self, decision: PromotionDecisionRecord
+    ) -> PromotionDecisionRecord:
+        return self._dual_write("write_promotion_decision", decision)  # type: ignore[return-value]
+
+    def list_promotion_decisions(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[PromotionDecisionRecord]:
+        return self._read_with_fallback(
+            "list_promotion_decisions",
+            run_id=run_id,
+            limit=limit,
+        )
+
+    def write_memory_record(self, memory: MemoryRecord) -> MemoryRecord:
+        return self._dual_write("write_memory_record", memory)  # type: ignore[return-value]
+
+    def retrieve_memory_records(
+        self,
+        *,
+        run_id: str | None = None,
+        scales: Sequence[str] | None = None,
+        min_ioc_proxy: float | None = None,
+        limit: int = 50,
+    ) -> list[MemoryRecord]:
+        return self._read_with_fallback(
+            "retrieve_memory_records",
+            run_id=run_id,
+            scales=scales,
+            min_ioc_proxy=min_ioc_proxy,
             limit=limit,
         )
 

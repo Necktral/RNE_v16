@@ -93,3 +93,51 @@ class RealityBenchRunRecord:
     created_at: str = field(default_factory=utc_now_iso)
     run_id: Optional[str] = None
     summary: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class EpisodeCertificateRecord:
+    certificate_id: str
+    episode_id: str
+    run_id: str
+    trace_id: str
+    smg_artifacts: Dict[str, Any]
+    lotf_artifacts: Dict[str, Any]
+    world_artifacts: Dict[str, Any]
+    continuity_score: float
+    ioc_proxy: float
+    risk_score: float
+    verdict: str
+    rollback_ready: bool
+    promotion_candidate: bool
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class PromotionDecisionRecord:
+    decision_id: str
+    episode_id: str
+    run_id: str
+    certificate_id: str
+    verdict: str
+    reason: str
+    rollback_ready: bool
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class MemoryRecord:
+    memory_id: str
+    run_id: str
+    episode_id: str
+    scale: str
+    structure_json: Dict[str, Any]
+    ttl_seconds: Optional[int] = None
+    no_interference: bool = True
+    certificate_id: Optional[str] = None
+    ioc_proxy: Optional[float] = None
+    support_count: int = 0
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)

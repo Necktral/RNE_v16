@@ -6,6 +6,9 @@ from typing import Protocol, Sequence, runtime_checkable
 
 from .records import (
     ArtifactRecord,
+    EpisodeCertificateRecord,
+    MemoryRecord,
+    PromotionDecisionRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
@@ -110,6 +113,50 @@ class RealityStore(Protocol):
 
 
 @runtime_checkable
+class CertificationStore(Protocol):
+    def write_episode_certificate(
+        self, certificate: EpisodeCertificateRecord
+    ) -> EpisodeCertificateRecord:
+        ...
+
+    def get_episode_certificate(
+        self, *, certificate_id: str | None = None, episode_id: str | None = None
+    ) -> EpisodeCertificateRecord | None:
+        ...
+
+    def list_episode_certificates(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[EpisodeCertificateRecord]:
+        ...
+
+    def write_promotion_decision(
+        self, decision: PromotionDecisionRecord
+    ) -> PromotionDecisionRecord:
+        ...
+
+    def list_promotion_decisions(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[PromotionDecisionRecord]:
+        ...
+
+
+@runtime_checkable
+class MemoryStore(Protocol):
+    def write_memory_record(self, memory: MemoryRecord) -> MemoryRecord:
+        ...
+
+    def retrieve_memory_records(
+        self,
+        *,
+        run_id: str | None = None,
+        scales: Sequence[str] | None = None,
+        min_ioc_proxy: float | None = None,
+        limit: int = 50,
+    ) -> list[MemoryRecord]:
+        ...
+
+
+@runtime_checkable
 class StorageBackend(
     LedgerStore,
     TelemetryStore,
@@ -117,6 +164,8 @@ class StorageBackend(
     ArtifactIndexStore,
     SessionStore,
     RealityStore,
+    CertificationStore,
+    MemoryStore,
     Protocol,
 ):
     def close(self) -> None:
