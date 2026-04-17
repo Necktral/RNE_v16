@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from dataclasses import asdict
@@ -35,6 +36,8 @@ class ScenarioEpisodeRunner:
         run_id: str | None = None,
         scenario: CognitiveScenario | str | None = None,
         scenario_kwargs: Dict[str, Any] | None = None,
+        memory_filter_mode: str = "strict_same_scenario",
+        closure_profile: str = "baseline_fixed",
     ):
         """Inicializa runner con escenario especificado.
 
@@ -43,6 +46,10 @@ class ScenarioEpisodeRunner:
             run_id: ID de corrida.
             scenario: Escenario como instancia, nombre string, o None para default.
             scenario_kwargs: Kwargs para crear escenario si es string.
+            memory_filter_mode: Modo de filtrado de memoria por escenario
+                ('strict_same_scenario' o 'cross_scenario_analogical').
+                El alias 'analogical' se normaliza automáticamente.
+            closure_profile: Perfil de cierre a usar ('baseline_fixed' o 'adaptive_min').
         """
         self.storage = storage or get_storage()
         self.run_id = run_id or f"run-{uuid4()}"
@@ -55,6 +62,25 @@ class ScenarioEpisodeRunner:
         else:
             self.scenario = scenario
 
+        # Normalize memory filter mode alias
+        if memory_filter_mode == "analogical":
+            memory_filter_mode = "cross_scenario_analogical"
+        _VALID_MEMORY_MODES = {"strict_same_scenario", "cross_scenario_analogical"}
+        if memory_filter_mode not in _VALID_MEMORY_MODES:
+            raise ValueError(
+                f"memory_filter_mode inválido: '{memory_filter_mode}'. "
+                f"Válidos: {sorted(_VALID_MEMORY_MODES)}"
+            )
+        self.memory_filter_mode = memory_filter_mode
+
+        _VALID_CLOSURE_PROFILES = {"baseline_fixed", "adaptive_min"}
+        if closure_profile not in _VALID_CLOSURE_PROFILES:
+            raise ValueError(
+                f"closure_profile inválido: '{closure_profile}'. "
+                f"Válidos: {sorted(_VALID_CLOSURE_PROFILES)}"
+            )
+        self.closure_profile = closure_profile
+
         self.smg = SMGMin(storage=self.storage, run_id=self.run_id)
         self.lotf = LOTFMin()
         self.scheduler = MetaScheduler(trace_store=self.storage)
@@ -62,6 +88,35 @@ class ScenarioEpisodeRunner:
         self.promotion_gate = PromotionGate(storage=self.storage)
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
         self.eml_runner = EMLRunner(storage=self.storage)
+
+    def _build_scenario_metadata(self) -> Dict[str, Any]:
+        """Construye metadata formal del escenario activo.
+
+        Returns:
+            Dict con identidad completa del escenario: nombre, versión,
+            hash de configuración, variable principal, umbral e intervenciones.
+        """
+        cfg = self.scenario.config
+        config_blob = json.dumps(
+            {
+                "name": cfg.name,
+                "main_variable": cfg.main_variable,
+                "alarm_threshold": cfg.alarm_threshold,
+                "interventions": cfg.interventions,
+                "formula_template": cfg.formula_template,
+                "type_context": cfg.type_context,
+            },
+            sort_keys=True,
+        )
+        config_hash = hashlib.sha256(config_blob.encode()).hexdigest()[:12]
+        return {
+            "scenario_name": cfg.name,
+            "scenario_version": "1.0",
+            "scenario_config_hash": config_hash,
+            "main_variable": cfg.main_variable,
+            "alarm_threshold": cfg.alarm_threshold,
+            "interventions": cfg.interventions,
+        }
 
     def _build_eml_dataset(
         self,
@@ -91,6 +146,7 @@ class ScenarioEpisodeRunner:
             Dict con episodio, smg_snapshot, reasoning, artifact, certification.
         """
         episode_id = f"episode-{uuid4()}"
+        scenario_metadata = self._build_scenario_metadata()
 
         # 1. Observar escenario
         observation = self.scenario.observe()
@@ -120,6 +176,8 @@ class ScenarioEpisodeRunner:
                 "alarm": observation.alarm,
             },
             limit=3,
+            scenario_name=scenario_metadata["scenario_name"],
+            scenario_filter_mode=self.memory_filter_mode,
         )
 
         # 5. Seleccionar intervención
@@ -187,12 +245,15 @@ class ScenarioEpisodeRunner:
             "episode_id": episode_id,
             "timestamp": utc_now_iso(),
             "scenario": self.scenario.config.name,
+            "scenario_metadata": scenario_metadata,
+            "closure_profile": self.closure_profile,
             "context": {
                 "observation": observation_dict,
                 "formula": formula,
                 "intervention": intervention,
                 "counterfactual": self.scenario.to_transition_dict(counterfactual),
                 "retrieved_memory": memory_hits,
+                "closure_profile": self.closure_profile,
             },
             "result": {
                 "updated_world": self.scenario.to_transition_dict(factual),
@@ -226,7 +287,11 @@ class ScenarioEpisodeRunner:
             kind="episode_report",
             content=artifact_blob,
             filename=f"{episode_id}.json",
-            metadata={"episode_id": episode_id, "scenario": self.scenario.config.name},
+            metadata={
+                "episode_id": episode_id,
+                "scenario": self.scenario.config.name,
+                "scenario_metadata": scenario_metadata,
+            },
         )
 
         episode_result = {

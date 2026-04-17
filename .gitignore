@@ -3,3 +3,8 @@ __pycache__/
 .pytest_cache/
 *:Zone.Identifier
 infra/docker/.env
+
+# Runtime-generated artifacts and local DBs — never commit
+aeon_event_log.db
+*.sqlite
+rnfe_artifacts/

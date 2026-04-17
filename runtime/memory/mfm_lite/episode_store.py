@@ -19,7 +19,11 @@ class EpisodeMemoryStore:
         certificate_id: str,
         ioc_proxy: float,
         structure: Dict[str, Any],
+        extra_metadata: Dict[str, Any] | None = None,
     ):
+        metadata = {"origin": "episode_store.micro"}
+        if extra_metadata:
+            metadata.update(extra_metadata)
         return self.storage.write_memory_record(
             run_id=run_id,
             episode_id=episode_id,
@@ -30,7 +34,7 @@ class EpisodeMemoryStore:
             ttl_seconds=7 * 24 * 3600,
             no_interference=True,
             support_count=1,
-            metadata={"origin": "episode_store.micro"},
+            metadata=metadata,
         )
 
     def write_meso(
@@ -41,7 +45,11 @@ class EpisodeMemoryStore:
         certificate_id: str,
         ioc_proxy: float,
         structure: Dict[str, Any],
+        extra_metadata: Dict[str, Any] | None = None,
     ):
+        metadata = {"origin": "episode_store.meso"}
+        if extra_metadata:
+            metadata.update(extra_metadata)
         return self.storage.write_memory_record(
             run_id=run_id,
             episode_id=episode_id,
@@ -52,7 +60,7 @@ class EpisodeMemoryStore:
             ttl_seconds=30 * 24 * 3600,
             no_interference=True,
             support_count=1,
-            metadata={"origin": "episode_store.meso"},
+            metadata=metadata,
         )
 
     def write_macro(
@@ -64,7 +72,11 @@ class EpisodeMemoryStore:
         ioc_proxy: float,
         support_count: int,
         structure: Dict[str, Any],
+        extra_metadata: Dict[str, Any] | None = None,
     ):
+        metadata = {"origin": "episode_store.macro"}
+        if extra_metadata:
+            metadata.update(extra_metadata)
         return self.storage.write_memory_record(
             run_id=run_id,
             episode_id=episode_id,
@@ -75,5 +87,5 @@ class EpisodeMemoryStore:
             ttl_seconds=None,
             no_interference=True,
             support_count=support_count,
-            metadata={"origin": "episode_store.macro"},
+            metadata=metadata,
         )
