@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from importlib import import_module
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 from uuid import uuid4
 
 from runtime.reasoning.contracts import ReasoningTraceStep
 from runtime.storage.records import ReasoningTraceRecord
+from runtime.reasoning.scheduler_meta.budgeting import compute_budget
+from runtime.reasoning.scheduler_meta.context_features import extract_context_features
+from runtime.reasoning.scheduler_meta.fallbacks import (
+    confidence_from_step,
+    cost_from_step,
+    should_early_stop,
+)
+from runtime.reasoning.scheduler_meta.policy import select_sequence
 
 
 class MetaScheduler:
@@ -16,32 +24,80 @@ class MetaScheduler:
 
     DEFAULT_SEQUENCE = ["abd", "ana", "cau", "ctf", "ded", "prob"]
 
-    def __init__(self, sequence: List[str] | None = None, trace_store: object | None = None):
+    def __init__(
+        self,
+        sequence: List[str] | None = None,
+        trace_store: object | None = None,
+        mode: Literal["fixed", "adaptive"] = "fixed",
+        max_steps: int | None = None,
+    ):
         self.sequence = sequence or list(self.DEFAULT_SEQUENCE)
         self.trace_store = trace_store
+        self.mode = mode
+        self.max_steps = max_steps
 
     def run(self, context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         state: Dict[str, Any] = dict(context or {})
         run_id = state.get("run_id")
         run_id = run_id if isinstance(run_id, str) else None
+        features = extract_context_features(state)
+        budget = compute_budget(features, max_steps_override=self.max_steps)
+        if self.mode == "adaptive":
+            selected, scores, recommended = select_sequence(
+                features=features,
+                budget=budget,
+            )
+        else:
+            selected = list(self.sequence)
+            scores = {fam: 1.0 for fam in selected}
+            recommended = selected[-1] if selected else "prob"
+
         traces: List[ReasoningTraceStep] = []
-        for family in self.sequence:
+        executed_sequence: List[str] = []
+        for step_index, family in enumerate(selected):
             module = import_module(f"runtime.reasoning.families.{family}")
+            state["_meta"] = {
+                "mode": self.mode,
+                "features": features,
+                "budget": budget,
+                "step_index": step_index,
+                "selected_family": family,
+            }
             result = module.execute(state)
             state.update(result.get("state_delta", {}))
+            executed_sequence.append(family.upper())
+            detail = dict(result)
+            detail["selected_family"] = family.upper()
+            detail["selection_reason"] = (
+                f"score={scores.get(family, 0.0):.3f}|mode={self.mode}"
+            )
+            detail["budget_used"] = min(float(step_index + 1), float(budget["cost_budget"]))
+            detail["confidence"] = confidence_from_step(result, features=features)
+            detail["cost"] = cost_from_step(result)
+            detail["recommended_next_family"] = recommended.upper()
+            detail["early_stop"] = should_early_stop(
+                step_result=result,
+                state=state,
+                features=features,
+                step_index=step_index,
+                max_steps=int(budget["max_steps"]),
+            )
             traces.append(
                 ReasoningTraceStep(
                     family=family.upper(),
                     status=result.get("status", "ok"),
-                    detail=result,
+                    detail=detail,
                 )
             )
+            if detail["early_stop"] and self.mode == "adaptive":
+                break
         self._persist_trace(run_id=run_id, traces=traces)
         return {
             "meta_family": "META",
-            "sequence": [f.upper() for f in self.sequence],
+            "sequence": executed_sequence,
             "trace": [t.__dict__ for t in traces],
             "state": state,
+            "mode": self.mode,
         }
 
     def _persist_trace(
