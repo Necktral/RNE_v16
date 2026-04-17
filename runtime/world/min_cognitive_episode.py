@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict
 from typing import Any, Dict
 from uuid import uuid4
@@ -13,6 +14,7 @@ from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
+from runtime.symbolic.eml import EMLRunner
 from runtime.storage.records import utc_now_iso
 from runtime.world.cgwm_min import CGWMMin
 
@@ -27,6 +29,24 @@ class MinimalCognitiveEpisodeRunner:
         self.scheduler = MetaScheduler(trace_store=self.storage)
         self.memory_retrieval = MemoryRetrieval(storage=self.storage)
         self.promotion_gate = PromotionGate(storage=self.storage)
+        self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
+        self.eml_runner = EMLRunner(storage=self.storage)
+
+    def _build_eml_dataset(
+        self,
+        *,
+        observation: Dict[str, Any],
+        factual: Dict[str, Any],
+        counterfactual: Dict[str, Any],
+    ) -> list[dict[str, float]]:
+        x = float(observation.get("temperature", 0.0))
+        cf = float(counterfactual.get("temperature", x))
+        y = float(factual.get("temperature", x))
+        return [
+            {"x": x, "cf": cf, "y": y},
+            {"x": max(0.0, x - 0.02), "cf": cf, "y": y},
+            {"x": min(1.0, x + 0.02), "cf": cf, "y": y},
+        ]
 
     def run_episode(self, *, external_heat: float = 0.04) -> Dict[str, Any]:
         episode_id = f"episode-{uuid4()}"
@@ -150,6 +170,32 @@ class MinimalCognitiveEpisodeRunner:
             run_id=self.run_id,
             episode_result=episode_result,
         )
+        eml_shadow = {"enabled": False, "status": "disabled"}
+        if self.eml_mode == "shadow":
+            dataset = self._build_eml_dataset(
+                observation=observation,
+                factual=factual,
+                counterfactual=counterfactual,
+            )
+            eml_out = self.eml_runner.run_shadow(
+                run_id=self.run_id,
+                episode_id=episode_id,
+                rows=dataset,
+            )
+            top = eml_out["run"]["top_candidates"]
+            eml_shadow = {
+                "enabled": True,
+                "status": "ok",
+                "eml_run_id": eml_out["run"]["eml_run_id"],
+                "candidate_count": eml_out["run"]["candidate_count"],
+                "top_composite": top[0]["composite_score"] if top else 0.0,
+                "artifacts": eml_out["artifacts"],
+            }
+            episode_result["episode"]["context"]["eml_shadow"] = {
+                "eml_run_id": eml_shadow["eml_run_id"],
+                "candidate_count": eml_shadow["candidate_count"],
+                "top_composite": eml_shadow["top_composite"],
+            }
         return {
             **episode_result,
             "certification": {
@@ -158,4 +204,5 @@ class MinimalCognitiveEpisodeRunner:
                 "promotion_candidate": certification["certificate"].promotion_candidate,
                 "decision_verdict": certification["decision"].verdict,
             },
+            "eml_shadow": eml_shadow,
         }

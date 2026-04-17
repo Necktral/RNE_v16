@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Tuple
 
 
@@ -15,6 +16,7 @@ FAMILY_POOL = [
     "dia_adv",
     "heur",
     "fal_guard",
+    "eml_sr",
 ]
 
 
@@ -29,6 +31,11 @@ def score_families(features: Dict[str, float]) -> Dict[str, float]:
     scores["heur"] += 0.1 + (0.35 * features["edge_pressure"])
     scores["dia_adv"] += 0.1 + (0.35 * features["contradiction_signal"])
     scores["fal_guard"] += 0.1 + (0.25 * features["contradiction_signal"])
+    scores["eml_sr"] += (
+        0.1
+        + (0.3 * features.get("symbolic_regularity", 0.0))
+        + (0.25 * features.get("law_fit_signal", 0.0))
+    )
     return scores
 
 
@@ -44,6 +51,7 @@ def select_sequence(
     *,
     features: Dict[str, float],
     budget: Dict[str, float],
+    allow_experimental: bool = False,
 ) -> Tuple[List[str], Dict[str, float], str]:
     scores = score_families(features)
     max_steps = int(budget["max_steps"])
@@ -52,6 +60,11 @@ def select_sequence(
         sequence.append("heur")
     if features["contradiction_signal"] >= 0.45:
         sequence.extend(["dia_adv", "fal_guard"])
+    if allow_experimental and (
+        features.get("symbolic_regularity", 0.0) >= 0.4
+        or features.get("law_fit_signal", 0.0) >= 0.4
+    ):
+        sequence.append("eml_sr")
     sequence.extend(["ana", "cau", "ctf", "ded", "prob"])
 
     ranked = sorted(
@@ -73,3 +86,12 @@ def select_sequence(
     else:
         recommended_next = "prob"
     return sequence, scores, recommended_next
+
+
+def is_eml_experimental_enabled() -> bool:
+    mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
+    if mode != "shadow":
+        return False
+    allowlist = os.environ.get("RNFE_META_EXPERIMENTAL_FAMILIES", "")
+    enabled = {item.strip().lower() for item in allowlist.split(",") if item.strip()}
+    return "eml_sr" in enabled

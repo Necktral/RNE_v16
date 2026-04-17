@@ -17,6 +17,7 @@ from runtime.reasoning.scheduler_meta.fallbacks import (
     should_early_stop,
 )
 from runtime.reasoning.scheduler_meta.policy import select_sequence
+from runtime.reasoning.scheduler_meta.policy import is_eml_experimental_enabled
 
 
 class MetaScheduler:
@@ -43,9 +44,11 @@ class MetaScheduler:
         features = extract_context_features(state)
         budget = compute_budget(features, max_steps_override=self.max_steps)
         if self.mode == "adaptive":
+            allow_experimental = is_eml_experimental_enabled()
             selected, scores, recommended = select_sequence(
                 features=features,
                 budget=budget,
+                allow_experimental=allow_experimental,
             )
         else:
             selected = list(self.sequence)
@@ -63,6 +66,8 @@ class MetaScheduler:
                 "step_index": step_index,
                 "selected_family": family,
             }
+            if family == "eml_sr":
+                state["eml_mode"] = "shadow" if is_eml_experimental_enabled() else "disabled"
             result = module.execute(state)
             state.update(result.get("state_delta", {}))
             executed_sequence.append(family.upper())
