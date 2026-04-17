@@ -16,6 +16,8 @@ CONTRACT_FILES = [
     "artifact_index.schema.json",
     "reality_assessment.schema.json",
     "memory_record.schema.json",
+    "eml_candidate.schema.json",
+    "eml_run.schema.json",
 ]
 
 

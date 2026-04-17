@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "eml_candidate",
+  "type": "object",
+  "required": [
+    "expr",
+    "depth",
+    "fit_score",
+    "stability_score",
+    "domain_valid_ratio",
+    "composite_score"
+  ],
+  "properties": {
+    "expr": { "type": "object" },
+    "depth": { "type": "integer", "minimum": 1 },
+    "fit_score": { "type": "number", "minimum": 0 },
+    "stability_score": { "type": "number", "minimum": 0 },
+    "domain_valid_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+    "composite_score": { "type": "number", "minimum": 0 },
+    "episode_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "seed": { "type": ["integer", "null"] }
+  },
+  "additionalProperties": true
+}
+
