@@ -15,6 +15,9 @@ from psycopg.types.json import Jsonb
 from ..interfaces import StorageBackend
 from ..records import (
     ArtifactRecord,
+    EpisodeCertificateRecord,
+    MemoryRecord,
+    PromotionDecisionRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
@@ -516,6 +519,289 @@ class PostgresStorageBackend(StorageBackend):
                 gate_profile=row["gate_profile"],
                 passed=bool(row["passed"]),
                 summary=dict(row["summary_jsonb"] or {}),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def write_episode_certificate(
+        self, certificate: EpisodeCertificateRecord
+    ) -> EpisodeCertificateRecord:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO episode_certificates
+                (certificate_id, episode_id, run_id, trace_id, smg_artifacts_jsonb,
+                 lotf_artifacts_jsonb, world_artifacts_jsonb, continuity_score, ioc_proxy,
+                 risk_score, verdict, rollback_ready, promotion_candidate, metadata_jsonb, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(certificate_id) DO UPDATE SET
+                    episode_id = excluded.episode_id,
+                    run_id = excluded.run_id,
+                    trace_id = excluded.trace_id,
+                    smg_artifacts_jsonb = excluded.smg_artifacts_jsonb,
+                    lotf_artifacts_jsonb = excluded.lotf_artifacts_jsonb,
+                    world_artifacts_jsonb = excluded.world_artifacts_jsonb,
+                    continuity_score = excluded.continuity_score,
+                    ioc_proxy = excluded.ioc_proxy,
+                    risk_score = excluded.risk_score,
+                    verdict = excluded.verdict,
+                    rollback_ready = excluded.rollback_ready,
+                    promotion_candidate = excluded.promotion_candidate,
+                    metadata_jsonb = excluded.metadata_jsonb,
+                    created_at = excluded.created_at
+                """,
+                (
+                    certificate.certificate_id,
+                    certificate.episode_id,
+                    certificate.run_id,
+                    certificate.trace_id,
+                    Jsonb(certificate.smg_artifacts),
+                    Jsonb(certificate.lotf_artifacts),
+                    Jsonb(certificate.world_artifacts),
+                    certificate.continuity_score,
+                    certificate.ioc_proxy,
+                    certificate.risk_score,
+                    certificate.verdict,
+                    certificate.rollback_ready,
+                    certificate.promotion_candidate,
+                    Jsonb(certificate.metadata),
+                    certificate.created_at,
+                ),
+            )
+            conn.commit()
+        return certificate
+
+    def get_episode_certificate(
+        self, *, certificate_id: str | None = None, episode_id: str | None = None
+    ) -> EpisodeCertificateRecord | None:
+        if not certificate_id and not episode_id:
+            raise ValueError("certificate_id o episode_id es obligatorio")
+        query = (
+            "SELECT certificate_id, episode_id, run_id, trace_id, smg_artifacts_jsonb, "
+            "lotf_artifacts_jsonb, world_artifacts_jsonb, continuity_score, ioc_proxy, "
+            "risk_score, verdict, rollback_ready, promotion_candidate, metadata_jsonb, created_at "
+            "FROM episode_certificates"
+        )
+        params: list[Any] = []
+        if certificate_id:
+            query += " WHERE certificate_id = %s"
+            params.append(certificate_id)
+        elif episode_id:
+            query += " WHERE episode_id = %s"
+            params.append(episode_id)
+        query += " ORDER BY created_at DESC LIMIT 1"
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            row = cur.fetchone()
+        if not row:
+            return None
+        return EpisodeCertificateRecord(
+            certificate_id=row["certificate_id"],
+            episode_id=row["episode_id"],
+            run_id=row["run_id"],
+            trace_id=row["trace_id"],
+            smg_artifacts=dict(row["smg_artifacts_jsonb"] or {}),
+            lotf_artifacts=dict(row["lotf_artifacts_jsonb"] or {}),
+            world_artifacts=dict(row["world_artifacts_jsonb"] or {}),
+            continuity_score=float(row["continuity_score"]),
+            ioc_proxy=float(row["ioc_proxy"]),
+            risk_score=float(row["risk_score"]),
+            verdict=row["verdict"],
+            rollback_ready=bool(row["rollback_ready"]),
+            promotion_candidate=bool(row["promotion_candidate"]),
+            metadata=dict(row["metadata_jsonb"] or {}),
+            created_at=row["created_at"],
+        )
+
+    def list_episode_certificates(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[EpisodeCertificateRecord]:
+        query = (
+            "SELECT certificate_id, episode_id, run_id, trace_id, smg_artifacts_jsonb, "
+            "lotf_artifacts_jsonb, world_artifacts_jsonb, continuity_score, ioc_proxy, "
+            "risk_score, verdict, rollback_ready, promotion_candidate, metadata_jsonb, created_at "
+            "FROM episode_certificates"
+        )
+        params: list[Any] = []
+        if run_id:
+            query += " WHERE run_id = %s"
+            params.append(run_id)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            EpisodeCertificateRecord(
+                certificate_id=row["certificate_id"],
+                episode_id=row["episode_id"],
+                run_id=row["run_id"],
+                trace_id=row["trace_id"],
+                smg_artifacts=dict(row["smg_artifacts_jsonb"] or {}),
+                lotf_artifacts=dict(row["lotf_artifacts_jsonb"] or {}),
+                world_artifacts=dict(row["world_artifacts_jsonb"] or {}),
+                continuity_score=float(row["continuity_score"]),
+                ioc_proxy=float(row["ioc_proxy"]),
+                risk_score=float(row["risk_score"]),
+                verdict=row["verdict"],
+                rollback_ready=bool(row["rollback_ready"]),
+                promotion_candidate=bool(row["promotion_candidate"]),
+                metadata=dict(row["metadata_jsonb"] or {}),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def write_promotion_decision(
+        self, decision: PromotionDecisionRecord
+    ) -> PromotionDecisionRecord:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO promotion_decisions
+                (decision_id, episode_id, run_id, certificate_id, verdict, reason,
+                 rollback_ready, metadata_jsonb, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(decision_id) DO UPDATE SET
+                    episode_id = excluded.episode_id,
+                    run_id = excluded.run_id,
+                    certificate_id = excluded.certificate_id,
+                    verdict = excluded.verdict,
+                    reason = excluded.reason,
+                    rollback_ready = excluded.rollback_ready,
+                    metadata_jsonb = excluded.metadata_jsonb,
+                    created_at = excluded.created_at
+                """,
+                (
+                    decision.decision_id,
+                    decision.episode_id,
+                    decision.run_id,
+                    decision.certificate_id,
+                    decision.verdict,
+                    decision.reason,
+                    decision.rollback_ready,
+                    Jsonb(decision.metadata),
+                    decision.created_at,
+                ),
+            )
+            conn.commit()
+        return decision
+
+    def list_promotion_decisions(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[PromotionDecisionRecord]:
+        query = (
+            "SELECT decision_id, episode_id, run_id, certificate_id, verdict, reason, "
+            "rollback_ready, metadata_jsonb, created_at FROM promotion_decisions"
+        )
+        params: list[Any] = []
+        if run_id:
+            query += " WHERE run_id = %s"
+            params.append(run_id)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            PromotionDecisionRecord(
+                decision_id=row["decision_id"],
+                episode_id=row["episode_id"],
+                run_id=row["run_id"],
+                certificate_id=row["certificate_id"],
+                verdict=row["verdict"],
+                reason=row["reason"],
+                rollback_ready=bool(row["rollback_ready"]),
+                metadata=dict(row["metadata_jsonb"] or {}),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def write_memory_record(self, memory: MemoryRecord) -> MemoryRecord:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO memory_records
+                (memory_id, run_id, episode_id, scale, structure_jsonb, ttl_seconds,
+                 no_interference, certificate_id, ioc_proxy, support_count, metadata_jsonb, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(memory_id) DO UPDATE SET
+                    run_id = excluded.run_id,
+                    episode_id = excluded.episode_id,
+                    scale = excluded.scale,
+                    structure_jsonb = excluded.structure_jsonb,
+                    ttl_seconds = excluded.ttl_seconds,
+                    no_interference = excluded.no_interference,
+                    certificate_id = excluded.certificate_id,
+                    ioc_proxy = excluded.ioc_proxy,
+                    support_count = excluded.support_count,
+                    metadata_jsonb = excluded.metadata_jsonb,
+                    created_at = excluded.created_at
+                """,
+                (
+                    memory.memory_id,
+                    memory.run_id,
+                    memory.episode_id,
+                    memory.scale,
+                    Jsonb(memory.structure_json),
+                    memory.ttl_seconds,
+                    memory.no_interference,
+                    memory.certificate_id,
+                    memory.ioc_proxy,
+                    memory.support_count,
+                    Jsonb(memory.metadata),
+                    memory.created_at,
+                ),
+            )
+            conn.commit()
+        return memory
+
+    def retrieve_memory_records(
+        self,
+        *,
+        run_id: str | None = None,
+        scales: Sequence[str] | None = None,
+        min_ioc_proxy: float | None = None,
+        limit: int = 50,
+    ) -> list[MemoryRecord]:
+        query = (
+            "SELECT memory_id, run_id, episode_id, scale, structure_jsonb, ttl_seconds, "
+            "no_interference, certificate_id, ioc_proxy, support_count, metadata_jsonb, created_at "
+            "FROM memory_records"
+        )
+        clauses: list[str] = []
+        params: list[Any] = []
+        if run_id:
+            clauses.append("run_id = %s")
+            params.append(run_id)
+        if scales:
+            clauses.append("scale = ANY(%s)")
+            params.append(list(scales))
+        if min_ioc_proxy is not None:
+            clauses.append("ioc_proxy >= %s")
+            params.append(min_ioc_proxy)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            MemoryRecord(
+                memory_id=row["memory_id"],
+                run_id=row["run_id"],
+                episode_id=row["episode_id"],
+                scale=row["scale"],
+                structure_json=dict(row["structure_jsonb"] or {}),
+                ttl_seconds=row["ttl_seconds"],
+                no_interference=bool(row["no_interference"]),
+                certificate_id=row["certificate_id"],
+                ioc_proxy=float(row["ioc_proxy"]) if row["ioc_proxy"] is not None else None,
+                support_count=int(row["support_count"]),
+                metadata=dict(row["metadata_jsonb"] or {}),
                 created_at=row["created_at"],
             )
             for row in rows

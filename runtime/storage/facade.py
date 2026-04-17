@@ -12,6 +12,9 @@ from .config import StorageConfig
 from .interfaces import StorageBackend
 from .records import (
     ArtifactRecord,
+    EpisodeCertificateRecord,
+    MemoryRecord,
+    PromotionDecisionRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
@@ -289,6 +292,134 @@ class StorageFacade:
         self, *, run_id: str | None = None, limit: int = 50
     ) -> list[RealityBenchRunRecord]:
         return self.backend.list_reality_bench_runs(run_id=run_id, limit=limit)
+
+    def write_episode_certificate(
+        self,
+        *,
+        episode_id: str,
+        run_id: str,
+        trace_id: str,
+        smg_artifacts: Mapping[str, Any],
+        lotf_artifacts: Mapping[str, Any],
+        world_artifacts: Mapping[str, Any],
+        continuity_score: float,
+        ioc_proxy: float,
+        risk_score: float,
+        verdict: str,
+        rollback_ready: bool,
+        promotion_candidate: bool,
+        metadata: Mapping[str, Any] | None = None,
+        certificate_id: str | None = None,
+        created_at: str | None = None,
+    ) -> EpisodeCertificateRecord:
+        record = EpisodeCertificateRecord(
+            certificate_id=certificate_id or str(uuid4()),
+            episode_id=episode_id,
+            run_id=run_id,
+            trace_id=trace_id,
+            smg_artifacts=dict(smg_artifacts),
+            lotf_artifacts=dict(lotf_artifacts),
+            world_artifacts=dict(world_artifacts),
+            continuity_score=float(continuity_score),
+            ioc_proxy=float(ioc_proxy),
+            risk_score=float(risk_score),
+            verdict=verdict,
+            rollback_ready=bool(rollback_ready),
+            promotion_candidate=bool(promotion_candidate),
+            created_at=created_at or utc_now_iso(),
+            metadata=dict(metadata or {}),
+        )
+        return self.backend.write_episode_certificate(record)
+
+    def get_episode_certificate(
+        self, *, certificate_id: str | None = None, episode_id: str | None = None
+    ) -> EpisodeCertificateRecord | None:
+        return self.backend.get_episode_certificate(
+            certificate_id=certificate_id, episode_id=episode_id
+        )
+
+    def list_episode_certificates(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[EpisodeCertificateRecord]:
+        return self.backend.list_episode_certificates(run_id=run_id, limit=limit)
+
+    def write_promotion_decision(
+        self,
+        *,
+        episode_id: str,
+        run_id: str,
+        certificate_id: str,
+        verdict: str,
+        reason: str,
+        rollback_ready: bool,
+        metadata: Mapping[str, Any] | None = None,
+        decision_id: str | None = None,
+        created_at: str | None = None,
+    ) -> PromotionDecisionRecord:
+        record = PromotionDecisionRecord(
+            decision_id=decision_id or str(uuid4()),
+            episode_id=episode_id,
+            run_id=run_id,
+            certificate_id=certificate_id,
+            verdict=verdict,
+            reason=reason,
+            rollback_ready=bool(rollback_ready),
+            created_at=created_at or utc_now_iso(),
+            metadata=dict(metadata or {}),
+        )
+        return self.backend.write_promotion_decision(record)
+
+    def list_promotion_decisions(
+        self, *, run_id: str | None = None, limit: int = 200
+    ) -> list[PromotionDecisionRecord]:
+        return self.backend.list_promotion_decisions(run_id=run_id, limit=limit)
+
+    def write_memory_record(
+        self,
+        *,
+        run_id: str,
+        episode_id: str,
+        scale: str,
+        structure_json: Mapping[str, Any],
+        ttl_seconds: int | None = None,
+        no_interference: bool = True,
+        certificate_id: str | None = None,
+        ioc_proxy: float | None = None,
+        support_count: int = 0,
+        metadata: Mapping[str, Any] | None = None,
+        memory_id: str | None = None,
+        created_at: str | None = None,
+    ) -> MemoryRecord:
+        record = MemoryRecord(
+            memory_id=memory_id or str(uuid4()),
+            run_id=run_id,
+            episode_id=episode_id,
+            scale=scale,
+            structure_json=dict(structure_json),
+            ttl_seconds=ttl_seconds,
+            no_interference=bool(no_interference),
+            certificate_id=certificate_id,
+            ioc_proxy=float(ioc_proxy) if ioc_proxy is not None else None,
+            support_count=int(support_count),
+            created_at=created_at or utc_now_iso(),
+            metadata=dict(metadata or {}),
+        )
+        return self.backend.write_memory_record(record)
+
+    def retrieve_memory_records(
+        self,
+        *,
+        run_id: str | None = None,
+        scales: Sequence[str] | None = None,
+        min_ioc_proxy: float | None = None,
+        limit: int = 50,
+    ) -> list[MemoryRecord]:
+        return self.backend.retrieve_memory_records(
+            run_id=run_id,
+            scales=scales,
+            min_ioc_proxy=min_ioc_proxy,
+            limit=limit,
+        )
 
     def close(self) -> None:
         self.backend.close()

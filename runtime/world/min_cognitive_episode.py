@@ -7,7 +7,9 @@ from dataclasses import asdict
 from typing import Any, Dict
 from uuid import uuid4
 
+from runtime.certification.promotion_gate import PromotionGate
 from runtime.lotf import LOTFMin
+from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
@@ -23,6 +25,8 @@ class MinimalCognitiveEpisodeRunner:
         self.lotf = LOTFMin()
         self.world = CGWMMin()
         self.scheduler = MetaScheduler(trace_store=self.storage)
+        self.memory_retrieval = MemoryRetrieval(storage=self.storage)
+        self.promotion_gate = PromotionGate(storage=self.storage)
 
     def run_episode(self, *, external_heat: float = 0.04) -> Dict[str, Any]:
         episode_id = f"episode-{uuid4()}"
@@ -41,7 +45,24 @@ class MinimalCognitiveEpisodeRunner:
         ast = self.lotf.parse(formula)
         self.lotf.check(ast, {"TEMP_HIGH": "bool", "ACTIVATE_COOLING": "bool"})
 
+        memory_hits = self.memory_retrieval.retrieve(
+            run_id=self.run_id,
+            query={
+                "proposition": proposition,
+                "alarm": observation.get("alarm"),
+            },
+            limit=3,
+        )
         intervention = "activate_cooling" if temp_high else "deactivate_cooling"
+        if memory_hits:
+            top = memory_hits[0].get("structure", {})
+            if (
+                top.get("relation_kind") == "support"
+                and temp_high
+                and top.get("temperature") is not None
+            ):
+                intervention = "activate_cooling"
+
         counterfactual = self.world.simulate_counterfactual(
             intervention="deactivate_cooling", external_heat=external_heat
         )
@@ -85,6 +106,7 @@ class MinimalCognitiveEpisodeRunner:
                 "formula": formula,
                 "intervention": intervention,
                 "counterfactual": counterfactual,
+                "retrieved_memory": memory_hits,
             },
             "result": {
                 "updated_world": factual,
@@ -117,10 +139,23 @@ class MinimalCognitiveEpisodeRunner:
             filename=f"{episode_id}.json",
             metadata={"episode_id": episode_id},
         )
-        return {
+        episode_result = {
             "episode": episode_payload,
             "smg_snapshot": self.smg.snapshot(),
             "reasoning": reasoning,
             "artifact": asdict(artifact),
             "run_id": self.run_id,
+        }
+        certification = self.promotion_gate.process_episode(
+            run_id=self.run_id,
+            episode_result=episode_result,
+        )
+        return {
+            **episode_result,
+            "certification": {
+                "certificate_id": certification["certificate"].certificate_id,
+                "verdict": certification["certificate"].verdict,
+                "promotion_candidate": certification["certificate"].promotion_candidate,
+                "decision_verdict": certification["decision"].verdict,
+            },
         }

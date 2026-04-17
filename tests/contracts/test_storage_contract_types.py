@@ -101,4 +101,56 @@ def test_storage_facade_sqlite_roundtrip(tmp_path: Path):
     assessments = storage.list_reality_assessments(run_id="run-ct", bench_run_id="bench-ct-1")
     assert assessments and assessments[0].assessment_id == "assess-ct-1"
 
+    certificate = storage.write_episode_certificate(
+        certificate_id="cert-ct-1",
+        episode_id="episode-ct-1",
+        run_id="run-ct",
+        trace_id="trace-ct-1",
+        smg_artifacts={"signs": 2},
+        lotf_artifacts={"formula": "TEMP_HIGH -> ACTIVATE_COOLING"},
+        world_artifacts={"temperature": 0.81},
+        continuity_score=0.8,
+        ioc_proxy=0.77,
+        risk_score=0.22,
+        verdict="certified",
+        rollback_ready=True,
+        promotion_candidate=True,
+        metadata={"source": "contract"},
+    )
+    assert certificate.certificate_id == "cert-ct-1"
+    loaded_cert = storage.get_episode_certificate(certificate_id="cert-ct-1")
+    assert loaded_cert is not None
+    assert loaded_cert.episode_id == "episode-ct-1"
+    certs = storage.list_episode_certificates(run_id="run-ct")
+    assert certs and certs[0].certificate_id == "cert-ct-1"
+
+    decision = storage.write_promotion_decision(
+        decision_id="decision-ct-1",
+        episode_id="episode-ct-1",
+        run_id="run-ct",
+        certificate_id="cert-ct-1",
+        verdict="promote",
+        reason="gate_passed",
+        rollback_ready=True,
+        metadata={"source": "contract"},
+    )
+    assert decision.verdict == "promote"
+    decisions = storage.list_promotion_decisions(run_id="run-ct")
+    assert decisions and decisions[0].decision_id == "decision-ct-1"
+
+    memory = storage.write_memory_record(
+        memory_id="mem-ct-1",
+        run_id="run-ct",
+        episode_id="episode-ct-1",
+        scale="micro",
+        structure_json={"pattern_key": "TEMP_HIGH|support|activate_cooling"},
+        certificate_id="cert-ct-1",
+        ioc_proxy=0.77,
+        support_count=1,
+        metadata={"source": "contract"},
+    )
+    assert memory.scale == "micro"
+    memories = storage.retrieve_memory_records(run_id="run-ct", scales=["micro"], limit=10)
+    assert memories and memories[0].memory_id == "mem-ct-1"
+
     storage.close()

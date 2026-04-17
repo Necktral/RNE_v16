@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "memory_record",
+  "type": "object",
+  "required": [
+    "memory_id",
+    "run_id",
+    "episode_id",
+    "scale",
+    "structure_json",
+    "no_interference",
+    "support_count",
+    "created_at"
+  ],
+  "properties": {
+    "memory_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "episode_id": { "type": "string" },
+    "scale": { "type": "string", "enum": ["micro", "meso", "macro"] },
+    "structure_json": { "type": "object" },
+    "ttl_seconds": { "type": ["integer", "null"], "minimum": 0 },
+    "no_interference": { "type": "boolean" },
+    "certificate_id": { "type": ["string", "null"] },
+    "ioc_proxy": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "support_count": { "type": "integer", "minimum": 0 },
+    "metadata": { "type": "object" },
+    "created_at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

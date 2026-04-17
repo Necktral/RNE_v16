@@ -2,14 +2,37 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "certificate",
   "type": "object",
-  "required": ["certificate_id", "proposal_id", "status", "evidence"],
+  "required": [
+    "certificate_id",
+    "episode_id",
+    "run_id",
+    "trace_id",
+    "smg_artifacts",
+    "lotf_artifacts",
+    "world_artifacts",
+    "continuity_score",
+    "ioc_proxy",
+    "risk_score",
+    "verdict",
+    "rollback_ready",
+    "promotion_candidate"
+  ],
   "properties": {
     "certificate_id": { "type": "string" },
-    "proposal_id": { "type": "string" },
-    "status": { "type": "string" },
-    "evidence": { "type": "array" },
-    "issued_at": { "type": "string" }
+    "episode_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "trace_id": { "type": "string" },
+    "smg_artifacts": { "type": "object" },
+    "lotf_artifacts": { "type": "object" },
+    "world_artifacts": { "type": "object" },
+    "continuity_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "ioc_proxy": { "type": "number", "minimum": 0, "maximum": 1 },
+    "risk_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "verdict": { "type": "string" },
+    "rollback_ready": { "type": "boolean" },
+    "promotion_candidate": { "type": "boolean" },
+    "metadata": { "type": "object" },
+    "created_at": { "type": "string" }
   },
   "additionalProperties": true
 }
-

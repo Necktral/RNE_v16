@@ -9,7 +9,9 @@ from .factory import StorageFactory
 from .facade import StorageFacade
 from .interfaces import (
     ArtifactIndexStore,
+    CertificationStore,
     LedgerStore,
+    MemoryStore,
     ReasoningTraceStore,
     RealityStore,
     SessionStore,
@@ -17,6 +19,9 @@ from .interfaces import (
 )
 from .records import (
     ArtifactRecord,
+    EpisodeCertificateRecord,
+    MemoryRecord,
+    PromotionDecisionRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
@@ -56,7 +61,12 @@ def reset_storage() -> None:
 __all__ = [
     "ArtifactIndexStore",
     "ArtifactRecord",
+    "CertificationStore",
+    "EpisodeCertificateRecord",
     "LedgerStore",
+    "MemoryRecord",
+    "MemoryStore",
+    "PromotionDecisionRecord",
     "ReasoningTraceRecord",
     "RealityAssessmentRecord",
     "RealityBenchRunRecord",

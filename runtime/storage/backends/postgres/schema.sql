@@ -87,6 +87,51 @@ CREATE TABLE IF NOT EXISTS reality_bench_runs (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS episode_certificates (
+    certificate_id TEXT PRIMARY KEY,
+    episode_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    trace_id TEXT NOT NULL,
+    smg_artifacts_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    lotf_artifacts_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    world_artifacts_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    continuity_score DOUBLE PRECISION NOT NULL,
+    ioc_proxy DOUBLE PRECISION NOT NULL,
+    risk_score DOUBLE PRECISION NOT NULL,
+    verdict TEXT NOT NULL,
+    rollback_ready BOOLEAN NOT NULL,
+    promotion_candidate BOOLEAN NOT NULL,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS promotion_decisions (
+    decision_id TEXT PRIMARY KEY,
+    episode_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    certificate_id TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    rollback_ready BOOLEAN NOT NULL,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_records (
+    memory_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    episode_id TEXT NOT NULL,
+    scale TEXT NOT NULL,
+    structure_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ttl_seconds INTEGER,
+    no_interference BOOLEAN NOT NULL,
+    certificate_id TEXT,
+    ioc_proxy DOUBLE PRECISION,
+    support_count INTEGER NOT NULL DEFAULT 0,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ledger_events_run_id_ts
 ON ledger_events(run_id, event_ts);
 
@@ -107,3 +152,12 @@ ON reality_assessments(run_id, bench_run_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_reality_bench_runs_run_ts
 ON reality_bench_runs(run_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_episode_certificates_run_ts
+ON episode_certificates(run_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_promotion_decisions_run_ts
+ON promotion_decisions(run_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_memory_records_run_scale_ts
+ON memory_records(run_id, scale, created_at);

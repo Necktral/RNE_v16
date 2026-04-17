@@ -78,6 +78,55 @@ def test_postgres_storage_crud_minimo(tmp_path: Path):
     assert session is not None
     assert session.channel == "cli"
 
+    cert = storage.write_episode_certificate(
+        certificate_id="cert-pg-1",
+        episode_id="ep-pg-1",
+        run_id=run_id,
+        trace_id="trace-pg-1",
+        smg_artifacts={"signs": 2},
+        lotf_artifacts={"formula": "TEMP_HIGH -> ACTIVATE_COOLING"},
+        world_artifacts={"temperature": 0.8},
+        continuity_score=0.75,
+        ioc_proxy=0.76,
+        risk_score=0.2,
+        verdict="certified",
+        rollback_ready=True,
+        promotion_candidate=True,
+        metadata={"source": "pg"},
+    )
+    assert cert.verdict == "certified"
+    loaded_cert = storage.get_episode_certificate(certificate_id="cert-pg-1")
+    assert loaded_cert is not None
+    assert loaded_cert.run_id == run_id
+
+    decision = storage.write_promotion_decision(
+        decision_id="decision-pg-1",
+        episode_id="ep-pg-1",
+        run_id=run_id,
+        certificate_id="cert-pg-1",
+        verdict="promote",
+        reason="passed",
+        rollback_ready=True,
+    )
+    assert decision.verdict == "promote"
+    decisions = storage.list_promotion_decisions(run_id=run_id, limit=10)
+    assert decisions and decisions[0].decision_id == "decision-pg-1"
+
+    memory = storage.write_memory_record(
+        memory_id="mem-pg-1",
+        run_id=run_id,
+        episode_id="ep-pg-1",
+        scale="meso",
+        structure_json={"pattern_key": "TEMP_HIGH|support|activate_cooling"},
+        certificate_id="cert-pg-1",
+        ioc_proxy=0.76,
+        support_count=1,
+        metadata={"source": "pg"},
+    )
+    assert memory.scale == "meso"
+    memories = storage.retrieve_memory_records(run_id=run_id, scales=["meso"], limit=10)
+    assert memories and memories[0].memory_id == "mem-pg-1"
+
     artifact = storage.materialize_artifact(
         run_id=run_id,
         kind="weights",
