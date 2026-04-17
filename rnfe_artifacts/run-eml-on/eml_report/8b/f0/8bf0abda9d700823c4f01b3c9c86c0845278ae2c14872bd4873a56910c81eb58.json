@@ -1,0 +1,77 @@
+{
+  "candidate_count": 64,
+  "config": {
+    "max_candidates": 64,
+    "max_depth": 3,
+    "max_evals": 512,
+    "seed": 0,
+    "top_k": 5
+  },
+  "eml_run_id": "eml-run-e605125f-0508-4af7-8b3a-32d1173a61c2",
+  "episode_id": "no-episode",
+  "rows_count": 1,
+  "run_id": "run-eml-on",
+  "top_candidates": [
+    {
+      "composite_score": 1.0,
+      "depth": 1,
+      "domain_valid_ratio": 1.0,
+      "expr": {
+        "op": "const",
+        "value": 0.0
+      },
+      "fit_score": 1.0,
+      "stability_score": 1.0
+    },
+    {
+      "composite_score": 1.0,
+      "depth": 1,
+      "domain_valid_ratio": 1.0,
+      "expr": {
+        "name": "cf",
+        "op": "var"
+      },
+      "fit_score": 1.0,
+      "stability_score": 1.0
+    },
+    {
+      "composite_score": 1.0,
+      "depth": 1,
+      "domain_valid_ratio": 1.0,
+      "expr": {
+        "name": "x",
+        "op": "var"
+      },
+      "fit_score": 1.0,
+      "stability_score": 1.0
+    },
+    {
+      "composite_score": 1.0,
+      "depth": 2,
+      "domain_valid_ratio": 1.0,
+      "expr": {
+        "left": {
+          "name": "cf",
+          "op": "var"
+        },
+        "op": "pow2"
+      },
+      "fit_score": 1.0,
+      "stability_score": 1.0
+    },
+    {
+      "composite_score": 1.0,
+      "depth": 2,
+      "domain_valid_ratio": 1.0,
+      "expr": {
+        "left": {
+          "name": "cf",
+          "op": "var"
+        },
+        "op": "log1p"
+      },
+      "fit_score": 1.0,
+      "stability_score": 1.0
+    }
+  ]
+}

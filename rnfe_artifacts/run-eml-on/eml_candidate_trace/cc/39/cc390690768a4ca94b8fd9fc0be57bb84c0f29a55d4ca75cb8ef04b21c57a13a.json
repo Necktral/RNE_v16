@@ -1,0 +1,1078 @@
+[
+  {
+    "composite_score": 1.0,
+    "depth": 1,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "op": "const",
+      "value": 0.0
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 1,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "name": "cf",
+      "op": "var"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 1,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "name": "x",
+      "op": "var"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "pow2"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "log1p"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "add",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "sub",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "mul",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "mul",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "div",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "add",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "sub",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "mul",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "add",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "sub",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "mul",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "pow2"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "log1p"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "add",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "sub",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "mul",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "mul",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "div",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "add",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "sub",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "mul",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "add",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "sub",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "mul",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "mul",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "sub",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "mul",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "mul",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "x",
+        "op": "var"
+      },
+      "op": "pow2"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 1.0,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "x",
+        "op": "var"
+      },
+      "op": "log1p"
+    },
+    "fit_score": 1.0,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7543696654897848,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "log1p"
+    },
+    "fit_score": 0.5906161091496412,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 1,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "op": "const",
+      "value": 1.0
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "exp"
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "add",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "sub",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "exp"
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "add",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "sub",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "pow2"
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "add",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "sub",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "mul",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "div",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "add",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "sub",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "add",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "sub",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.7000000000000001,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "name": "x",
+        "op": "var"
+      },
+      "op": "exp"
+    },
+    "fit_score": 0.5,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.6,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "add",
+      "right": {
+        "op": "const",
+        "value": 1.0
+      }
+    },
+    "fit_score": 0.3333333333333333,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.5613648528219971,
+    "depth": 2,
+    "domain_valid_ratio": 1.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "exp"
+    },
+    "fit_score": 0.2689414213699951,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "div",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "div",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "name": "cf",
+        "op": "var"
+      },
+      "op": "div",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "div",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "div",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 0.0
+      },
+      "op": "div",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "div",
+      "right": {
+        "op": "const",
+        "value": 0.0
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "div",
+      "right": {
+        "name": "x",
+        "op": "var"
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  },
+  {
+    "composite_score": 0.2500005999994,
+    "depth": 2,
+    "domain_valid_ratio": 0.0,
+    "expr": {
+      "left": {
+        "op": "const",
+        "value": 1.0
+      },
+      "op": "div",
+      "right": {
+        "name": "cf",
+        "op": "var"
+      }
+    },
+    "fit_score": 9.99999000001e-07,
+    "stability_score": 1.0
+  }
+]
