@@ -32,6 +32,13 @@ class PromotionGate:
         reality_assessment=None,
     ) -> Dict[str, Any]:
         episode = episode_result.get("episode", {})
+
+        # Extract scenario_metadata with fallback
+        scenario_metadata = episode.get("scenario_metadata")
+        if scenario_metadata is None:
+            scenario_name = episode.get("scenario", "unknown")
+            scenario_metadata = {"scenario_name": scenario_name}
+
         closure = evaluate_episode_closure(storage=self.storage, run_id=run_id, result=episode_result)
         previous = self.storage.list_episode_certificates(run_id=run_id, limit=1)
         previous_certificate = previous[0] if previous else None
@@ -61,7 +68,11 @@ class PromotionGate:
             "origin": "promotion_gate",
             "change": {"episode_id": episode.get("episode_id"), "run_id": run_id},
             "risk": "low" if ioc_value >= 0.72 else "medium",
-            "metadata": {"ioc_proxy": ioc_value, "continuity_score": continuity},
+            "metadata": {
+                "ioc_proxy": ioc_value,
+                "continuity_score": continuity,
+                "scenario_metadata": scenario_metadata,
+            },
         }
         self.storage.append_event(
             event_type="proposal.evaluated",
@@ -93,10 +104,15 @@ class PromotionGate:
             verdict=decision_verdict,
             reason=decision_reason,
             rollback_ready=certificate.rollback_ready,
-            metadata={"ioc_proxy": certificate.ioc_proxy, "risk_score": certificate.risk_score},
+            metadata={
+                "ioc_proxy": certificate.ioc_proxy,
+                "risk_score": certificate.risk_score,
+                "scenario_metadata": scenario_metadata,
+            },
         )
 
         memory_updates: Dict[str, Any] = {"micro": None, "meso": None, "macro": None}
+        memory_extra_metadata = {"scenario_metadata": scenario_metadata}
         if certificate.verdict == "certified":
             micro = self.memory_store.write_micro(
                 run_id=run_id,
@@ -107,6 +123,7 @@ class PromotionGate:
                     episode_result=episode_result,
                     certificate=certificate,
                 ),
+                extra_metadata=memory_extra_metadata,
             )
             meso_structure = self.condenser.meso(
                 episode_result=episode_result,
@@ -118,6 +135,7 @@ class PromotionGate:
                 certificate_id=certificate.certificate_id,
                 ioc_proxy=certificate.ioc_proxy,
                 structure=meso_structure,
+                extra_metadata=memory_extra_metadata,
             )
             memory_updates["micro"] = micro
             memory_updates["meso"] = meso
@@ -139,6 +157,7 @@ class PromotionGate:
                         "mean_ioc": macro_eval["mean_ioc"],
                         "std_ioc": macro_eval["std_ioc"],
                     },
+                    extra_metadata=memory_extra_metadata,
                 )
                 memory_updates["macro"] = macro
 

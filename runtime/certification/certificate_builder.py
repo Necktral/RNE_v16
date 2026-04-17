@@ -25,6 +25,13 @@ class CertificateBuilder:
     ):
         episode = episode_result.get("episode", {})
         episode_id = episode.get("episode_id", "")
+
+        # Extract scenario_metadata for certificate traceability
+        scenario_metadata = episode.get("scenario_metadata")
+        if scenario_metadata is None:
+            scenario_name = episode.get("scenario", "unknown")
+            scenario_metadata = {"scenario_name": scenario_name}
+
         trace = episode.get("trace", []) or []
         trace_id = trace[0].get("detail", {}).get("trace_id") if trace else None
         if not trace_id:
@@ -86,6 +93,7 @@ class CertificateBuilder:
                 "continuity_alert": continuity_alert,
                 "reasoning_sequence": episode.get("result", {}).get("reasoning_sequence", []),
                 "world_temperature": world.get("temperature"),
+                "scenario_metadata": scenario_metadata,
             },
         )
         return certificate

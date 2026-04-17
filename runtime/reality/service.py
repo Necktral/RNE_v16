@@ -77,6 +77,10 @@ class RealityValidationService:
             .get("result", {})
             .get("reasoning_sequence", []),
             "scenario_name": scenario_name or "thermal_homeostasis",  # backward compat
+            "scenario_metadata": (
+                result.get("episode", {}).get("scenario_metadata")
+                or {"scenario_name": scenario_name or "thermal_homeostasis"}
+            ),
         }
         return self.storage.write_reality_assessment(
             assessment_id=f"assess-{uuid4()}",
