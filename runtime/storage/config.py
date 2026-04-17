@@ -35,9 +35,13 @@ class StorageConfig:
 
         sqlite_db_path = os.environ.get("AEON_EVENT_DB", "aeon_event_log.db")
         postgres_dsn = os.environ.get("RNFE_POSTGRES_DSN")
+        
+        # Eliminar hardcode /mnt/d: usar directorio portátil por defecto
+        default_artifact_root = os.path.join(os.getcwd(), "rnfe_artifacts")
         artifact_root = Path(
-            os.environ.get("RNFE_ARTIFACT_ROOT", "/mnt/d/rnfe_artifacts")
+            os.environ.get("RNFE_ARTIFACT_ROOT", default_artifact_root)
         )
+        
         prefer_postgres_reads = _env_bool("RNFE_STORAGE_PREFER_POSTGRES_READS", True)
         strict_dual_write = _env_bool("RNFE_STORAGE_STRICT_DUAL_WRITE", False)
         config = cls(

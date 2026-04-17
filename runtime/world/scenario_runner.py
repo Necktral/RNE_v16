@@ -1,0 +1,285 @@
+"""Runner de episodio cognitivo genérico que soporta múltiples escenarios."""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import asdict
+from typing import Any, Dict
+from uuid import uuid4
+
+from runtime.certification.promotion_gate import PromotionGate
+from runtime.lotf import LOTFMin
+from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
+from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
+from runtime.smg import SMGMin
+from runtime.storage import get_storage
+from runtime.storage.records import utc_now_iso
+from runtime.symbolic.eml import EMLRunner
+
+from .scenario import CognitiveScenario, ScenarioObservation
+from .registry import get_scenario, DEFAULT_SCENARIO
+
+
+class ScenarioEpisodeRunner:
+    """Runner de episodio cognitivo que opera sobre escenarios parametrizables.
+
+    Este runner es la versión generalizada de MinimalCognitiveEpisodeRunner
+    que puede operar sobre cualquier escenario que implemente CognitiveScenario.
+    """
+
+    def __init__(
+        self,
+        *,
+        storage=None,
+        run_id: str | None = None,
+        scenario: CognitiveScenario | str | None = None,
+        scenario_kwargs: Dict[str, Any] | None = None,
+    ):
+        """Inicializa runner con escenario especificado.
+
+        Args:
+            storage: Storage facade opcional.
+            run_id: ID de corrida.
+            scenario: Escenario como instancia, nombre string, o None para default.
+            scenario_kwargs: Kwargs para crear escenario si es string.
+        """
+        self.storage = storage or get_storage()
+        self.run_id = run_id or f"run-{uuid4()}"
+
+        # Resolver escenario
+        if scenario is None:
+            self.scenario = get_scenario(DEFAULT_SCENARIO, **(scenario_kwargs or {}))
+        elif isinstance(scenario, str):
+            self.scenario = get_scenario(scenario, **(scenario_kwargs or {}))
+        else:
+            self.scenario = scenario
+
+        self.smg = SMGMin(storage=self.storage, run_id=self.run_id)
+        self.lotf = LOTFMin()
+        self.scheduler = MetaScheduler(trace_store=self.storage)
+        self.memory_retrieval = MemoryRetrieval(storage=self.storage)
+        self.promotion_gate = PromotionGate(storage=self.storage)
+        self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
+        self.eml_runner = EMLRunner(storage=self.storage)
+
+    def _build_eml_dataset(
+        self,
+        *,
+        observation: Dict[str, Any],
+        factual: Dict[str, Any],
+        counterfactual: Dict[str, Any],
+    ) -> list[dict[str, float]]:
+        """Construye dataset EML a partir del escenario."""
+        main_var = self.scenario.config.main_variable
+        x = float(observation.get(main_var, 0.0))
+        cf = float(counterfactual.get(main_var, x))
+        y = float(factual.get(main_var, x))
+        return [
+            {"x": x, "cf": cf, "y": y},
+            {"x": max(0.0, x - 0.02), "cf": cf, "y": y},
+            {"x": min(1.0, x + 0.02), "cf": cf, "y": y},
+        ]
+
+    def run_episode(self, *, external_input: float = 0.04) -> Dict[str, Any]:
+        """Ejecuta un episodio cognitivo completo.
+
+        Args:
+            external_input: Entrada/perturbación externa para el escenario.
+
+        Returns:
+            Dict con episodio, smg_snapshot, reasoning, artifact, certification.
+        """
+        episode_id = f"episode-{uuid4()}"
+
+        # 1. Observar escenario
+        observation = self.scenario.observe()
+        observation_dict = self.scenario.to_observation_dict(observation)
+        observation_ref = self.smg.add_observation(observation_dict)
+
+        # 2. Crear signo principal
+        main_proposition = self.scenario.get_main_proposition(observation)
+        sign_main = self.smg.create_sign(
+            proposition=main_proposition,
+            observation_id=observation_ref.observation_id,
+            metadata={self.scenario.config.main_variable: observation.state.get(
+                self.scenario.config.main_variable
+            )},
+        )
+
+        # 3. Generar y verificar fórmula LOTF
+        formula = self.scenario.get_formula(observation)
+        ast = self.lotf.parse(formula)
+        self.lotf.check(ast, self.scenario.config.type_context)
+
+        # 4. Consultar memoria
+        memory_hits = self.memory_retrieval.retrieve(
+            run_id=self.run_id,
+            query={
+                "proposition": main_proposition,
+                "alarm": observation.alarm,
+            },
+            limit=3,
+        )
+
+        # 5. Seleccionar intervención
+        intervention = self.scenario.select_intervention(observation)
+        if memory_hits:
+            top = memory_hits[0].get("structure", {})
+            if top.get("relation_kind") == "support" and observation.alarm:
+                # Memoria soporta la intervención por alarma
+                intervention = self.scenario.select_intervention(observation)
+
+        # 6. Simular contrafactual (sin intervención o con opuesta)
+        counter_intervention = (
+            self.scenario.config.interventions[1]
+            if len(self.scenario.config.interventions) > 1
+            else self.scenario.config.interventions[0]
+        )
+        counterfactual = self.scenario.simulate_counterfactual(
+            intervention=counter_intervention,
+            external_input=external_input,
+        )
+
+        # 7. Ejecutar transición factual
+        factual = self.scenario.factual_transition(
+            intervention=intervention,
+            external_input=external_input,
+        )
+
+        # 8. Crear signo de intervención y relación
+        intervention_proposition = self.scenario.get_intervention_proposition(intervention)
+        sign_intervention = self.smg.create_sign(
+            proposition=intervention_proposition,
+            observation_id=observation_ref.observation_id,
+            metadata={"intervention": intervention},
+        )
+
+        relation_kind = self.scenario.evaluate_relation_kind(
+            factual=factual,
+            counterfactual=counterfactual,
+        )
+        relation = self.smg.link_signs(
+            source_sign_id=sign_main.sign_id,
+            target_sign_id=sign_intervention.sign_id,
+            kind=relation_kind,
+            metadata={
+                f"factual_{self.scenario.config.main_variable}": factual.state.get(
+                    self.scenario.config.main_variable
+                ),
+                f"counterfactual_{self.scenario.config.main_variable}": counterfactual.state.get(
+                    self.scenario.config.main_variable
+                ),
+            },
+        )
+
+        # 9. Ejecutar scheduler de razonamiento
+        reasoning = self.scheduler.run({
+            "episode_id": episode_id,
+            "run_id": self.run_id,
+            "observation": observation_dict,
+            "intervention": intervention,
+            "scenario": self.scenario.config.name,
+        })
+
+        # 10. Construir payload de episodio
+        episode_payload = {
+            "episode_id": episode_id,
+            "timestamp": utc_now_iso(),
+            "scenario": self.scenario.config.name,
+            "context": {
+                "observation": observation_dict,
+                "formula": formula,
+                "intervention": intervention,
+                "counterfactual": self.scenario.to_transition_dict(counterfactual),
+                "retrieved_memory": memory_hits,
+            },
+            "result": {
+                "updated_world": self.scenario.to_transition_dict(factual),
+                "relation_kind": relation_kind,
+                "reasoning_sequence": reasoning["sequence"],
+            },
+            "trace": reasoning["trace"],
+        }
+
+        # 11. Persistir evento de cierre
+        self.storage.append_event(
+            event_type="episode.closed",
+            payload=episode_payload,
+            run_id=self.run_id,
+            source="scenario_episode_runner",
+        )
+
+        # 12. Materializar artifact
+        artifact_blob = json.dumps(
+            {
+                "episode": episode_payload,
+                "smg_snapshot": self.smg.snapshot(),
+                "relation": asdict(relation),
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+            indent=2,
+        )
+        artifact = self.storage.materialize_artifact(
+            run_id=self.run_id,
+            kind="episode_report",
+            content=artifact_blob,
+            filename=f"{episode_id}.json",
+            metadata={"episode_id": episode_id, "scenario": self.scenario.config.name},
+        )
+
+        episode_result = {
+            "episode": episode_payload,
+            "smg_snapshot": self.smg.snapshot(),
+            "reasoning": reasoning,
+            "artifact": asdict(artifact),
+            "run_id": self.run_id,
+        }
+
+        # 13. Certificación
+        certification = self.promotion_gate.process_episode(
+            run_id=self.run_id,
+            episode_result=episode_result,
+        )
+
+        # 14. EML shadow (opcional)
+        eml_shadow = {"enabled": False, "status": "disabled"}
+        if self.eml_mode == "shadow":
+            dataset = self._build_eml_dataset(
+                observation=observation_dict,
+                factual=self.scenario.to_transition_dict(factual),
+                counterfactual=self.scenario.to_transition_dict(counterfactual),
+            )
+            eml_out = self.eml_runner.run_shadow(
+                run_id=self.run_id,
+                episode_id=episode_id,
+                rows=dataset,
+            )
+            top = eml_out["run"]["top_candidates"]
+            eml_shadow = {
+                "enabled": True,
+                "status": "ok",
+                "eml_run_id": eml_out["run"]["eml_run_id"],
+                "candidate_count": eml_out["run"]["candidate_count"],
+                "top_composite": top[0]["composite_score"] if top else 0.0,
+                "top_expr_signature": str(top[0]["expr"]) if top else "",
+                "artifacts": eml_out["artifacts"],
+            }
+            episode_result["episode"]["context"]["eml_shadow"] = {
+                "eml_run_id": eml_shadow["eml_run_id"],
+                "candidate_count": eml_shadow["candidate_count"],
+                "top_composite": eml_shadow["top_composite"],
+                "top_expr_signature": eml_shadow["top_expr_signature"],
+            }
+
+        return {
+            **episode_result,
+            "certification": {
+                "certificate_id": certification["certificate"].certificate_id,
+                "verdict": certification["certificate"].verdict,
+                "promotion_candidate": certification["certificate"].promotion_candidate,
+                "decision_verdict": certification["decision"].verdict,
+            },
+            "eml_shadow": eml_shadow,
+        }
