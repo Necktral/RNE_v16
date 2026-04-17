@@ -94,6 +94,7 @@ class CertificateBuilder:
                 "reasoning_sequence": episode.get("result", {}).get("reasoning_sequence", []),
                 "world_temperature": world.get("temperature"),
                 "scenario_metadata": scenario_metadata,
+                "closure_profile": episode.get("closure_profile", "baseline_fixed"),
             },
         )
         return certificate

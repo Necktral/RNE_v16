@@ -96,7 +96,7 @@ class TestMemoryScenarioFiltering:
         # Check that retrieval metrics are present
         if hits:
             metrics = hits[0].get("retrieval_metrics", {})
-            assert metrics["scenario_filter_mode"] == "analogical"
+            assert metrics["scenario_filter_mode"] == "cross_scenario_analogical"
         storage.close()
 
     def test_no_filter_when_scenario_name_is_none(self, tmp_path: Path):

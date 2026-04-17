@@ -31,7 +31,6 @@ class TestHeterogeneousBenchmark:
         service = RealityValidationService(storage=storage)
         result = service.run_heterogeneous_benchmark(
             run_id="run-hetero-1",
-            gate_profile="ci",
         )
 
         assert result["bench_run"]["total_episodes"] == 5

@@ -35,11 +35,15 @@ class MemoryRetrieval:
             scenario_name: Filter memories by scenario name.
             scenario_version: Optionally filter by scenario version as well.
             scenario_filter_mode: 'strict_same_scenario' discards cross-scenario
-                memories. 'analogical' keeps them with a penalty.
+                memories. 'cross_scenario_analogical' (alias 'analogical') keeps
+                them with a penalty.
 
         Returns:
             List of scored memory dicts with retrieval_metrics.
         """
+        # Normalize alias
+        if scenario_filter_mode == "analogical":
+            scenario_filter_mode = "cross_scenario_analogical"
         candidates = self.storage.retrieve_memory_records(
             run_id=run_id,
             scales=scales or ["macro", "meso", "micro"],

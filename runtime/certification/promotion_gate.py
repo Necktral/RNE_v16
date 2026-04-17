@@ -39,7 +39,16 @@ class PromotionGate:
             scenario_name = episode.get("scenario", "unknown")
             scenario_metadata = {"scenario_name": scenario_name}
 
-        closure = evaluate_episode_closure(storage=self.storage, run_id=run_id, result=episode_result)
+        # Extract closure_profile from episode contract
+        closure_profile = (
+            episode.get("closure_profile")
+            or episode.get("context", {}).get("closure_profile", "baseline_fixed")
+        )
+
+        closure = evaluate_episode_closure(
+            storage=self.storage, run_id=run_id, result=episode_result,
+            closure_profile=closure_profile,
+        )
         previous = self.storage.list_episode_certificates(run_id=run_id, limit=1)
         previous_certificate = previous[0] if previous else None
         fallback_continuity = (
@@ -72,6 +81,7 @@ class PromotionGate:
                 "ioc_proxy": ioc_value,
                 "continuity_score": continuity,
                 "scenario_metadata": scenario_metadata,
+                "closure_profile": closure_profile,
             },
         }
         self.storage.append_event(
@@ -108,11 +118,15 @@ class PromotionGate:
                 "ioc_proxy": certificate.ioc_proxy,
                 "risk_score": certificate.risk_score,
                 "scenario_metadata": scenario_metadata,
+                "closure_profile": closure_profile,
             },
         )
 
         memory_updates: Dict[str, Any] = {"micro": None, "meso": None, "macro": None}
-        memory_extra_metadata = {"scenario_metadata": scenario_metadata}
+        memory_extra_metadata = {
+            "scenario_metadata": scenario_metadata,
+            "closure_profile": closure_profile,
+        }
         if certificate.verdict == "certified":
             micro = self.memory_store.write_micro(
                 run_id=run_id,

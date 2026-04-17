@@ -47,7 +47,8 @@ class ScenarioEpisodeRunner:
             scenario: Escenario como instancia, nombre string, o None para default.
             scenario_kwargs: Kwargs para crear escenario si es string.
             memory_filter_mode: Modo de filtrado de memoria por escenario
-                ('strict_same_scenario' o 'analogical').
+                ('strict_same_scenario' o 'cross_scenario_analogical').
+                El alias 'analogical' se normaliza automáticamente.
             closure_profile: Perfil de cierre a usar ('baseline_fixed' o 'adaptive_min').
         """
         self.storage = storage or get_storage()
@@ -61,7 +62,23 @@ class ScenarioEpisodeRunner:
         else:
             self.scenario = scenario
 
+        # Normalize memory filter mode alias
+        if memory_filter_mode == "analogical":
+            memory_filter_mode = "cross_scenario_analogical"
+        _VALID_MEMORY_MODES = {"strict_same_scenario", "cross_scenario_analogical"}
+        if memory_filter_mode not in _VALID_MEMORY_MODES:
+            raise ValueError(
+                f"memory_filter_mode inválido: '{memory_filter_mode}'. "
+                f"Válidos: {sorted(_VALID_MEMORY_MODES)}"
+            )
         self.memory_filter_mode = memory_filter_mode
+
+        _VALID_CLOSURE_PROFILES = {"baseline_fixed", "adaptive_min"}
+        if closure_profile not in _VALID_CLOSURE_PROFILES:
+            raise ValueError(
+                f"closure_profile inválido: '{closure_profile}'. "
+                f"Válidos: {sorted(_VALID_CLOSURE_PROFILES)}"
+            )
         self.closure_profile = closure_profile
 
         self.smg = SMGMin(storage=self.storage, run_id=self.run_id)
@@ -229,12 +246,14 @@ class ScenarioEpisodeRunner:
             "timestamp": utc_now_iso(),
             "scenario": self.scenario.config.name,
             "scenario_metadata": scenario_metadata,
+            "closure_profile": self.closure_profile,
             "context": {
                 "observation": observation_dict,
                 "formula": formula,
                 "intervention": intervention,
                 "counterfactual": self.scenario.to_transition_dict(counterfactual),
                 "retrieved_memory": memory_hits,
+                "closure_profile": self.closure_profile,
             },
             "result": {
                 "updated_world": self.scenario.to_transition_dict(factual),

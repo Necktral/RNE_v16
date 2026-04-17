@@ -31,6 +31,12 @@ GATE_PROFILES = {
         "continuity_mean_min": 0.65,
         "collapse_count_max": 3,
     },
+    "heterogeneous_ci": {
+        "min_episodes": 5,
+        "closure_rate_min": 0.90,
+        "continuity_mean_min": 0.40,
+        "collapse_count_max": 1,
+    },
 }
 
 
@@ -56,8 +62,12 @@ class RealityValidationService:
         previous_result: Dict[str, Any] | None,
         recent_assessments,
         scenario_name: str | None = None,
+        closure_profile: str = "baseline_fixed",
     ):
-        closure = evaluate_episode_closure(storage=self.storage, run_id=run_id, result=result)
+        closure = evaluate_episode_closure(
+            storage=self.storage, run_id=run_id, result=result,
+            closure_profile=closure_profile,
+        )
         continuity = continuity_score(
             previous_episode=(previous_result or {}).get("episode"),
             current_episode=result.get("episode", {}),
@@ -81,6 +91,8 @@ class RealityValidationService:
                 result.get("episode", {}).get("scenario_metadata")
                 or {"scenario_name": scenario_name or "thermal_homeostasis"}
             ),
+            "closure_profile": closure.get("closure_profile", closure_profile),
+            "sequence_validation": closure.get("sequence_validation"),
         }
         return self.storage.write_reality_assessment(
             assessment_id=f"assess-{uuid4()}",
@@ -104,6 +116,26 @@ class RealityValidationService:
             and summary["continuity_mean"] >= cfg["continuity_mean_min"]
             and summary["collapse_count"] <= cfg["collapse_count_max"]
         )
+
+    def _evaluate_heterogeneous_gate(
+        self, *, gate_profile: str, summary: Dict[str, Any],
+    ) -> bool:
+        """Evaluate gate for heterogeneous benchmark with extended criteria.
+
+        In addition to standard gate checks, enforces:
+        - trace_integrity_rate == 1.0
+        - strict_memory_clean must be True (no cross-scenario leaks in strict mode)
+        """
+        base_passed = self._evaluate_gate(gate_profile=gate_profile, summary=summary)
+        if not base_passed:
+            return False
+        # Trace integrity must be perfect
+        if summary.get("trace_integrity_rate", 0.0) < 1.0:
+            return False
+        # Memory contamination in strict mode must be zero
+        if not summary.get("strict_memory_clean", True):
+            return False
+        return True
 
     def _compute_scenario_metrics(
         self, assessments: List[Any]
@@ -179,6 +211,7 @@ class RealityValidationService:
                 previous_result=previous_result,
                 recent_assessments=assessments[-2:],
                 scenario_name=scenario_name,
+                closure_profile="baseline_fixed",
             )
             assessments.append(assessment)
             previous_result = result
@@ -324,7 +357,7 @@ class RealityValidationService:
         scenario_sequence: List[Dict[str, Any]] | None = None,
         memory_mode: str = "strict_same_scenario",
         closure_profile: str = "adaptive_min",
-        gate_profile: str = "ci",
+        gate_profile: str = "heterogeneous_ci",
     ) -> Dict[str, Any]:
         """Ejecuta benchmark heterogéneo alternando múltiples escenarios.
 
@@ -370,6 +403,7 @@ class RealityValidationService:
                 previous_result=previous_result,
                 recent_assessments=assessments[-2:],
                 scenario_name=scenario_name,
+                closure_profile=closure_profile,
             )
             assessments.append(assessment)
             previous_result = result
@@ -378,10 +412,22 @@ class RealityValidationService:
         closure_pass = [1.0 if a.closure_passed else 0.0 for a in assessments]
         continuity_values = [a.continuity_score for a in assessments]
         collapse_count = sum(1 for a in assessments if a.collapse_detected)
+        trace_integrity_values = [
+            1.0 if a.trace_integrity else 0.0 for a in assessments
+        ]
+        trace_integrity_rate = (
+            sum(trace_integrity_values) / len(trace_integrity_values)
+            if trace_integrity_values else 0.0
+        )
 
         scenario_metrics = self._compute_scenario_metrics(assessments)
         transition_metrics = self._compute_transition_metrics(assessments, seq)
         memory_metrics = self._compute_memory_metrics(all_results)
+
+        strict_memory_clean = (
+            memory_mode != "strict_same_scenario"
+            or memory_metrics["actual_cross_scenario_returned"] == 0
+        )
 
         summary: Dict[str, Any] = {
             "bench_run_id": bench_run_id,
@@ -392,6 +438,8 @@ class RealityValidationService:
                 sum(continuity_values) / len(continuity_values) if continuity_values else 0.0
             ),
             "collapse_count": collapse_count,
+            "trace_integrity_rate": trace_integrity_rate,
+            "strict_memory_clean": strict_memory_clean,
             "gate_profile": profile,
             "closure_profile": closure_profile,
             "memory_mode": memory_mode,
@@ -400,7 +448,9 @@ class RealityValidationService:
             "memory_metrics": memory_metrics,
             "scenario_sequence": seq,
         }
-        passed = self._evaluate_gate(gate_profile=profile, summary=summary)
+        passed = self._evaluate_heterogeneous_gate(
+            gate_profile=profile, summary=summary,
+        )
 
         bench_record = self.storage.write_reality_bench_run(
             bench_run_id=bench_run_id,

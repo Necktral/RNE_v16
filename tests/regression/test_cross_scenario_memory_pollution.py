@@ -64,7 +64,7 @@ class TestCrossScenarioMemoryPollution:
         service = RealityValidationService(storage=storage)
         result = service.run_heterogeneous_benchmark(
             run_id="run-poll-analog",
-            memory_mode="analogical",
+            memory_mode="cross_scenario_analogical",
         )
 
         mm = result["memory_metrics"]
