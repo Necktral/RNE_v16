@@ -12,6 +12,10 @@ from uuid import uuid4
 from runtime.certification.promotion_gate import PromotionGate
 from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
+from runtime.organism.constitution import OrganismConstitution
+from runtime.organism.state import OrganismState, IdentityState, transition_organism_state
+from runtime.organism.trajectory import OrganismTrajectory
+from runtime.organism.viability import ViabilityKernel
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
 from runtime.reality.belief_state import BeliefState, build_belief_state
 from runtime.smg import SMGMin
@@ -90,6 +94,24 @@ class ScenarioEpisodeRunner:
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
         self.eml_runner = EMLRunner(storage=self.storage)
         self._previous_belief: BeliefState | None = None
+
+        # T5 SOVEREIGNTY: Initialize organism trajectory as primary runtime unit
+        self._organism_state = OrganismState(
+            state_id=f"state-0-{self.run_id}",
+            timestamp=utc_now_iso(),
+            active_regime="unknown",
+            episode_count=0,
+            identity=IdentityState(
+                lineage_id=f"lineage-{self.run_id}",
+                constitution_hash="",
+            ),
+        )
+        self._organism_trajectory = OrganismTrajectory(
+            organism_id=f"org-{self.run_id}",
+            start_timestamp=utc_now_iso(),
+        )
+        self._constitution = OrganismConstitution()
+        self._viability_kernel = ViabilityKernel(constitution=self._constitution)
 
     def _build_scenario_metadata(self) -> Dict[str, Any]:
         """Construye metadata formal del escenario activo.
@@ -322,6 +344,53 @@ class ScenarioEpisodeRunner:
             "posterior": asdict(current_belief),
         }
         self._previous_belief = current_belief
+
+        # 12c. T5 SOVEREIGNTY: Transition organism state and append to trajectory
+        previous_state = self._organism_state
+        new_state_id = f"state-{self._organism_state.episode_count + 1}-{self.run_id}"
+        regime = self.scenario.config.name  # Use scenario as regime
+
+        self._organism_state = transition_organism_state(
+            current=self._organism_state,
+            episode_result=episode_result,
+            regime=regime,
+            new_state_id=new_state_id,
+            timestamp=utc_now_iso(),
+        )
+
+        # Validate and assess viability
+        constitutional_validation = self._constitution.validate(self._organism_state)
+        viability_assessment = self._viability_kernel.assess(
+            state=self._organism_state,
+            previous_state=previous_state,
+        )
+
+        # Append to trajectory
+        self._organism_trajectory.append_point(
+            state=self._organism_state,
+            regime=regime,
+            episode_id=episode_id,
+            timestamp=utc_now_iso(),
+            constitutional_validation=constitutional_validation,
+            viability_margin=viability_assessment.viability_margin,
+        )
+
+        # Add trajectory to episode result for certification
+        episode_result["organism_trajectory"] = self._organism_trajectory.to_dict()
+        episode_result["trajectory_window"] = self._organism_trajectory.get_window(window_size=5).to_dict() if False else None  # Will enable in certification update
+        episode_result["constitutional_validation"] = {
+            "is_valid": constitutional_validation.is_valid,
+            "verdict": constitutional_validation.verdict,
+            "hard_violation_count": constitutional_validation.hard_violation_count,
+            "soft_violation_count": constitutional_validation.soft_violation_count,
+            "margin_to_threshold": constitutional_validation.margin_to_threshold,
+        }
+        episode_result["viability_assessment"] = {
+            "is_viable": viability_assessment.is_viable,
+            "viability_margin": viability_assessment.viability_margin,
+            "distance_to_edge": viability_assessment.distance_to_edge,
+            "rollback_required": viability_assessment.rollback_required,
+        }
 
         # 13. Certificación
         certification = self.promotion_gate.process_episode(

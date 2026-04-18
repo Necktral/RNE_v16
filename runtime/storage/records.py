@@ -158,3 +158,50 @@ class TransferAssessmentRecord:
     transition_stability_score: float
     created_at: str = field(default_factory=utc_now_iso)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class TrajectoryRecord:
+    """Record persistente para trayectorias de organismo T5.
+
+    La trayectoria es la unidad canónica de evolución del organismo.
+    Almacena la secuencia completa de estados y metadatos evolutivos.
+    """
+
+    trajectory_id: str
+    organism_id: str
+    run_id: str
+    start_timestamp: str
+    end_timestamp: Optional[str] = None
+    current_regime: str = "unknown"
+    regime_history: Dict[str, Any] = field(default_factory=dict)  # JSON serialized list
+    constitutional_flow_score: float = 1.0
+    total_episodes: int = 0
+    length: int = 0
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class TrajectoryPointRecord:
+    """Record persistente para puntos individuales en una trayectoria.
+
+    Cada punto representa un snapshot del organismo junto con
+    metadata de transición y validación constitucional.
+    """
+
+    point_id: str
+    trajectory_id: str
+    step_index: int
+    state_id: str
+    regime: str
+    episode_id: str
+    timestamp: str
+    prev_state_id: Optional[str] = None
+    viability_margin: float = 1.0
+    constitutional_valid: bool = True
+    hard_violation_count: int = 0
+    soft_violation_count: int = 0
+    state_snapshot: Dict[str, Any] = field(default_factory=dict)  # Full OrganismState serialized
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
