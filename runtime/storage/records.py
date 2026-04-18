@@ -161,47 +161,86 @@ class TransferAssessmentRecord:
 
 
 @dataclass(slots=True)
-class TrajectoryRecord:
-    """Record persistente para trayectorias de organismo T5.
-
-    La trayectoria es la unidad canónica de evolución del organismo.
-    Almacena la secuencia completa de estados y metadatos evolutivos.
-    """
-
-    trajectory_id: str
-    organism_id: str
+class OrganismSnapshotRecord:
+    snapshot_id: str
     run_id: str
-    start_timestamp: str
-    end_timestamp: Optional[str] = None
-    current_regime: str = "unknown"
-    regime_history: Dict[str, Any] = field(default_factory=dict)  # JSON serialized list
-    constitutional_flow_score: float = 1.0
-    total_episodes: int = 0
-    length: int = 0
+    episode_id: str
+    trajectory_id: str
+    regime: str
+    snapshot_json: Dict[str, Any]
     created_at: str = field(default_factory=utc_now_iso)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
-class TrajectoryPointRecord:
-    """Record persistente para puntos individuales en una trayectoria.
-
-    Cada punto representa un snapshot del organismo junto con
-    metadata de transición y validación constitucional.
-    """
-
-    point_id: str
+class TrajectoryWindowRecord:
+    window_id: str
+    run_id: str
     trajectory_id: str
-    step_index: int
+    start_episode: int
+    end_episode: int
+    snapshots_json: Dict[str, Any]
+    digest_json: Dict[str, Any]
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class TrajectoryFlowReportRecord:
+    report_id: str
+    run_id: str
+    trajectory_id: str
+    window_id: str
+    flow_validity: bool
+    erosion: float
+    phase_drift: float
+    rollback_obligation: bool
+    report_json: Dict[str, Any]
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class RenormalizationEventRecord:
+    event_id: str
+    run_id: str
+    trajectory_id: str
+    source_regime: str
+    target_regime: str
+    residual_error: float
+    transport_uncertainty: float
+    expected_recovery_cost: float
+    map_json: Dict[str, Any]
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ConstitutionalRiskStateRecord:
     state_id: str
-    regime: str
-    episode_id: str
-    timestamp: str
+    run_id: str
+    trajectory_id: str
+    scope_type: str
+    scope_key: str
+    risk_score: float
+    risk_json: Dict[str, Any]
     prev_state_id: Optional[str] = None
-    viability_margin: float = 1.0
-    constitutional_valid: bool = True
-    hard_violation_count: int = 0
-    soft_violation_count: int = 0
-    state_snapshot: Dict[str, Any] = field(default_factory=dict)  # Full OrganismState serialized
+    step_index: int = 0
+    created_at: str = field(default_factory=utc_now_iso)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class FailureAtlasEventRecord:
+    event_id: str
+    run_id: str
+    trajectory_id: str
+    scope_type: str
+    scope_key: str
+    failure_class: str
+    severity: str
+    reversible: bool
+    recovery_protocol: str
+    signature_json: Dict[str, Any]
     created_at: str = field(default_factory=utc_now_iso)
     metadata: Dict[str, Any] = field(default_factory=dict)

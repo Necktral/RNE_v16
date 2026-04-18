@@ -25,7 +25,6 @@ import math
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, FrozenSet, List, Literal, Sequence, Tuple
 
-
 # ── Sub-state: Belief ────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -309,9 +308,9 @@ def transition_organism_state(
 ) -> OrganismState:
     """Transiciona el estado del organismo tras un episodio.
 
-    Actualiza belief, policy y viability a partir de los resultados
-    del episodio, manteniendo identity y modification sin cambios
-    (esos se actualizan por canales separados).
+    Adapter legacy del nucleo trayectorial.
+    En T5, la transicion soberana vive en TrajectoryStateMachine y este
+    metodo se conserva por compatibilidad de API.
 
     Args:
         current: Estado actual del organismo.
@@ -323,67 +322,13 @@ def transition_organism_state(
     Returns:
         Nuevo OrganismState.
     """
-    episode = episode_result.get("episode", {})
-    result = episode.get("result", {})
-    context = episode.get("context", {})
-    observation = context.get("observation", {})
-    cert = episode_result.get("certification", {})
+    from .trajectory_state_machine import TrajectoryStateMachine
 
-    # Update belief
-    alarm = observation.get("alarm", False)
-    relation_kind = result.get("relation_kind", "unknown")
-    belief_data = episode_result.get("belief_state", {})
-    posterior_data = belief_data.get("posterior", {}) if belief_data else {}
-
-    new_belief = OrganismBeliefState(
-        alarm_probability=0.9 if alarm else 0.1,
-        intervention_efficacy=float(posterior_data.get("policy_confidence", current.belief.intervention_efficacy)),
-        causal_support_confidence=float(posterior_data.get(
-            "causal_support_confidence",
-            0.9 if relation_kind == "support" else (0.2 if relation_kind == "contradiction" else 0.5),
-        )),
-        memory_purity_estimate=float(posterior_data.get("memory_purity_confidence", current.belief.memory_purity_estimate)),
-        trace_integrity_confidence=float(posterior_data.get("trace_confidence", current.belief.trace_integrity_confidence)),
-        regime_uncertainty=max(0.0, current.belief.regime_uncertainty * 0.95),  # Slight decay
-    )
-
-    # Update policy
-    drift_delta = abs(new_belief.intervention_efficacy - current.belief.intervention_efficacy)
-    new_drift = min(1.0, current.policy.accumulated_drift + drift_delta * 0.1)
-    new_policy = PolicyState(
-        control_class=current.policy.control_class,
-        sensitivity=current.policy.sensitivity,
-        perturbation_tolerance=current.policy.perturbation_tolerance,
-        recovery_capacity=max(0.0, current.policy.recovery_capacity - drift_delta * 0.05),
-        accumulated_drift=round(new_drift, 4),
-    )
-
-    # Update viability
-    is_certified = cert.get("verdict") == "certified"
-    margin_delta = 0.01 if is_certified else -0.03
-    deg_delta = 0.0 if is_certified else 0.02
-    new_viability = ViabilityState(
-        viability_margin=max(0.0, min(1.0, current.viability.viability_margin + margin_delta)),
-        reserve_stability=max(0.0, min(1.0,
-            current.viability.reserve_stability + (0.01 if is_certified else -0.02),
-        )),
-        accumulated_degradation=max(0.0, min(1.0,
-            current.viability.accumulated_degradation + deg_delta,
-        )),
-        rollback_readiness=current.viability.rollback_readiness,
-        recovery_debt=max(0.0, current.viability.recovery_debt + (
-            -0.01 if is_certified else 0.02
-        )),
-    )
-
-    return OrganismState(
-        state_id=new_state_id,
+    machine = TrajectoryStateMachine()
+    return machine.advance_state(
+        current=current,
+        episode_result=episode_result,
+        regime=regime,
+        new_state_id=new_state_id,
         timestamp=timestamp,
-        active_regime=regime,
-        episode_count=current.episode_count + 1,
-        belief=new_belief,
-        policy=new_policy,
-        identity=current.identity,
-        viability=new_viability,
-        modification=current.modification,
     )

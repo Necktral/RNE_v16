@@ -12,15 +12,21 @@ from .config import StorageConfig
 from .interfaces import StorageBackend
 from .records import (
     ArtifactRecord,
+    ConstitutionalRiskStateRecord,
     EpisodeCertificateRecord,
+    FailureAtlasEventRecord,
     MemoryRecord,
+    OrganismSnapshotRecord,
     PromotionDecisionRecord,
+    RenormalizationEventRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TrajectoryFlowReportRecord,
+    TrajectoryWindowRecord,
     TransferAssessmentRecord,
     utc_now_iso,
 )
@@ -464,6 +470,266 @@ class StorageFacade:
         return self.backend.list_transfer_assessments(
             run_id=run_id,
             episode_id=episode_id,
+            limit=limit,
+        )
+
+    # ───────────────  T4 trajectory stores  ───────────────────────────────────
+
+    def write_organism_snapshot(
+        self,
+        *,
+        snapshot_id: str,
+        run_id: str,
+        episode_id: str,
+        trajectory_id: str,
+        regime: str,
+        snapshot_json: Mapping[str, Any],
+        metadata: Mapping[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> OrganismSnapshotRecord:
+        record = OrganismSnapshotRecord(
+            snapshot_id=snapshot_id,
+            run_id=run_id,
+            episode_id=episode_id,
+            trajectory_id=trajectory_id,
+            regime=regime,
+            snapshot_json=dict(snapshot_json),
+            created_at=created_at or utc_now_iso(),
+            metadata=dict(metadata or {}),
+        )
+        return self.backend.write_organism_snapshot(record)
+
+    def list_organism_snapshots(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[OrganismSnapshotRecord]:
+        return self.backend.list_organism_snapshots(
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_trajectory_window(
+        self,
+        *,
+        window_id: str,
+        run_id: str,
+        trajectory_id: str,
+        start_episode: int,
+        end_episode: int,
+        snapshots_json: Mapping[str, Any],
+        digest_json: Mapping[str, Any],
+        metadata: Mapping[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> TrajectoryWindowRecord:
+        record = TrajectoryWindowRecord(
+            window_id=window_id,
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            start_episode=int(start_episode),
+            end_episode=int(end_episode),
+            snapshots_json=dict(snapshots_json),
+            digest_json=dict(digest_json),
+            metadata=dict(metadata or {}),
+            created_at=created_at or utc_now_iso(),
+        )
+        return self.backend.write_trajectory_window(record)
+
+    def list_trajectory_windows(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryWindowRecord]:
+        return self.backend.list_trajectory_windows(
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_trajectory_flow_report(
+        self,
+        *,
+        report_id: str,
+        run_id: str,
+        trajectory_id: str,
+        window_id: str,
+        flow_validity: bool,
+        erosion: float,
+        phase_drift: float,
+        rollback_obligation: bool,
+        report_json: Mapping[str, Any],
+        metadata: Mapping[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> TrajectoryFlowReportRecord:
+        record = TrajectoryFlowReportRecord(
+            report_id=report_id,
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            window_id=window_id,
+            flow_validity=bool(flow_validity),
+            erosion=float(erosion),
+            phase_drift=float(phase_drift),
+            rollback_obligation=bool(rollback_obligation),
+            report_json=dict(report_json),
+            metadata=dict(metadata or {}),
+            created_at=created_at or utc_now_iso(),
+        )
+        return self.backend.write_trajectory_flow_report(record)
+
+    def list_trajectory_flow_reports(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryFlowReportRecord]:
+        return self.backend.list_trajectory_flow_reports(
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_renormalization_event(
+        self,
+        *,
+        event_id: str,
+        run_id: str,
+        trajectory_id: str,
+        source_regime: str,
+        target_regime: str,
+        residual_error: float,
+        transport_uncertainty: float,
+        expected_recovery_cost: float,
+        map_json: Mapping[str, Any],
+        metadata: Mapping[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> RenormalizationEventRecord:
+        record = RenormalizationEventRecord(
+            event_id=event_id,
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            source_regime=source_regime,
+            target_regime=target_regime,
+            residual_error=float(residual_error),
+            transport_uncertainty=float(transport_uncertainty),
+            expected_recovery_cost=float(expected_recovery_cost),
+            map_json=dict(map_json),
+            metadata=dict(metadata or {}),
+            created_at=created_at or utc_now_iso(),
+        )
+        return self.backend.write_renormalization_event(record)
+
+    def list_renormalization_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RenormalizationEventRecord]:
+        return self.backend.list_renormalization_events(
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_constitutional_risk_state(
+        self,
+        *,
+        state_id: str,
+        run_id: str,
+        trajectory_id: str,
+        scope_type: str,
+        scope_key: str,
+        risk_score: float,
+        risk_json: Mapping[str, Any],
+        prev_state_id: str | None = None,
+        step_index: int = 0,
+        metadata: Mapping[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> ConstitutionalRiskStateRecord:
+        record = ConstitutionalRiskStateRecord(
+            state_id=state_id,
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            scope_type=scope_type,
+            scope_key=scope_key,
+            risk_score=float(risk_score),
+            risk_json=dict(risk_json),
+            prev_state_id=prev_state_id,
+            step_index=int(step_index),
+            metadata=dict(metadata or {}),
+            created_at=created_at or utc_now_iso(),
+        )
+        return self.backend.write_constitutional_risk_state(record)
+
+    def list_constitutional_risk_states(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[ConstitutionalRiskStateRecord]:
+        return self.backend.list_constitutional_risk_states(
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            scope_type=scope_type,
+            scope_key=scope_key,
+            limit=limit,
+        )
+
+    def write_failure_atlas_event(
+        self,
+        *,
+        event_id: str,
+        run_id: str,
+        trajectory_id: str,
+        scope_type: str,
+        scope_key: str,
+        failure_class: str,
+        severity: str,
+        reversible: bool,
+        recovery_protocol: str,
+        signature_json: Mapping[str, Any],
+        metadata: Mapping[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> FailureAtlasEventRecord:
+        record = FailureAtlasEventRecord(
+            event_id=event_id,
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            scope_type=scope_type,
+            scope_key=scope_key,
+            failure_class=failure_class,
+            severity=severity,
+            reversible=bool(reversible),
+            recovery_protocol=recovery_protocol,
+            signature_json=dict(signature_json),
+            metadata=dict(metadata or {}),
+            created_at=created_at or utc_now_iso(),
+        )
+        return self.backend.write_failure_atlas_event(record)
+
+    def list_failure_atlas_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[FailureAtlasEventRecord]:
+        return self.backend.list_failure_atlas_events(
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            scope_type=scope_type,
+            scope_key=scope_key,
             limit=limit,
         )
 

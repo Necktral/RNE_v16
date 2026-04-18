@@ -53,3 +53,18 @@ export RNFE_RUN_PG_TESTS=1
 export RNFE_POSTGRES_DSN=postgresql://rnfe:rnfe_local_dev_only@localhost:5432/rnfe
 pytest -q -m requires_postgres
 ```
+
+## Runner recomendado
+
+Para ejecutar pruebas base + PostgreSQL opt-in con levantamiento/limpieza automática:
+
+```bash
+python scripts/run_tests_with_pg.py
+```
+
+Flags disponibles:
+
+- `--skip-base`
+- `--skip-pg`
+- `--keep-services`
+- `--port <int>`

@@ -132,6 +132,20 @@ CREATE TABLE IF NOT EXISTS memory_records (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS transfer_assessments (
+    assessment_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    episode_id TEXT NOT NULL,
+    source_scenario TEXT NOT NULL,
+    target_scenario TEXT NOT NULL,
+    compatibility_class TEXT NOT NULL,
+    transfer_verdict TEXT NOT NULL,
+    memory_purity_score DOUBLE PRECISION NOT NULL,
+    transition_stability_score DOUBLE PRECISION NOT NULL,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ledger_events_run_id_ts
 ON ledger_events(run_id, event_ts);
 
@@ -161,3 +175,108 @@ ON promotion_decisions(run_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_memory_records_run_scale_ts
 ON memory_records(run_id, scale, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_transfer_assessments_run_ts
+ON transfer_assessments(run_id, created_at);
+
+CREATE TABLE IF NOT EXISTS organism_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    episode_id TEXT NOT NULL,
+    trajectory_id TEXT NOT NULL,
+    regime TEXT NOT NULL,
+    snapshot_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS trajectory_windows (
+    window_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    trajectory_id TEXT NOT NULL,
+    start_episode INTEGER NOT NULL,
+    end_episode INTEGER NOT NULL,
+    snapshots_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    digest_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS trajectory_flow_reports (
+    report_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    trajectory_id TEXT NOT NULL,
+    window_id TEXT NOT NULL,
+    flow_validity BOOLEAN NOT NULL,
+    erosion DOUBLE PRECISION NOT NULL,
+    phase_drift DOUBLE PRECISION NOT NULL,
+    rollback_obligation BOOLEAN NOT NULL,
+    report_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS renormalization_events (
+    event_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    trajectory_id TEXT NOT NULL,
+    source_regime TEXT NOT NULL,
+    target_regime TEXT NOT NULL,
+    residual_error DOUBLE PRECISION NOT NULL,
+    transport_uncertainty DOUBLE PRECISION NOT NULL,
+    expected_recovery_cost DOUBLE PRECISION NOT NULL,
+    map_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS constitutional_risk_states (
+    state_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    trajectory_id TEXT NOT NULL,
+    scope_type TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    risk_score DOUBLE PRECISION NOT NULL,
+    risk_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    prev_state_id TEXT,
+    step_index INTEGER NOT NULL DEFAULT 0,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+ALTER TABLE constitutional_risk_states
+ADD COLUMN IF NOT EXISTS prev_state_id TEXT;
+ALTER TABLE constitutional_risk_states
+ADD COLUMN IF NOT EXISTS step_index INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS failure_atlas_events (
+    event_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    trajectory_id TEXT NOT NULL,
+    scope_type TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    failure_class TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    reversible BOOLEAN NOT NULL,
+    recovery_protocol TEXT NOT NULL,
+    signature_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_organism_snapshots_run_traj_ts
+ON organism_snapshots(run_id, trajectory_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_trajectory_windows_run_traj_ts
+ON trajectory_windows(run_id, trajectory_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_trajectory_flow_reports_run_traj_ts
+ON trajectory_flow_reports(run_id, trajectory_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_renorm_events_run_traj_ts
+ON renormalization_events(run_id, trajectory_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_risk_states_run_traj_scope
+ON constitutional_risk_states(run_id, trajectory_id, scope_type, scope_key, step_index, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_failure_atlas_run_traj_scope
+ON failure_atlas_events(run_id, trajectory_id, scope_type, scope_key, created_at);

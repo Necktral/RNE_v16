@@ -29,6 +29,8 @@ from typing import Any, Dict, Literal, Tuple
 from .state import OrganismState
 from .constitution import ConstitutionalValidation
 from .viability import ViabilityAssessment
+from .risk_process import ConstitutionalRiskProcess
+from .t5_mode import get_t5_mode
 
 
 ConstitutionalScope = Literal[
@@ -193,6 +195,31 @@ def compute_constitutional_posterior(
     i_safe = inh_prior * inh_likelihood
     i_unsafe = (1 - inh_prior) * (1 - inh_likelihood)
     inh_post = i_safe / (i_safe + i_unsafe) if (i_safe + i_unsafe) > 0 else 0.5
+
+    # --- T5 sequential adapter ---
+    if get_t5_mode() == "on":
+        process = ConstitutionalRiskProcess()
+        process.update(
+            scope_type="organism",
+            scope_key=state.identity.lineage_id or "genesis",
+            drift_identity=max(0.0, state.identity.identity_distance(OrganismState().identity)),
+            drift_policy=max(0.0, state.policy.accumulated_drift),
+            delta_viability=max(-1.0, min(1.0, viability_margin - 0.5)),
+            delta_purity=max(0.0, 1.0 - memory_purity),
+            delta_modification=1.0 if state.modification.lineage_delta_pending else 0.0,
+            erosion=max(0.0, 1.0 - float(const_likelihood)),
+            renorm_residual=max(0.0, 1.0 - morphism_score),
+        )
+        seq_state = process.get(
+            scope_type="organism",
+            scope_key=state.identity.lineage_id or "genesis",
+        )
+        if seq_state is not None:
+            seq_safe = 1.0 - seq_state.risk_score
+            const_posterior = max(0.01, min(0.99, 0.70 * const_posterior + 0.30 * seq_safe))
+            transfer_post = max(0.01, min(0.99, 0.75 * transfer_post + 0.25 * seq_safe))
+            mod_post = max(0.01, min(0.99, 0.75 * mod_post + 0.25 * seq_safe))
+            inh_post = max(0.01, min(0.99, 0.75 * inh_post + 0.25 * seq_safe))
 
     # --- LCB ---
     n_obs = 6 + n_historical

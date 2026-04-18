@@ -6,15 +6,21 @@ from typing import Protocol, Sequence, runtime_checkable
 
 from .records import (
     ArtifactRecord,
+    ConstitutionalRiskStateRecord,
     EpisodeCertificateRecord,
+    FailureAtlasEventRecord,
     MemoryRecord,
+    OrganismSnapshotRecord,
     PromotionDecisionRecord,
+    RenormalizationEventRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TrajectoryFlowReportRecord,
+    TrajectoryWindowRecord,
     TransferAssessmentRecord,
 )
 
@@ -175,6 +181,97 @@ class TransferAssessmentStore(Protocol):
 
 
 @runtime_checkable
+class T4TrajectoryStore(Protocol):
+    def write_organism_snapshot(
+        self, snapshot: OrganismSnapshotRecord
+    ) -> OrganismSnapshotRecord:
+        ...
+
+    def list_organism_snapshots(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[OrganismSnapshotRecord]:
+        ...
+
+    def write_trajectory_window(
+        self, window: TrajectoryWindowRecord
+    ) -> TrajectoryWindowRecord:
+        ...
+
+    def list_trajectory_windows(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryWindowRecord]:
+        ...
+
+    def write_trajectory_flow_report(
+        self, report: TrajectoryFlowReportRecord
+    ) -> TrajectoryFlowReportRecord:
+        ...
+
+    def list_trajectory_flow_reports(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryFlowReportRecord]:
+        ...
+
+    def write_renormalization_event(
+        self, event: RenormalizationEventRecord
+    ) -> RenormalizationEventRecord:
+        ...
+
+    def list_renormalization_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RenormalizationEventRecord]:
+        ...
+
+    def write_constitutional_risk_state(
+        self, risk_state: ConstitutionalRiskStateRecord
+    ) -> ConstitutionalRiskStateRecord:
+        ...
+
+    def list_constitutional_risk_states(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[ConstitutionalRiskStateRecord]:
+        ...
+
+    def write_failure_atlas_event(
+        self, event: FailureAtlasEventRecord
+    ) -> FailureAtlasEventRecord:
+        ...
+
+    def list_failure_atlas_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[FailureAtlasEventRecord]:
+        ...
+
+
+@runtime_checkable
 class StorageBackend(
     LedgerStore,
     TelemetryStore,
@@ -185,6 +282,7 @@ class StorageBackend(
     CertificationStore,
     MemoryStore,
     TransferAssessmentStore,
+    T4TrajectoryStore,
     Protocol,
 ):
     def close(self) -> None:
