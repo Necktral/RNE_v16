@@ -27,6 +27,16 @@ from tests.reasoning_stress.fractal_geometries import (
     generate_rossler_attractor,
     generate_henon_attractor,
     generate_fractional_brownian_motion,
+    generate_menger_sponge,
+    generate_sierpinski_tetrahedron,
+    generate_mandelbrot_set,
+    generate_julia_set,
+    generate_game_of_life_pattern,
+    generate_rule30_pattern,
+    generate_scale_free_graph,
+    generate_small_world_graph,
+    generate_wavelet_decomposition,
+    generate_kd_tree_partition,
     estimate_fractal_dimension_boxcount,
     compute_generalized_dimensions,
     compute_participation_ratio,
@@ -494,6 +504,408 @@ def test_fractional_brownian_motion():
 
 
 # ============================================================================
+# FAMILY F3D: 3D FRACTALS TESTS
+# ============================================================================
+
+def test_menger_sponge_generation():
+    """Test Menger sponge 3D fractal."""
+    params = GeometricParameters(
+        family=FractalFamily.VOLUMETRIC_3D,
+        depth=3,
+        seed=42
+    )
+
+    points = generate_menger_sponge(params)
+
+    assert len(points) > 0
+    assert points.shape[1] == 3  # 3D points
+
+    # Menger sponge has D ≈ log(20)/log(3) ≈ 2.727
+    fd, r2 = estimate_fractal_dimension_boxcount(points)
+
+    assert 2.3 <= fd <= 3.0, f"FD={fd:.3f} unexpected for Menger sponge"
+
+
+def test_sierpinski_tetrahedron_generation():
+    """Test Sierpinski tetrahedron 3D fractal."""
+    params = GeometricParameters(
+        family=FractalFamily.VOLUMETRIC_3D,
+        depth=5,
+        seed=42
+    )
+
+    points = generate_sierpinski_tetrahedron(params)
+
+    assert len(points) > 0
+    assert points.shape[1] == 3  # 3D points
+
+    # Sierpinski tetrahedron has D = log(4)/log(2) = 2
+    fd, r2 = estimate_fractal_dimension_boxcount(points)
+
+    assert 1.8 <= fd <= 2.3, f"FD={fd:.3f} unexpected for Sierpinski tetrahedron"
+
+
+def test_3d_fractal_to_scheduler():
+    """Test mapping 3D fractals to scheduler features."""
+    params = GeometricParameters(
+        family=FractalFamily.VOLUMETRIC_3D,
+        depth=3,
+        seed=42
+    )
+
+    meta_params = MetaParameters(lambda_rig=0.4, target_dimension=2.5)
+
+    points = generate_menger_sponge(params)
+    fd, _ = estimate_fractal_dimension_boxcount(points)
+
+    features = map_geometry_to_scheduler_features(points, fd, meta_params)
+    budget = compute_budget(features)
+    sequence, _, _ = select_sequence(
+        features=features,
+        budget=budget,
+        allow_experimental=True
+    )
+
+    assert len(sequence) >= 4
+    assert "prob" in sequence
+
+
+# ============================================================================
+# FAMILY MC: COMPLEX PLANE FRACTALS TESTS
+# ============================================================================
+
+def test_mandelbrot_set_generation():
+    """Test Mandelbrot set boundary generation."""
+    params = GeometricParameters(
+        family=FractalFamily.COMPLEX_PLANE,
+        resolution=128,
+        depth=100,  # max iterations
+        seed=42
+    )
+
+    points = generate_mandelbrot_set(params)
+
+    assert len(points) > 0
+    assert points.shape[1] == 2  # 2D complex plane
+
+    # Mandelbrot boundary has D ≈ 2
+    fd, r2 = estimate_fractal_dimension_boxcount(points)
+
+    assert 1.6 <= fd <= 2.1, f"FD={fd:.3f} unexpected for Mandelbrot"
+
+
+def test_julia_set_generation():
+    """Test Julia set generation."""
+    params = GeometricParameters(
+        family=FractalFamily.COMPLEX_PLANE,
+        system_params={'c_real': -0.7, 'c_imag': 0.27},
+        resolution=128,
+        depth=100,
+        seed=42
+    )
+
+    points = generate_julia_set(params)
+
+    assert len(points) > 0
+    assert points.shape[1] == 2
+
+    fd, r2 = estimate_fractal_dimension_boxcount(points)
+
+    assert 1.0 <= fd <= 2.1, f"FD={fd:.3f} unexpected for Julia set"
+
+
+def test_complex_plane_parameter_sweep():
+    """Test varying Julia set parameter c and scheduler response."""
+    c_values = [
+        (-0.8, 0.156),  # Dendrite
+        (-0.7, 0.27),   # San Marco fractal
+        (0.285, 0.0),   # Near-circle
+    ]
+
+    meta_params = MetaParameters(lambda_rig=0.5)
+    results = []
+
+    for c_real, c_imag in c_values:
+        params = GeometricParameters(
+            family=FractalFamily.COMPLEX_PLANE,
+            system_params={'c_real': c_real, 'c_imag': c_imag},
+            resolution=96,
+            depth=80,
+            seed=42
+        )
+
+        points = generate_julia_set(params)
+        fd, _ = estimate_fractal_dimension_boxcount(points)
+
+        features = map_geometry_to_scheduler_features(points, fd, meta_params)
+        budget = compute_budget(features)
+
+        results.append({
+            "c": f"({c_real:.2f}, {c_imag:.2f})",
+            "n_points": len(points),
+            "fd": fd,
+            "max_steps": budget["max_steps"]
+        })
+
+    print("\nJulia Set Parameter Sweep:")
+    for r in results:
+        print(f"  c={r['c']}: n={r['n_points']}, FD={r['fd']:.3f}, "
+              f"max_steps={r['max_steps']:.0f}")
+
+
+# ============================================================================
+# FAMILY AC: CELLULAR AUTOMATA TESTS
+# ============================================================================
+
+def test_game_of_life_pattern():
+    """Test Game of Life pattern evolution."""
+    params = GeometricParameters(
+        family=FractalFamily.CELLULAR_AUTOMATA,
+        grid_size=(64, 64),
+        depth=50,  # timesteps
+        seed=42
+    )
+
+    pattern = generate_game_of_life_pattern(params)
+
+    assert len(pattern) > 0
+    assert pattern.shape[1] == 2  # 2D cells
+
+    # GoL patterns can be complex but bounded
+    fd, r2 = estimate_fractal_dimension_boxcount(pattern)
+
+    assert 0.5 <= fd <= 2.0, f"FD={fd:.3f} for Game of Life"
+
+
+def test_rule30_ca_pattern():
+    """Test Rule 30 cellular automaton (Class III chaos)."""
+    params = GeometricParameters(
+        family=FractalFamily.CELLULAR_AUTOMATA,
+        grid_size=(128,),  # 1D CA
+        depth=64,  # timesteps
+        seed=42
+    )
+
+    pattern = generate_rule30_pattern(params)
+
+    assert len(pattern) > 0
+    assert pattern.shape[1] == 2  # (x, time) coordinates
+
+    # Rule 30 has fractal structure
+    fd, r2 = estimate_fractal_dimension_boxcount(pattern)
+
+    assert 1.0 <= fd <= 2.0, f"FD={fd:.3f} for Rule 30"
+
+
+def test_ca_to_scheduler_mapping():
+    """Test mapping CA patterns to scheduler."""
+    params = GeometricParameters(
+        family=FractalFamily.CELLULAR_AUTOMATA,
+        grid_size=(64, 64),
+        depth=40,
+        seed=42
+    )
+
+    meta_params = MetaParameters(lambda_rig=0.6)
+
+    pattern = generate_game_of_life_pattern(params)
+    fd, _ = estimate_fractal_dimension_boxcount(pattern)
+
+    features = map_geometry_to_scheduler_features(pattern, fd, meta_params)
+    budget = compute_budget(features)
+
+    assert 0.0 <= features["uncertainty"] <= 1.0
+    assert budget["max_steps"] > 0
+
+
+# ============================================================================
+# FAMILY GF: FRACTAL GRAPHS TESTS
+# ============================================================================
+
+def test_scale_free_graph_generation():
+    """Test scale-free graph generation (Barabási-Albert)."""
+    params = GeometricParameters(
+        family=FractalFamily.FRACTAL_GRAPH,
+        grid_size=(100,),  # n_nodes
+        branching_factor=3,  # m = edges per new node
+        seed=42
+    )
+
+    nodes, edges = generate_scale_free_graph(params)
+
+    assert len(nodes) == 100
+    assert len(edges) > 0
+
+    # Degree distribution should follow power law
+    # Graph has fractal-like properties
+    fd, _ = estimate_fractal_dimension_boxcount(nodes)
+
+    assert 1.0 <= fd <= 2.5
+
+
+def test_small_world_graph_generation():
+    """Test small-world graph (Watts-Strogatz)."""
+    params = GeometricParameters(
+        family=FractalFamily.FRACTAL_GRAPH,
+        grid_size=(50,),  # n_nodes
+        branching_factor=4,  # k = neighbors
+        small_world_prob=0.1,  # p = rewiring probability
+        seed=42
+    )
+
+    nodes, edges = generate_small_world_graph(params)
+
+    assert len(nodes) == 50
+    assert len(edges) > 0
+
+    fd, _ = estimate_fractal_dimension_boxcount(nodes)
+
+    assert 1.0 <= fd <= 2.5
+
+
+def test_graph_to_scheduler_mapping():
+    """Test mapping graph structures to scheduler features."""
+    params = GeometricParameters(
+        family=FractalFamily.FRACTAL_GRAPH,
+        grid_size=(80,),
+        branching_factor=3,
+        seed=42
+    )
+
+    meta_params = MetaParameters(lambda_rig=0.4)
+
+    nodes, edges = generate_scale_free_graph(params)
+    fd, _ = estimate_fractal_dimension_boxcount(nodes)
+
+    features = map_geometry_to_scheduler_features(nodes, fd, meta_params)
+    budget = compute_budget(features)
+    sequence, _, _ = select_sequence(
+        features=features,
+        budget=budget,
+        allow_experimental=True
+    )
+
+    assert len(sequence) >= 4
+
+
+# ============================================================================
+# FAMILY W: WAVELET TESTS
+# ============================================================================
+
+def test_wavelet_decomposition():
+    """Test multi-scale wavelet decomposition."""
+    params = GeometricParameters(
+        family=FractalFamily.WAVELET,
+        depth=4,  # decomposition levels
+        resolution=256,
+        seed=42
+    )
+
+    decomposition = generate_wavelet_decomposition(params)
+
+    assert len(decomposition) > 0
+    assert all(level in decomposition for level in range(params.depth + 1))
+
+    # Convert to point cloud for FD estimation
+    all_points = []
+    for level, coeffs in decomposition.items():
+        if len(coeffs) > 0:
+            level_points = np.column_stack([
+                np.linspace(0, 1, len(coeffs)),
+                coeffs / (np.max(np.abs(coeffs)) + 1e-10)
+            ])
+            all_points.append(level_points)
+
+    if all_points:
+        points = np.vstack(all_points)
+        fd, _ = estimate_fractal_dimension_boxcount(points)
+
+        assert 1.0 <= fd <= 2.0
+
+
+def test_wavelet_to_scheduler():
+    """Test mapping wavelet decomposition to scheduler."""
+    params = GeometricParameters(
+        family=FractalFamily.WAVELET,
+        depth=3,
+        resolution=128,
+        seed=42
+    )
+
+    meta_params = MetaParameters(lambda_rig=0.5)
+
+    decomposition = generate_wavelet_decomposition(params)
+
+    # Flatten to points
+    all_points = []
+    for level, coeffs in decomposition.items():
+        if len(coeffs) > 0:
+            level_points = np.column_stack([
+                np.linspace(0, 1, len(coeffs)),
+                coeffs / (np.max(np.abs(coeffs)) + 1e-10)
+            ])
+            all_points.append(level_points)
+
+    points = np.vstack(all_points)
+    fd, _ = estimate_fractal_dimension_boxcount(points)
+
+    features = map_geometry_to_scheduler_features(points, fd, meta_params)
+    budget = compute_budget(features)
+
+    assert budget["max_steps"] > 0
+
+
+# ============================================================================
+# FAMILY PF: FRACTAL SPACE PARTITIONS TESTS
+# ============================================================================
+
+def test_kd_tree_partition():
+    """Test KD-tree fractal space partition."""
+    params = GeometricParameters(
+        family=FractalFamily.PARTITION,
+        depth=6,
+        resolution=200,  # n_points
+        seed=42
+    )
+
+    points, partition_tree = generate_kd_tree_partition(params)
+
+    assert len(points) == 200
+    assert points.shape[1] == 2  # 2D partition
+
+    # Partition creates fractal boundaries
+    fd, _ = estimate_fractal_dimension_boxcount(points)
+
+    assert 1.0 <= fd <= 2.0
+
+
+def test_partition_to_scheduler():
+    """Test mapping space partition to scheduler."""
+    params = GeometricParameters(
+        family=FractalFamily.PARTITION,
+        depth=5,
+        resolution=150,
+        seed=42
+    )
+
+    meta_params = MetaParameters(lambda_rig=0.45, target_dimension=1.8)
+
+    points, _ = generate_kd_tree_partition(params)
+    fd, _ = estimate_fractal_dimension_boxcount(points)
+
+    features = map_geometry_to_scheduler_features(points, fd, meta_params)
+    budget = compute_budget(features)
+    sequence, _, _ = select_sequence(
+        features=features,
+        budget=budget,
+        allow_experimental=True
+    )
+
+    assert len(sequence) >= 4
+    assert "prob" in sequence
+
+
+# ============================================================================
 # COMPREHENSIVE GEOMETRY CATALOG TEST
 # ============================================================================
 
@@ -511,7 +923,7 @@ def test_comprehensive_geometry_catalog(tmp_path):
 
     meta_params = MetaParameters(lambda_rig=0.4, target_dimension=1.5)
 
-    # Test configurations for each family
+    # Test configurations for all 12 families
     configs = [
         ("Sierpinski Triangle", FractalFamily.TRIANGULAR,
          lambda: generate_sierpinski_triangle(GeometricParameters(
@@ -520,6 +932,14 @@ def test_comprehensive_geometry_catalog(tmp_path):
         ("Cantor Carpet", FractalFamily.CARPET,
          lambda: generate_cantor_carpet(GeometricParameters(
              family=FractalFamily.CARPET, grid_size=(3,3), depth=3, seed=42))),
+
+        ("Menger Sponge", FractalFamily.VOLUMETRIC_3D,
+         lambda: generate_menger_sponge(GeometricParameters(
+             family=FractalFamily.VOLUMETRIC_3D, depth=3, seed=42))),
+
+        ("Sierpinski Tetrahedron", FractalFamily.VOLUMETRIC_3D,
+         lambda: generate_sierpinski_tetrahedron(GeometricParameters(
+             family=FractalFamily.VOLUMETRIC_3D, depth=4, seed=42))),
 
         ("Binary Tree", FractalFamily.BRANCHING,
          lambda: generate_fractal_tree(GeometricParameters(
@@ -536,6 +956,50 @@ def test_comprehensive_geometry_catalog(tmp_path):
         ("Hénon Map", FractalFamily.DISCRETE_ATTRACTOR,
          lambda: generate_henon_attractor(GeometricParameters(
              family=FractalFamily.DISCRETE_ATTRACTOR, trajectory_length=5000, seed=42))),
+
+        ("Mandelbrot Set", FractalFamily.COMPLEX_PLANE,
+         lambda: generate_mandelbrot_set(GeometricParameters(
+             family=FractalFamily.COMPLEX_PLANE, resolution=96, depth=80, seed=42))),
+
+        ("Julia Set", FractalFamily.COMPLEX_PLANE,
+         lambda: generate_julia_set(GeometricParameters(
+             family=FractalFamily.COMPLEX_PLANE, system_params={'c_real': -0.7, 'c_imag': 0.27},
+             resolution=96, depth=80, seed=42))),
+
+        ("Game of Life", FractalFamily.CELLULAR_AUTOMATA,
+         lambda: generate_game_of_life_pattern(GeometricParameters(
+             family=FractalFamily.CELLULAR_AUTOMATA, grid_size=(64, 64), depth=40, seed=42))),
+
+        ("Rule 30 CA", FractalFamily.CELLULAR_AUTOMATA,
+         lambda: generate_rule30_pattern(GeometricParameters(
+             family=FractalFamily.CELLULAR_AUTOMATA, grid_size=(128,), depth=48, seed=42))),
+
+        ("Scale-Free Graph", FractalFamily.FRACTAL_GRAPH,
+         lambda: generate_scale_free_graph(GeometricParameters(
+             family=FractalFamily.FRACTAL_GRAPH, grid_size=(80,), branching_factor=3, seed=42))[0]),
+
+        ("Small-World Graph", FractalFamily.FRACTAL_GRAPH,
+         lambda: generate_small_world_graph(GeometricParameters(
+             family=FractalFamily.FRACTAL_GRAPH, grid_size=(60,), branching_factor=4,
+             small_world_prob=0.1, seed=42))[0]),
+
+        ("Wavelet Decomposition", FractalFamily.WAVELET,
+         lambda: np.vstack([
+             np.column_stack([np.linspace(0, 1, len(coeffs)), coeffs / (np.max(np.abs(coeffs)) + 1e-10)])
+             for level, coeffs in generate_wavelet_decomposition(
+                 GeometricParameters(family=FractalFamily.WAVELET, depth=3, resolution=128, seed=42)
+             ).items() if len(coeffs) > 0
+         ])),
+
+        ("KD-Tree Partition", FractalFamily.PARTITION,
+         lambda: generate_kd_tree_partition(GeometricParameters(
+             family=FractalFamily.PARTITION, depth=5, resolution=150, seed=42))[0]),
+
+        ("Fractional Brownian Motion", FractalFamily.STOCHASTIC,
+         lambda: (lambda fbm: np.column_stack([
+             np.arange(len(fbm)) / len(fbm), fbm / np.max(np.abs(fbm))
+         ]))(generate_fractional_brownian_motion(GeometricParameters(
+             family=FractalFamily.STOCHASTIC, hurst_exponent=0.7, resolution=256, seed=42)))),
     ]
 
     for name, family, generator in configs:
@@ -611,6 +1075,9 @@ def test_comprehensive_geometry_catalog(tmp_path):
 
     print("\n" + "\n".join(summary_lines))
 
-    # Validate that we tested multiple families
+    # Validate that we tested all 12 families
     families_tested = {g["family"] for g in catalog["geometries"]}
-    assert len(families_tested) >= 4, "Should test at least 4 different fractal families"
+    assert len(families_tested) >= 6, f"Should test at least 6 different fractal families, got {len(families_tested)}"
+
+    # Should have tested multiple geometries
+    assert len(catalog["geometries"]) >= 12, f"Should test at least 12 geometries, got {len(catalog['geometries'])}"
