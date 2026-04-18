@@ -7,15 +7,21 @@ from typing import Sequence
 from ..interfaces import StorageBackend
 from ..records import (
     ArtifactRecord,
+    ConstitutionalRiskStateRecord,
     EpisodeCertificateRecord,
+    FailureAtlasEventRecord,
     MemoryRecord,
+    OrganismSnapshotRecord,
     PromotionDecisionRecord,
+    RenormalizationEventRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TrajectoryFlowReportRecord,
+    TrajectoryWindowRecord,
     TransferAssessmentRecord,
 )
 
@@ -276,6 +282,128 @@ class HybridStorageBackend(StorageBackend):
             "list_transfer_assessments",
             run_id=run_id,
             episode_id=episode_id,
+            limit=limit,
+        )
+
+    def write_organism_snapshot(
+        self, snapshot: OrganismSnapshotRecord
+    ) -> OrganismSnapshotRecord:
+        return self._dual_write("write_organism_snapshot", snapshot)  # type: ignore[return-value]
+
+    def list_organism_snapshots(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[OrganismSnapshotRecord]:
+        return self._read_with_fallback(
+            "list_organism_snapshots",
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_trajectory_window(
+        self, window: TrajectoryWindowRecord
+    ) -> TrajectoryWindowRecord:
+        return self._dual_write("write_trajectory_window", window)  # type: ignore[return-value]
+
+    def list_trajectory_windows(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryWindowRecord]:
+        return self._read_with_fallback(
+            "list_trajectory_windows",
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_trajectory_flow_report(
+        self, report: TrajectoryFlowReportRecord
+    ) -> TrajectoryFlowReportRecord:
+        return self._dual_write("write_trajectory_flow_report", report)  # type: ignore[return-value]
+
+    def list_trajectory_flow_reports(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryFlowReportRecord]:
+        return self._read_with_fallback(
+            "list_trajectory_flow_reports",
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_renormalization_event(
+        self, event: RenormalizationEventRecord
+    ) -> RenormalizationEventRecord:
+        return self._dual_write("write_renormalization_event", event)  # type: ignore[return-value]
+
+    def list_renormalization_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RenormalizationEventRecord]:
+        return self._read_with_fallback(
+            "list_renormalization_events",
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            limit=limit,
+        )
+
+    def write_constitutional_risk_state(
+        self, risk_state: ConstitutionalRiskStateRecord
+    ) -> ConstitutionalRiskStateRecord:
+        return self._dual_write("write_constitutional_risk_state", risk_state)  # type: ignore[return-value]
+
+    def list_constitutional_risk_states(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[ConstitutionalRiskStateRecord]:
+        return self._read_with_fallback(
+            "list_constitutional_risk_states",
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            scope_type=scope_type,
+            scope_key=scope_key,
+            limit=limit,
+        )
+
+    def write_failure_atlas_event(
+        self, event: FailureAtlasEventRecord
+    ) -> FailureAtlasEventRecord:
+        return self._dual_write("write_failure_atlas_event", event)  # type: ignore[return-value]
+
+    def list_failure_atlas_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[FailureAtlasEventRecord]:
+        return self._read_with_fallback(
+            "list_failure_atlas_events",
+            run_id=run_id,
+            trajectory_id=trajectory_id,
+            scope_type=scope_type,
+            scope_key=scope_key,
             limit=limit,
         )
 

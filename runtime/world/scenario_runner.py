@@ -58,14 +58,18 @@ class ScenarioEpisodeRunner:
         """
         self.storage = storage or get_storage()
         self.run_id = run_id or f"run-{uuid4()}"
+        self._trajectory_regime_label = DEFAULT_SCENARIO
 
         # Resolver escenario
         if scenario is None:
             self.scenario = get_scenario(DEFAULT_SCENARIO, **(scenario_kwargs or {}))
+            self._trajectory_regime_label = DEFAULT_SCENARIO
         elif isinstance(scenario, str):
             self.scenario = get_scenario(scenario, **(scenario_kwargs or {}))
+            self._trajectory_regime_label = scenario
         else:
             self.scenario = scenario
+            self._trajectory_regime_label = self.scenario.config.name
 
         # Normalize memory filter mode alias
         if memory_filter_mode == "analogical":
@@ -348,7 +352,7 @@ class ScenarioEpisodeRunner:
         # 12c. T5 SOVEREIGNTY: Transition organism state and append to trajectory
         previous_state = self._organism_state
         new_state_id = f"state-{self._organism_state.episode_count + 1}-{self.run_id}"
-        regime = self.scenario.config.name  # Use scenario as regime
+        regime = self._trajectory_regime_label
 
         self._organism_state = transition_organism_state(
             current=self._organism_state,

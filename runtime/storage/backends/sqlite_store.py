@@ -12,15 +12,21 @@ from runtime.core.event_log_sqlite import EventLogSQLite
 from ..interfaces import StorageBackend
 from ..records import (
     ArtifactRecord,
+    ConstitutionalRiskStateRecord,
     EpisodeCertificateRecord,
+    FailureAtlasEventRecord,
     MemoryRecord,
+    OrganismSnapshotRecord,
     PromotionDecisionRecord,
+    RenormalizationEventRecord,
     ReasoningTraceRecord,
     RealityAssessmentRecord,
     RealityBenchRunRecord,
     SessionBridgeRecord,
     StoredEvent,
     TelemetrySnapshotRecord,
+    TrajectoryFlowReportRecord,
+    TrajectoryWindowRecord,
     TransferAssessmentRecord,
 )
 
@@ -202,7 +208,120 @@ class SQLiteStorageBackend(StorageBackend):
 
                 CREATE INDEX IF NOT EXISTS idx_transfer_assessments_run
                 ON transfer_assessments(run_id, created_at);
+
+                CREATE TABLE IF NOT EXISTS organism_snapshots (
+                    snapshot_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    episode_id TEXT NOT NULL,
+                    trajectory_id TEXT NOT NULL,
+                    regime TEXT NOT NULL,
+                    snapshot_json TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS trajectory_windows (
+                    window_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    trajectory_id TEXT NOT NULL,
+                    start_episode INTEGER NOT NULL,
+                    end_episode INTEGER NOT NULL,
+                    snapshots_json TEXT NOT NULL,
+                    digest_json TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS trajectory_flow_reports (
+                    report_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    trajectory_id TEXT NOT NULL,
+                    window_id TEXT NOT NULL,
+                    flow_validity INTEGER NOT NULL,
+                    erosion REAL NOT NULL,
+                    phase_drift REAL NOT NULL,
+                    rollback_obligation INTEGER NOT NULL,
+                    report_json TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS renormalization_events (
+                    event_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    trajectory_id TEXT NOT NULL,
+                    source_regime TEXT NOT NULL,
+                    target_regime TEXT NOT NULL,
+                    residual_error REAL NOT NULL,
+                    transport_uncertainty REAL NOT NULL,
+                    expected_recovery_cost REAL NOT NULL,
+                    map_json TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS constitutional_risk_states (
+                    state_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    trajectory_id TEXT NOT NULL,
+                    scope_type TEXT NOT NULL,
+                    scope_key TEXT NOT NULL,
+                    risk_score REAL NOT NULL,
+                    risk_json TEXT NOT NULL,
+                    prev_state_id TEXT,
+                    step_index INTEGER NOT NULL DEFAULT 0,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS failure_atlas_events (
+                    event_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    trajectory_id TEXT NOT NULL,
+                    scope_type TEXT NOT NULL,
+                    scope_key TEXT NOT NULL,
+                    failure_class TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    reversible INTEGER NOT NULL,
+                    recovery_protocol TEXT NOT NULL,
+                    signature_json TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_organism_snapshots_run_traj
+                ON organism_snapshots(run_id, trajectory_id, created_at);
+
+                CREATE INDEX IF NOT EXISTS idx_trajectory_windows_run_traj
+                ON trajectory_windows(run_id, trajectory_id, created_at);
+
+                CREATE INDEX IF NOT EXISTS idx_flow_reports_run_traj
+                ON trajectory_flow_reports(run_id, trajectory_id, created_at);
+
+                CREATE INDEX IF NOT EXISTS idx_renorm_events_run_traj
+                ON renormalization_events(run_id, trajectory_id, created_at);
+
+                CREATE INDEX IF NOT EXISTS idx_risk_states_run_traj_scope
+                ON constitutional_risk_states(run_id, trajectory_id, scope_type, scope_key, created_at);
+
+                CREATE INDEX IF NOT EXISTS idx_failure_atlas_run_traj_scope
+                ON failure_atlas_events(run_id, trajectory_id, scope_type, scope_key, created_at);
                 """
+            )
+            # Compatibilidad con DBs previas al chain de riesgo T5.
+            risk_cols = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(constitutional_risk_states)").fetchall()
+            }
+            if "prev_state_id" not in risk_cols:
+                conn.execute("ALTER TABLE constitutional_risk_states ADD COLUMN prev_state_id TEXT")
+            if "step_index" not in risk_cols:
+                conn.execute(
+                    "ALTER TABLE constitutional_risk_states ADD COLUMN step_index INTEGER NOT NULL DEFAULT 0"
+                )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_risk_states_run_traj_scope_step "
+                "ON constitutional_risk_states(run_id, trajectory_id, scope_type, scope_key, step_index, created_at)"
             )
             conn.commit()
 
@@ -887,6 +1006,428 @@ class SQLiteStorageBackend(StorageBackend):
                 transition_stability_score=float(row[8]),
                 metadata=_safe_json_load(row[9]),
                 created_at=row[10],
+            )
+            for row in rows
+        ]
+
+    def write_organism_snapshot(
+        self, snapshot: OrganismSnapshotRecord
+    ) -> OrganismSnapshotRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO organism_snapshots
+                (snapshot_id, run_id, episode_id, trajectory_id, regime, snapshot_json, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    snapshot.snapshot_id,
+                    snapshot.run_id,
+                    snapshot.episode_id,
+                    snapshot.trajectory_id,
+                    snapshot.regime,
+                    json.dumps(snapshot.snapshot_json),
+                    json.dumps(snapshot.metadata),
+                    snapshot.created_at,
+                ),
+            )
+            conn.commit()
+        return snapshot
+
+    def list_organism_snapshots(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[OrganismSnapshotRecord]:
+        query = (
+            "SELECT snapshot_id, run_id, episode_id, trajectory_id, regime, snapshot_json, metadata, created_at "
+            "FROM organism_snapshots"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if trajectory_id:
+            clauses.append("trajectory_id = ?")
+            params.append(trajectory_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            OrganismSnapshotRecord(
+                snapshot_id=row[0],
+                run_id=row[1],
+                episode_id=row[2],
+                trajectory_id=row[3],
+                regime=row[4],
+                snapshot_json=_safe_json_load(row[5]),
+                metadata=_safe_json_load(row[6]),
+                created_at=row[7],
+            )
+            for row in rows
+        ]
+
+    def write_trajectory_window(
+        self, window: TrajectoryWindowRecord
+    ) -> TrajectoryWindowRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO trajectory_windows
+                (window_id, run_id, trajectory_id, start_episode, end_episode, snapshots_json, digest_json, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    window.window_id,
+                    window.run_id,
+                    window.trajectory_id,
+                    window.start_episode,
+                    window.end_episode,
+                    json.dumps(window.snapshots_json),
+                    json.dumps(window.digest_json),
+                    json.dumps(window.metadata),
+                    window.created_at,
+                ),
+            )
+            conn.commit()
+        return window
+
+    def list_trajectory_windows(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryWindowRecord]:
+        query = (
+            "SELECT window_id, run_id, trajectory_id, start_episode, end_episode, snapshots_json, digest_json, metadata, created_at "
+            "FROM trajectory_windows"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if trajectory_id:
+            clauses.append("trajectory_id = ?")
+            params.append(trajectory_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            TrajectoryWindowRecord(
+                window_id=row[0],
+                run_id=row[1],
+                trajectory_id=row[2],
+                start_episode=int(row[3]),
+                end_episode=int(row[4]),
+                snapshots_json=_safe_json_load(row[5]),
+                digest_json=_safe_json_load(row[6]),
+                metadata=_safe_json_load(row[7]),
+                created_at=row[8],
+            )
+            for row in rows
+        ]
+
+    def write_trajectory_flow_report(
+        self, report: TrajectoryFlowReportRecord
+    ) -> TrajectoryFlowReportRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO trajectory_flow_reports
+                (report_id, run_id, trajectory_id, window_id, flow_validity, erosion, phase_drift, rollback_obligation, report_json, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report.report_id,
+                    report.run_id,
+                    report.trajectory_id,
+                    report.window_id,
+                    int(report.flow_validity),
+                    report.erosion,
+                    report.phase_drift,
+                    int(report.rollback_obligation),
+                    json.dumps(report.report_json),
+                    json.dumps(report.metadata),
+                    report.created_at,
+                ),
+            )
+            conn.commit()
+        return report
+
+    def list_trajectory_flow_reports(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[TrajectoryFlowReportRecord]:
+        query = (
+            "SELECT report_id, run_id, trajectory_id, window_id, flow_validity, erosion, phase_drift, rollback_obligation, report_json, metadata, created_at "
+            "FROM trajectory_flow_reports"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if trajectory_id:
+            clauses.append("trajectory_id = ?")
+            params.append(trajectory_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            TrajectoryFlowReportRecord(
+                report_id=row[0],
+                run_id=row[1],
+                trajectory_id=row[2],
+                window_id=row[3],
+                flow_validity=bool(row[4]),
+                erosion=float(row[5]),
+                phase_drift=float(row[6]),
+                rollback_obligation=bool(row[7]),
+                report_json=_safe_json_load(row[8]),
+                metadata=_safe_json_load(row[9]),
+                created_at=row[10],
+            )
+            for row in rows
+        ]
+
+    def write_renormalization_event(
+        self, event: RenormalizationEventRecord
+    ) -> RenormalizationEventRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO renormalization_events
+                (event_id, run_id, trajectory_id, source_regime, target_regime, residual_error, transport_uncertainty, expected_recovery_cost, map_json, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_id,
+                    event.run_id,
+                    event.trajectory_id,
+                    event.source_regime,
+                    event.target_regime,
+                    event.residual_error,
+                    event.transport_uncertainty,
+                    event.expected_recovery_cost,
+                    json.dumps(event.map_json),
+                    json.dumps(event.metadata),
+                    event.created_at,
+                ),
+            )
+            conn.commit()
+        return event
+
+    def list_renormalization_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        limit: int = 200,
+    ) -> list[RenormalizationEventRecord]:
+        query = (
+            "SELECT event_id, run_id, trajectory_id, source_regime, target_regime, residual_error, transport_uncertainty, expected_recovery_cost, map_json, metadata, created_at "
+            "FROM renormalization_events"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if trajectory_id:
+            clauses.append("trajectory_id = ?")
+            params.append(trajectory_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            RenormalizationEventRecord(
+                event_id=row[0],
+                run_id=row[1],
+                trajectory_id=row[2],
+                source_regime=row[3],
+                target_regime=row[4],
+                residual_error=float(row[5]),
+                transport_uncertainty=float(row[6]),
+                expected_recovery_cost=float(row[7]),
+                map_json=_safe_json_load(row[8]),
+                metadata=_safe_json_load(row[9]),
+                created_at=row[10],
+            )
+            for row in rows
+        ]
+
+    def write_constitutional_risk_state(
+        self, risk_state: ConstitutionalRiskStateRecord
+    ) -> ConstitutionalRiskStateRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO constitutional_risk_states
+                (state_id, run_id, trajectory_id, scope_type, scope_key, risk_score, risk_json, prev_state_id, step_index, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    risk_state.state_id,
+                    risk_state.run_id,
+                    risk_state.trajectory_id,
+                    risk_state.scope_type,
+                    risk_state.scope_key,
+                    risk_state.risk_score,
+                    json.dumps(risk_state.risk_json),
+                    risk_state.prev_state_id,
+                    risk_state.step_index,
+                    json.dumps(risk_state.metadata),
+                    risk_state.created_at,
+                ),
+            )
+            conn.commit()
+        return risk_state
+
+    def list_constitutional_risk_states(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[ConstitutionalRiskStateRecord]:
+        query = (
+            "SELECT state_id, run_id, trajectory_id, scope_type, scope_key, risk_score, risk_json, prev_state_id, step_index, metadata, created_at "
+            "FROM constitutional_risk_states"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if trajectory_id:
+            clauses.append("trajectory_id = ?")
+            params.append(trajectory_id)
+        if scope_type:
+            clauses.append("scope_type = ?")
+            params.append(scope_type)
+        if scope_key:
+            clauses.append("scope_key = ?")
+            params.append(scope_key)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY step_index DESC, created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            ConstitutionalRiskStateRecord(
+                state_id=row[0],
+                run_id=row[1],
+                trajectory_id=row[2],
+                scope_type=row[3],
+                scope_key=row[4],
+                risk_score=float(row[5]),
+                risk_json=_safe_json_load(row[6]),
+                prev_state_id=row[7],
+                step_index=int(row[8]),
+                metadata=_safe_json_load(row[9]),
+                created_at=row[10],
+            )
+            for row in rows
+        ]
+
+    def write_failure_atlas_event(
+        self, event: FailureAtlasEventRecord
+    ) -> FailureAtlasEventRecord:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO failure_atlas_events
+                (event_id, run_id, trajectory_id, scope_type, scope_key, failure_class, severity, reversible, recovery_protocol, signature_json, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_id,
+                    event.run_id,
+                    event.trajectory_id,
+                    event.scope_type,
+                    event.scope_key,
+                    event.failure_class,
+                    event.severity,
+                    int(event.reversible),
+                    event.recovery_protocol,
+                    json.dumps(event.signature_json),
+                    json.dumps(event.metadata),
+                    event.created_at,
+                ),
+            )
+            conn.commit()
+        return event
+
+    def list_failure_atlas_events(
+        self,
+        *,
+        run_id: str | None = None,
+        trajectory_id: str | None = None,
+        scope_type: str | None = None,
+        scope_key: str | None = None,
+        limit: int = 200,
+    ) -> list[FailureAtlasEventRecord]:
+        query = (
+            "SELECT event_id, run_id, trajectory_id, scope_type, scope_key, failure_class, severity, reversible, recovery_protocol, signature_json, metadata, created_at "
+            "FROM failure_atlas_events"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if run_id:
+            clauses.append("run_id = ?")
+            params.append(run_id)
+        if trajectory_id:
+            clauses.append("trajectory_id = ?")
+            params.append(trajectory_id)
+        if scope_type:
+            clauses.append("scope_type = ?")
+            params.append(scope_type)
+        if scope_key:
+            clauses.append("scope_key = ?")
+            params.append(scope_key)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            FailureAtlasEventRecord(
+                event_id=row[0],
+                run_id=row[1],
+                trajectory_id=row[2],
+                scope_type=row[3],
+                scope_key=row[4],
+                failure_class=row[5],
+                severity=row[6],
+                reversible=bool(row[7]),
+                recovery_protocol=row[8],
+                signature_json=_safe_json_load(row[9]),
+                metadata=_safe_json_load(row[10]),
+                created_at=row[11],
             )
             for row in rows
         ]

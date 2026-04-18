@@ -42,6 +42,7 @@ class TransferAssessment:
     transfer_posterior: float = 0.0
     lower_confidence_bound: float = 0.0
     certificate_scope: str = "local_only"
+    canonical_scope: str = "local_safe"
     failure_mode_count: int = 0
     morphism_score: float = 0.0
 
@@ -204,6 +205,7 @@ def assess_transfer(
         transfer_posterior=round(transfer_post, 4),
         lower_confidence_bound=round(lcb, 4),
         certificate_scope=cert_scope,
+        canonical_scope=_canonical_scope_from_legacy(cert_scope),
         failure_mode_count=fm_count,
         morphism_score=round(m_score, 4),
     )
@@ -229,3 +231,13 @@ def _verdict_from_scope(scope: str) -> TransferVerdict:
         "blocked": "rejected_for_transfer",
     }
     return scope_to_verdict.get(scope, "certified_local")
+
+
+def _canonical_scope_from_legacy(scope: str) -> str:
+    mapping = {
+        "local_only": "local_safe",
+        "compatible_transfer": "transfer_safe",
+        "analogical_hint_only": "quarantine_only",
+        "blocked": "blocked",
+    }
+    return mapping.get(scope, "blocked")

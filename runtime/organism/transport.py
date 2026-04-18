@@ -27,6 +27,8 @@ from typing import Any, Dict, Literal, Tuple
 
 from .state import OrganismBeliefState, OrganismState, PolicyState
 from .regime_model import RegimeModel, RegimeComparisonResult, compare_regimes
+from .regime_renormalization import RegimeRenormalizationEngine
+from .snapshot import OrganismSnapshot
 
 
 TransportClass = Literal[
@@ -116,6 +118,7 @@ class TransportOperatorEngine:
     ):
         self.sensitivity_scale_factor = sensitivity_scale_factor
         self.uncertainty_base = uncertainty_base
+        self.renorm_engine = RegimeRenormalizationEngine()
 
     def transport(
         self,
@@ -135,31 +138,52 @@ class TransportOperatorEngine:
             TransportResult con proyecciones, error y clase.
         """
         comparison = compare_regimes(source_regime, target_regime)
+        snapshot = OrganismSnapshot.from_state(state)
+        renorm = self.renorm_engine.renormalize(
+            source_regime=source_regime,
+            target_regime=target_regime,
+            snapshot=snapshot,
+            constraints={
+                "triadic_closure_threshold": 0.50,
+                "min_memory_purity": 0.40,
+                "min_trace_integrity": 0.30,
+                "max_policy_drift": 0.50,
+            },
+        )
 
-        # Determine transport class
         transport_class = self._classify_transport(comparison)
+        if transport_class != "blocked":
+            if source_regime.regime_id == target_regime.regime_id:
+                transport_class = "identity"
+            elif comparison.compatibility == "compatible_regime" and renorm.regime_residual.residual_error < 0.25:
+                transport_class = "isometric"
+            elif not comparison.polarity_match:
+                transport_class = "adversarial"
+            else:
+                transport_class = "projective"
 
         if transport_class == "blocked":
             return self._blocked_result(source_regime, target_regime, comparison)
 
-        # Belief projection
-        belief_proj = self._project_belief(
-            state.belief, source_regime, target_regime, comparison,
+        sign_inversions = 1 if source_regime.causal_polarity != target_regime.causal_polarity else 0
+        belief_proj = BeliefProjection(
+            projected_alarm=renorm.belief_projection.projected_alarm,
+            projected_efficacy=renorm.belief_projection.projected_efficacy,
+            projected_causal_support=renorm.belief_projection.projected_causal_support,
+            sign_inversions=sign_inversions,
+            scale_factor=renorm.renormalization_map.asymmetry_factor,
+            projection_loss=min(1.0, renorm.regime_residual.residual_error + 0.20 * renorm.constraint_transform.semantic_shift_cost),
         )
-
-        # Policy projection
-        policy_proj = self._project_policy(
-            state.policy, source_regime, target_regime, comparison,
+        policy_proj = PolicyProjection(
+            projected_control_class=renorm.policy_phase_transform.projected_control_class,
+            projected_sensitivity=renorm.policy_phase_transform.projected_sensitivity,
+            sensitivity_adjustment=renorm.renormalization_map.asymmetry_factor,
+            projected_tolerance=renorm.policy_phase_transform.projected_tolerance,
+            compatibility_score=renorm.renormalization_map.feasibility,
         )
-
-        # Residual error
-        residual = self._compute_residual(comparison, belief_proj, policy_proj)
-
-        # Transport uncertainty
-        uncertainty = self._compute_uncertainty(comparison, transport_class)
-
-        # Expected recovery cost
-        recovery_cost = self._compute_recovery_cost(comparison, transport_class)
+        residual = renorm.regime_residual.residual_error
+        uncertainty = renorm.uncertainty.transport_uncertainty
+        recovery_cost = renorm.regime_residual.expected_recovery_cost
 
         return TransportResult(
             source_regime=source_regime.regime_id,

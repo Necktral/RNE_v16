@@ -28,6 +28,9 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal, Sequence
 
+from runtime.organism.risk_process import ConstitutionalRiskProcess
+from runtime.organism.t5_mode import get_t5_mode
+
 from .failure_modes import FailureModeAssessment, detect_failure_modes
 
 CertificateScope = Literal[
@@ -292,6 +295,28 @@ def compute_transfer_posterior(
     p_safe = prior * likelihood
     p_unsafe = (1 - prior) * (1 - likelihood)
     posterior = p_safe / (p_safe + p_unsafe) if (p_safe + p_unsafe) > 0 else 0.5
+
+    # 4b. RNFE-T5 adapter: sequential constitutional risk as posterior consumer.
+    # Maintiene compatibilidad del API, pero integra memoria secuencial.
+    if get_t5_mode() == "on":
+        process = ConstitutionalRiskProcess()
+        update = process.update(
+            scope_type="edge",
+            scope_key=f"{source_scenario}->{target_scenario}",
+            drift_identity=max(0.0, min(1.0, belief_shift_kl)),
+            drift_policy=max(0.0, min(1.0, 1.0 - policy_confidence)),
+            delta_viability=max(-1.0, min(1.0, transfer_stability - 0.5)),
+            delta_purity=max(0.0, min(1.0, 1.0 - memory_purity)),
+            delta_modification=max(0.0, min(1.0, 1.0 - causal_support)),
+            erosion=max(0.0, min(1.0, failure_assessment.total_risk)),
+            renorm_residual=max(0.0, min(1.0, 1.0 - morphism_score)),
+        )
+        risk_state = process.get(
+            scope_type="edge",
+            scope_key=f"{source_scenario}->{target_scenario}",
+        )
+        if risk_state is not None:
+            posterior = max(0.01, min(0.99, 0.70 * posterior + 0.30 * (1.0 - risk_state.risk_score)))
 
     # 5. Confidence bounds
     # n_observations: count of evidence signals used

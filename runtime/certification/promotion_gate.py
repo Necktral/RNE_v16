@@ -6,6 +6,8 @@ from typing import Any, Dict
 from uuid import uuid4
 
 from runtime.memory.mfm_lite import EpisodeMemoryStore, MFMCondenser, MacroPromotion
+from runtime.organism.court_runtime import ConstitutionalCourtRuntime
+from runtime.organism.t5_mode import get_t5_mode
 from runtime.reality.evaluator import evaluate_episode_closure
 from runtime.storage import StorageFacade
 
@@ -23,6 +25,7 @@ class PromotionGate:
         self.memory_store = EpisodeMemoryStore(storage=storage)
         self.condenser = MFMCondenser()
         self.macro_promotion = MacroPromotion(storage=storage)
+        self.court_runtime = ConstitutionalCourtRuntime(storage=storage)
 
     def process_episode(
         self,
@@ -82,6 +85,11 @@ class PromotionGate:
             compatibility=compatibility,
             transition_vector=transition_vector,
         )
+        t5_mode = get_t5_mode()
+        t5_result = self.court_runtime.ingest_episode(
+            run_id=run_id,
+            episode_result=episode_result,
+        )
         transfer_metadata = {
             "compatibility_class": transfer.compatibility_class,
             "transfer_verdict": transfer.transfer_verdict,
@@ -94,6 +102,51 @@ class PromotionGate:
             "certificate_scope": transfer.certificate_scope,
             "failure_mode_count": transfer.failure_mode_count,
         }
+        if t5_result is not None:
+            scope_to_transfer_verdict = {
+                "local_safe": "certified_local",
+                "transfer_safe": "certified_transfer_safe",
+                "modification_safe": "certified_transfer_safe",
+                "inheritance_safe": "certified_transfer_safe",
+                "quarantine_only": "certified_analogical_only",
+                "blocked": "rejected_for_transfer",
+            }
+            t5_payload = {
+                "mode": t5_mode,
+                "scope": t5_result.canonical_scope,
+                "legacy_scope": t5_result.legacy_scope,
+                "transfer_advice": t5_result.transfer_advice,
+                "flow_validity": t5_result.flow_validity,
+                "erosion": t5_result.erosion,
+                "phase_drift": t5_result.phase_drift,
+                "rollback_obligation": t5_result.rollback_obligation,
+                "viability_score": t5_result.viability_score,
+                "organism_risk": t5_result.organism_risk,
+                "edge_risk": t5_result.edge_risk,
+                "modification_risk": t5_result.modification_risk,
+                "inheritance_risk": t5_result.inheritance_risk,
+                "failure_mode_count": t5_result.failure_mode_count,
+                "renormalization_residual": t5_result.renormalization_residual,
+                "renormalization_uncertainty": t5_result.renormalization_uncertainty,
+                "expected_recovery_cost": t5_result.expected_recovery_cost,
+                "trajectory_id": t5_result.trajectory_id,
+            }
+            transfer_metadata["t5"] = t5_payload
+            transfer_metadata["t4"] = t5_payload  # alias de compatibilidad
+            if t5_mode == "on":
+                transfer_metadata["legacy_certificate_scope"] = transfer_metadata.get("certificate_scope", "local_only")
+                transfer_metadata["certificate_scope"] = t5_result.canonical_scope
+                transfer_metadata["transfer_scope_legacy"] = t5_result.legacy_scope
+                transfer_metadata["transfer_verdict"] = scope_to_transfer_verdict.get(
+                    t5_result.canonical_scope,
+                    transfer.transfer_verdict,
+                )
+                transfer_metadata["failure_mode_count"] = max(
+                    int(transfer_metadata["failure_mode_count"]),
+                    t5_result.failure_mode_count,
+                )
+                if t5_result.transfer_advice:
+                    transfer_metadata["transfer_advice"] = t5_result.transfer_advice
 
         proposal = {
             "proposal_id": f"proposal-{uuid4()}",
@@ -126,6 +179,50 @@ class PromotionGate:
             collapse_detected=collapse_detected,
             transfer_assessment=transfer_metadata,
         )
+        if t5_result is not None and t5_mode == "on":
+            max_t4_risk = max(
+                t5_result.organism_risk,
+                t5_result.edge_risk,
+                t5_result.modification_risk,
+                t5_result.inheritance_risk,
+            )
+            t4_blocks = (
+                t5_result.canonical_scope in {"blocked", "quarantine_only"}
+                or t5_result.rollback_obligation
+                or max_t4_risk >= 0.85
+            )
+            adjusted_verdict = "rejected" if t4_blocks else certificate.verdict
+            adjusted_promotion_candidate = bool(
+                certificate.promotion_candidate
+                and not t4_blocks
+                and max_t4_risk < 0.60
+            )
+            adjusted_risk = max(certificate.risk_score, max_t4_risk)
+            if (
+                adjusted_verdict != certificate.verdict
+                or adjusted_promotion_candidate != certificate.promotion_candidate
+                or adjusted_risk != certificate.risk_score
+            ):
+                certificate = self.storage.write_episode_certificate(
+                    certificate_id=certificate.certificate_id,
+                    episode_id=certificate.episode_id,
+                    run_id=certificate.run_id,
+                    trace_id=certificate.trace_id,
+                    smg_artifacts=certificate.smg_artifacts,
+                    lotf_artifacts=certificate.lotf_artifacts,
+                    world_artifacts=certificate.world_artifacts,
+                    continuity_score=certificate.continuity_score,
+                    ioc_proxy=certificate.ioc_proxy,
+                    risk_score=adjusted_risk,
+                    verdict=adjusted_verdict,
+                    rollback_ready=certificate.rollback_ready or t5_result.rollback_obligation,
+                    promotion_candidate=adjusted_promotion_candidate,
+                    metadata={
+                        **certificate.metadata,
+                        "t5": transfer_metadata.get("t5", {}),
+                        "t4": transfer_metadata.get("t4", {}),
+                    },
+                )
         decision_verdict = "promote" if certificate.promotion_candidate else "reject"
         decision_reason = (
             "certificate_gate_passed"
