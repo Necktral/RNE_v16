@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Dict, FrozenSet, List, Literal, Sequence, Tuple
 
 # ── Sub-state: Belief ────────────────────────────────────────────────────────
@@ -69,6 +69,10 @@ class OrganismBeliefState:
             abs(self.regime_uncertainty - other.regime_uncertainty),
         ]
         return sum(components) / len(components)
+
+    def _replace(self, **changes: Any) -> OrganismBeliefState:
+        """Compatibilidad de tests estilo namedtuple."""
+        return replace(self, **changes)
 
 
 # ── Sub-state: Policy ────────────────────────────────────────────────────────

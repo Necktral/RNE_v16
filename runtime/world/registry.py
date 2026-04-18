@@ -17,6 +17,11 @@ SCENARIO_REGISTRY: Dict[str, Type[CognitiveScenario]] = {
     "resource_management": ResourceScenario,
 }
 
+# Alias no canónicos (compatibilidad externa)
+SCENARIO_ALIASES: Dict[str, str] = {
+    "thermal": "thermal_homeostasis",
+}
+
 # Escenario por defecto (baseline)
 DEFAULT_SCENARIO = "thermal_homeostasis"
 
@@ -34,11 +39,12 @@ def get_scenario(name: str, **kwargs) -> CognitiveScenario:
     Raises:
         ValueError: Si el escenario no existe.
     """
-    if name not in SCENARIO_REGISTRY:
+    canonical_name = SCENARIO_ALIASES.get(name, name)
+    if canonical_name not in SCENARIO_REGISTRY:
         available = ", ".join(SCENARIO_REGISTRY.keys())
         raise ValueError(f"Escenario '{name}' no encontrado. Disponibles: {available}")
 
-    scenario_class = SCENARIO_REGISTRY[name]
+    scenario_class = SCENARIO_REGISTRY[canonical_name]
     return scenario_class(**kwargs)
 
 
