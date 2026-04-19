@@ -145,6 +145,30 @@ class TestGrid5x5Integration:
         assert result["episode"]["closure_profile"] == "baseline_fixed"
         storage.close()
 
+    def test_5x5_level_field_in_observation(self, tmp_path: Path):
+        """Nivel debe estar presente en observation formal."""
+        storage = _storage(tmp_path)
+        runner = ScenarioEpisodeRunner(
+            storage=storage,
+            run_id="run-5x5-level-obs",
+            scenario="grid_thermal_5x5"
+        )
+        result = runner.run_episode(external_input=0.04)
+
+        # Verificar que level está en el artifact persistido
+        artifact_path = result["artifact"]["abs_path"]
+        import json
+        with open(artifact_path) as f:
+            artifact_data = json.load(f)
+
+        # El nivel debe existir en la observación
+        obs_data = artifact_data["episode"]["context"]["observation"]
+        assert "world_level_numeric" in obs_data
+        assert "world_level_semantic" in obs_data
+        assert obs_data["world_level_semantic"] in ["SAFE", "ELEVATED", "WARNING", "CRITICAL"]
+
+        storage.close()
+
     def test_5x5_with_strict_memory_mode(self, tmp_path: Path):
         """5x5 debe funcionar con strict_same_scenario (default)."""
         storage = _storage(tmp_path)
