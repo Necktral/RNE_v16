@@ -1,13 +1,13 @@
 """Benchmark Runner: Ejecuta experimentos comparativos 1x1 vs 5x5.
 
-Orquesta la ejecución de episodios, captura de métricas y persistencia de resultados.
+CORREGIDO: Alineado con el contrato real de ScenarioEpisodeRunner.
+No asume claves ficticias. Adapta el payload real del runtime a formato benchmark.
 """
 
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import json
 import time
-import traceback
 import uuid
 from datetime import datetime
 
@@ -31,7 +31,7 @@ class BenchmarkConfig:
         scenario_params: Dict[str, Any],
         episodes: int,
         base_seed: int,
-        max_steps: int,
+        max_steps: int,  # Mantenido para config, pero NO se pasa al runtime
         output_dir: Path,
     ):
         self.scenario_name = scenario_name
@@ -39,24 +39,32 @@ class BenchmarkConfig:
         self.scenario_params = scenario_params
         self.episodes = episodes
         self.base_seed = base_seed
-        self.max_steps = max_steps
+        self.max_steps = max_steps  # Usado solo para documentación
         self.output_dir = output_dir
 
 
 class EpisodeResult:
-    """Resultado de un episodio individual."""
+    """Resultado de un episodio individual adaptado desde runtime."""
 
     def __init__(self, episode_id: str, scenario_name: str, seed: int):
         self.episode_id = episode_id
         self.scenario_name = scenario_name
         self.seed = seed
-        self.outcome = None
+        self.outcome = None  # 'success', 'failure', 'error'
         self.error = None
-        self.trace = []
-        self.trace_length = 0
-        self.cierre_rate = 0.0
-        self.continuity_score = 0.0
-        self.counterfactual = None
+
+        # Datos del runtime (estructura real)
+        self.runtime_payload = None
+
+        # Métricas derivadas
+        self.certification_verdict = None
+        self.is_viable = None
+        self.viability_margin = None
+        self.artifact_path = None
+        self.artifact_size_bytes = None
+        self.reasoning_trace_length = None
+        self.organism_trajectory = None
+
         self.metadata = {}
         self.metrics = {}
         self.wall_time_ms = 0.0
@@ -64,22 +72,76 @@ class EpisodeResult:
         self.end_time = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convierte resultado a diccionario."""
+        """Convierte resultado a diccionario para análisis."""
         return {
             'episode_id': self.episode_id,
             'scenario': self.scenario_name,
             'seed': self.seed,
             'outcome': self.outcome,
             'error': self.error,
-            'trace_length': self.trace_length,
-            'cierre_rate': self.cierre_rate,
-            'continuity_score': self.continuity_score,
-            'counterfactual': self.counterfactual,
+            'certification_verdict': self.certification_verdict,
+            'is_viable': self.is_viable,
+            'viability_margin': self.viability_margin,
+            'artifact_path': self.artifact_path,
+            'artifact_size_bytes': self.artifact_size_bytes,
+            'reasoning_trace_length': self.reasoning_trace_length,
             'metadata': self.metadata,
             'wall_time_ms': self.wall_time_ms,
             'timestamp': self.start_time.isoformat() if self.start_time else None,
             **self.metrics,
         }
+
+
+def adapt_runtime_result_to_benchmark(runtime_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Adapta el payload real del runtime a formato benchmark.
+
+    El runtime retorna:
+    - episode: {...}
+    - smg_snapshot: {...}
+    - reasoning: {...}
+    - artifact: {...}
+    - run_id: str
+    - organism_trajectory: {...}
+    - constitutional_validation: {...}
+    - viability_assessment: {...}
+    - certification: {...}
+    - eml_shadow: {...}
+
+    Esta función normaliza a un formato benchmark coherente.
+    """
+    adapted = {
+        'episode_id': runtime_result.get('episode', {}).get('episode_id'),
+        'run_id': runtime_result.get('run_id'),
+        'scenario_name': runtime_result.get('episode', {}).get('scenario'),
+
+        # Certification
+        'certification_verdict': runtime_result.get('certification', {}).get('verdict'),
+        'promotion_candidate': runtime_result.get('certification', {}).get('promotion_candidate'),
+
+        # Viability
+        'is_viable': runtime_result.get('viability_assessment', {}).get('is_viable'),
+        'viability_margin': runtime_result.get('viability_assessment', {}).get('viability_margin'),
+        'distance_to_edge': runtime_result.get('viability_assessment', {}).get('distance_to_edge'),
+
+        # Artifact
+        'artifact_path': runtime_result.get('artifact', {}).get('abs_path'),
+
+        # Reasoning trace (del scheduler, NO del mundo)
+        'reasoning_sequence': runtime_result.get('reasoning', {}).get('sequence', []),
+
+        # Organism trajectory
+        'organism_trajectory': runtime_result.get('organism_trajectory'),
+
+        # Episode context
+        'observation': runtime_result.get('episode', {}).get('context', {}).get('observation'),
+        'updated_world': runtime_result.get('episode', {}).get('result', {}).get('updated_world'),
+        'counterfactual_world': runtime_result.get('episode', {}).get('context', {}).get('counterfactual'),
+
+        # Raw payload para métricas que lo necesiten
+        'raw_runtime_result': runtime_result,
+    }
+
+    return adapted
 
 
 class BenchmarkRunner:
@@ -103,7 +165,6 @@ class BenchmarkRunner:
         print(f"{'='*70}")
         print(f"Episodios: {config.episodes}")
         print(f"Base seed: {config.base_seed}")
-        print(f"Max steps: {config.max_steps}")
         print(f"Output: {config.output_dir}")
         print(f"{'='*70}\n")
 
@@ -125,7 +186,7 @@ class BenchmarkRunner:
                     seed=seed,
                 )
                 results.append(result)
-                print(f"✓ {result.outcome} ({result.trace_length} steps, {result.wall_time_ms:.1f}ms)")
+                print(f"✓ {result.outcome} ({result.certification_verdict}, {result.wall_time_ms:.1f}ms)")
 
             except Exception as e:
                 print(f"✗ ERROR: {str(e)}")
@@ -150,6 +211,8 @@ class BenchmarkRunner:
         seed: int,
     ) -> EpisodeResult:
         """Ejecuta un episodio individual con captura completa de métricas.
+
+        CORREGIDO: Usa contrato real de ScenarioEpisodeRunner.
 
         Args:
             config: Configuración del benchmark.
@@ -181,31 +244,46 @@ class BenchmarkRunner:
                 'topology': config.scenario_params.get('topology'),
             }
 
-            # Ejecutar episodio
+            # Crear runner SIN max_steps (no existe en el contrato)
             runner = ScenarioEpisodeRunner(
                 scenario=scenario,
                 storage=temp_storage,
-                max_steps=config.max_steps,
+                run_id=f"bench-{episode_id[:8]}",
             )
 
-            # TODO: Capturar trace completo
-            # Por ahora, ejecutar y extraer métricas básicas
-            episode_data = runner.run_episode()
+            # Ejecutar UN SOLO EPISODIO (un paso cognitivo)
+            runtime_result = runner.run_episode(external_input=0.04)
 
-            result.outcome = 'success' if episode_data.get('closed', False) else 'failure'
-            result.trace_length = len(episode_data.get('trace', []))
-            result.cierre_rate = 1.0 if episode_data.get('closed', False) else 0.0
-            result.continuity_score = episode_data.get('continuity_score', 0.0)
-            result.trace = episode_data.get('trace', [])
+            # Adaptar resultado del runtime a formato benchmark
+            adapted_result = adapt_runtime_result_to_benchmark(runtime_result)
 
-            # Extraer contrafactual si existe
-            if 'counterfactual' in episode_data:
-                result.counterfactual = episode_data['counterfactual']
+            # Guardar payload completo
+            result.runtime_payload = runtime_result
+
+            # Extraer métricas del runtime
+            cert_verdict = adapted_result['certification_verdict']
+            result.certification_verdict = cert_verdict
+            result.is_viable = adapted_result['is_viable']
+            result.viability_margin = adapted_result['viability_margin']
+            result.artifact_path = adapted_result['artifact_path']
+            result.organism_trajectory = adapted_result['organism_trajectory']
+
+            # Calcular artifact size si existe
+            if result.artifact_path and Path(result.artifact_path).exists():
+                result.artifact_size_bytes = Path(result.artifact_path).stat().st_size
+
+            # Reasoning trace length
+            result.reasoning_trace_length = len(adapted_result['reasoning_sequence'])
+
+            # Determinar outcome según certificación
+            if cert_verdict in ['passed', 'certified']:
+                result.outcome = 'success'
+            else:
+                result.outcome = 'failure'
 
         except Exception as e:
             result.outcome = 'error'
             result.error = f"{type(e).__name__}: {str(e)}"
-            result.trace_length = 0
 
         finally:
             temp_storage.close()
@@ -215,29 +293,44 @@ class BenchmarkRunner:
         result.wall_time_ms = (t1 - t0) * 1000.0
         result.end_time = datetime.now()
 
-        # Calcular métricas
-        episode_dict = result.to_dict()
-        episode_dict['trace'] = result.trace
-        episode_dict['counterfactual'] = result.counterfactual
+        # Calcular métricas CORREGIDAS (sobre payload real)
+        if result.runtime_payload:
+            adapted_payload = adapt_runtime_result_to_benchmark(result.runtime_payload)
 
-        # Grupo 2: Calidad cognitiva
-        cognitive_metrics = compute_all_cognitive_metrics(episode_dict)
-        result.metrics.update(cognitive_metrics)
+            # Grupo 2: Calidad cognitiva (ADAPTADO)
+            cognitive_metrics = compute_all_cognitive_metrics(adapted_payload)
+            result.metrics.update(cognitive_metrics)
 
-        # Grupo 3: Costo operativo
-        operational_metrics = compute_all_operational_cost_metrics(episode_dict)
-        result.metrics.update(operational_metrics)
+            # Grupo 3: Costo operativo (ADAPTADO)
+            operational_metrics = compute_all_operational_cost_metrics({
+                **adapted_payload,
+                'wall_time_ms': result.wall_time_ms,
+                'artifact_size_bytes': result.artifact_size_bytes,
+                'reasoning_trace_length': result.reasoning_trace_length,
+            })
+            result.metrics.update(operational_metrics)
 
-        # Grupo 4: IVC-R
-        ivc_r_result = compute_ivc_r_from_episode({**episode_dict, **result.metrics})
-        result.metrics['ivc_r'] = ivc_r_result['ivc_r']
-        result.metrics['ivc_r_log'] = ivc_r_result['ivc_r_log']
-        result.metrics['ivc_r_components'] = ivc_r_result['components']
+            # Grupo 4: IVC-R (ADAPTADO)
+            # IVC-R requiere métricas ya calculadas
+            ivc_r_input = {
+                **result.to_dict(),
+                **result.metrics,
+                'cierre_rate': 1.0 if result.outcome == 'success' else 0.0,
+                'continuity_score': result.viability_margin if result.viability_margin else 0.0,
+            }
+            ivc_r_result = compute_ivc_r_from_episode(ivc_r_input)
+            result.metrics['ivc_r'] = ivc_r_result.get('ivc_r', 0.0)
+            result.metrics['ivc_r_log'] = ivc_r_result.get('ivc_r_log', 0.0)
+            result.metrics['ivc_r_components'] = ivc_r_result.get('components', {})
 
-        # Grupo 5: Clasificación de fallos
-        failure_classification = classify_episode_failures({**episode_dict, **result.metrics})
-        result.metrics['failure_primary'] = failure_classification['failure_primary']
-        result.metrics['failure_secondary'] = failure_classification['failure_secondary']
+            # Grupo 5: Clasificación de fallos (ADAPTADO)
+            failure_classification = classify_episode_failures({
+                **adapted_payload,
+                **result.to_dict(),
+                **result.metrics,
+            })
+            result.metrics['failure_primary'] = failure_classification['failure_primary']
+            result.metrics['failure_secondary'] = failure_classification['failure_secondary']
 
         return result
 
@@ -252,10 +345,9 @@ class BenchmarkRunner:
 
         with open(episodes_file, 'w') as f:
             for result in results:
-                # No incluir trace completo en JSONL (muy pesado)
                 result_dict = result.to_dict()
-                result_dict.pop('trace', None)  # Trace va a archivo separado si se requiere
-
+                # No incluir runtime_payload completo (muy pesado)
+                result_dict.pop('runtime_payload', None)
                 f.write(json.dumps(result_dict, default=str) + '\n')
 
         print(f"\n📊 Resultados guardados en: {episodes_file}")
@@ -272,7 +364,8 @@ class BenchmarkRunner:
         """
         total = len(results)
         successful = sum(1 for r in results if r.outcome == 'success')
-        failed = total - successful
+        failed = sum(1 for r in results if r.outcome == 'failure')
+        errors = sum(1 for r in results if r.outcome == 'error')
 
         # Calcular promedios de métricas (solo episodios exitosos)
         success_results = [r for r in results if r.outcome == 'success']
@@ -280,19 +373,42 @@ class BenchmarkRunner:
         if success_results:
             avg_metrics = {}
             metric_keys = [
-                'cierre_rate', 'continuity_score', 'intervention_precision',
-                'proposition_diversity', 'spatial_information_usage',
-                'wall_time_ms', 'artifact_size_bytes', 'ivc_r',
+                'intervention_precision',
+                'proposition_diversity',
+                'spatial_information_usage',
+                'wall_time_ms',
+                'artifact_size_bytes',
+                'reasoning_trace_length',
+                'ivc_r',
             ]
 
             for key in metric_keys:
-                values = [r.metrics.get(key, 0.0) for r in success_results if key in r.metrics]
+                values = []
+                for r in success_results:
+                    if key == 'wall_time_ms':
+                        values.append(r.wall_time_ms)
+                    elif key == 'artifact_size_bytes':
+                        if r.artifact_size_bytes:
+                            values.append(r.artifact_size_bytes)
+                    elif key == 'reasoning_trace_length':
+                        if r.reasoning_trace_length:
+                            values.append(r.reasoning_trace_length)
+                    elif key in r.metrics:
+                        val = r.metrics[key]
+                        if val is not None:
+                            values.append(val)
+
                 if values:
                     avg_metrics[key] = sum(values) / len(values)
                 else:
                     avg_metrics[key] = 0.0
+
+            # Viability margin promedio
+            viability_values = [r.viability_margin for r in success_results if r.viability_margin is not None]
+            avg_metrics['viability_margin'] = sum(viability_values) / len(viability_values) if viability_values else 0.0
         else:
             avg_metrics = {key: 0.0 for key in metric_keys}
+            avg_metrics['viability_margin'] = 0.0
 
         # Agregación de fallos
         from .failure_taxonomy import aggregate_failure_distribution
@@ -303,6 +419,7 @@ class BenchmarkRunner:
             'total_episodes': total,
             'successful': successful,
             'failed': failed,
+            'errors': errors,
             'success_rate': successful / total if total > 0 else 0.0,
             'avg_metrics': avg_metrics,
             'failure_distribution': failure_dist,
