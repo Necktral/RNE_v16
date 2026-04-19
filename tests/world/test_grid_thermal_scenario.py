@@ -321,12 +321,31 @@ class TestGridThermalInterventions:
     """Tests de intervenciones y selección."""
 
     def test_select_intervention_activates_on_alarm(self):
-        """select_intervention debe retornar activate_cooling en alarma."""
-        scenario = GridThermalScenario(initial_temperature=0.90, alarm_threshold=0.85)
-        obs = scenario.observe()
-        intervention = scenario.select_intervention(obs)
+        """select_intervention con alarma depende de topología.
 
-        assert intervention == "activate_cooling"
+        Nueva lógica topológicamente sensible:
+        - Alarma + concentrado/hotspot -> activate_cooling
+        - Alarma + difuso sin gradiente fuerte -> deactivate_cooling (menos urgente)
+        """
+        # Caso 1: Alarma + hotspot (concentrado) -> DEBE activar
+        scenario_hotspot = GridThermalScenario(
+            initial_temperature=0.80,
+            alarm_threshold=0.85,
+            topology="hotspot_center",
+            topology_params={"hotspot_temp": 0.95},
+        )
+        obs_hotspot = scenario_hotspot.observe()
+        intervention_hotspot = scenario_hotspot.select_intervention(obs_hotspot)
+        assert intervention_hotspot == "activate_cooling"
+
+        # Caso 2: Alarma + uniforme (difuso) -> NO activa (tolera más)
+        scenario_uniform = GridThermalScenario(
+            initial_temperature=0.90, alarm_threshold=0.85
+        )
+        obs_uniform = scenario_uniform.observe()
+        intervention_uniform = scenario_uniform.select_intervention(obs_uniform)
+        # Difuso sin gradiente fuerte -> tolera más
+        assert intervention_uniform == "deactivate_cooling"
 
     def test_select_intervention_deactivates_below_threshold(self):
         """select_intervention debe retornar deactivate_cooling sin alarma."""
