@@ -1,14 +1,28 @@
 # Phase 1 Complete: Ready for Experimental Validation
 
 **Branch**: `claude/open-clean-branch-1x1-to-5x5`
-**Status**: ✅ Instrumentación completa - Listo para ejecución de benchmarks
+**Status**: ✅ Instrumentación corregida - Listo para ejecución de benchmarks
 **Fecha**: 2026-04-19
+**Corrección Arquitectónica**: 2026-04-19 (alineación con contrato real del runtime)
 
 ---
 
 ## Resumen Ejecutivo
 
-La **Fase 1 de instrumentación experimental** está completa e implementada. El código está listo para ejecutar el protocolo experimental riguroso que determinará el valor cognitivo neto del GridThermalScenario 5x5 versus el baseline 1x1.
+La **Fase 1 de instrumentación experimental** está completa e implementada. El código fue **corregido arquitectónicamente** para alinearse con el contrato real de `ScenarioEpisodeRunner` y ahora está listo para ejecutar el protocolo experimental riguroso que determinará el valor cognitivo neto del GridThermalScenario 5x5 versus el baseline 1x1.
+
+### Correcciones Realizadas (2026-04-19)
+
+**Problema Original**: El código de instrumentación asumía un contrato incorrecto del runtime:
+- Pasaba `max_steps` inexistente a `ScenarioEpisodeRunner`
+- Esperaba claves ficticias (`closed`, `trace`, `continuity_score`) que no existen
+- Asumía trace multi-step del mundo (cuando solo hay single-step cognitivo)
+
+**Solución**: Adaptar benchmark layer para consumir el contrato real:
+- Removido `max_steps` de llamadas al runner (mantener solo en config para docs)
+- Creado `adapt_runtime_result_to_benchmark()` para normalizar payload real
+- Métricas reescritas para trabajar con observation/updated_world (single-step)
+- Outcome determinado desde `certification.verdict` (no `closed` ficticio)
 
 ### Estado Actual
 
@@ -21,25 +35,25 @@ La **Fase 1 de instrumentación experimental** está completa e implementada. El
 
 ## Implementación Completada
 
-### 📊 Metrics Infrastructure (4 módulos, 992 LOC)
+### 📊 Metrics Infrastructure (4 módulos, corregidos)
 
-#### `metrics_cognitive_quality.py` (Grupo 2)
-Métricas de calidad cognitiva:
-- ✅ `factual_cf_divergence`: Distancia factual vs contrafactual
-- ✅ `intervention_precision`: Proporción de intervenciones beneficiosas
-- ✅ `proposition_diversity`: Entropía de Shannon de proposiciones
-- ✅ `world_level_transitions`: Análisis de transiciones entre niveles
-- ✅ `spatial_coherence_index`: Correlación espacial (solo 5x5)
-- ✅ `spatial_information_usage`: Proporción de decisiones espaciales
+#### `metrics_cognitive_quality.py` (Grupo 2) - CORREGIDO
+Métricas de calidad cognitiva (adaptadas a single-step):
+- ✅ `intervention_precision`: Eficacia de intervención (delta temperatura observation→updated_world)
+- ✅ `proposition_diversity`: Entropía de Shannon de proposiciones (snapshot)
+- ✅ `spatial_information_usage`: Proporción de proposiciones espaciales activas
+- ❌ `factual_cf_divergence`: REMOVIDA (requiere trace multi-step)
+- ❌ `world_level_transitions`: REMOVIDA (requiere trace multi-step)
+- ❌ `spatial_coherence_index`: REMOVIDA (requiere evolución temporal)
 
-#### `metrics_operational_cost.py` (Grupo 3)
-Métricas de costo operativo:
-- ✅ `episode_wall_time_ms`: Tiempo real de ejecución
-- ✅ `counterfactual_overhead_ratio`: Ratio tiempo CF/factual
-- ✅ `memory_pressure_mb`: Memoria incremental
-- ✅ `scheduler_cpu_time_ms`: CPU dedicada al scheduler
+#### `metrics_operational_cost.py` (Grupo 3) - CORREGIDO
+Métricas de costo operativo (solo observables reales):
+- ✅ `wall_time_ms`: Tiempo real de ejecución
 - ✅ `artifact_size_bytes`: Tamaño del artifact
-- ✅ `trace_length`: Número de pasos
+- ✅ `reasoning_trace_length`: Longitud del reasoning trace del scheduler
+- ❌ `counterfactual_overhead_ratio`: REMOVIDA (no existe timing por factual/CF)
+- ❌ `memory_pressure_mb`: REMOVIDA (no instrumentado en runtime)
+- ❌ `scheduler_cpu_time_ms`: REMOVIDA (no existe timing separado)
 
 #### `metrics_ivc_r.py` (Grupo 4)
 IVC-R robusto:
@@ -48,24 +62,29 @@ IVC-R robusto:
 - ✅ Intervalos de confianza via bootstrap (1000 resamples)
 - ✅ Pesos configurables
 
-#### `failure_taxonomy.py` (Grupo 5)
-Clasificación de fallos:
-- ✅ 6 categorías primarias: timeout, error, cf_failed, both_failed, alarm_persistent, oscillation
-- ✅ 5 causas secundarias: high_initial_temp, weak_cooling, tight_threshold, scheduler_overhead, spatial_complexity
+#### `failure_taxonomy.py` (Grupo 5) - CORREGIDO
+Clasificación de fallos (basada en señales reales):
+- ✅ 4 categorías primarias: ERROR, CERTIFICATION_FAILED, VIABILITY_FAILED, BOTH_FAILED
+- ✅ 4 causas secundarias: HIGH_INITIAL_TEMP, WEAK_COOLING, TIGHT_THRESHOLD, SPATIAL_COMPLEXITY
+- ❌ TIMEOUT, ALARM_PERSISTENT, OSCILLATION: REMOVIDAS (requieren trace multi-step)
+- ❌ SCHEDULER_OVERHEAD: REMOVIDA (no existe timing separado del scheduler)
 - ✅ Agregación de distribuciones
 
 ---
 
-### 🔬 Benchmark Infrastructure (4 módulos, 1174 LOC)
+### 🔬 Benchmark Infrastructure (4 módulos, corregidos)
 
-#### `benchmark_runner.py`
+#### `benchmark_runner.py` - CORREGIDO
 Orquestador de episodios:
 - ✅ `BenchmarkRunner`: Ejecuta N episodios con captura automática de todas las métricas
-- ✅ `BenchmarkConfig`: Configuración estructurada por escenario
+- ✅ `BenchmarkConfig`: Configuración estructurada por escenario (mantiene max_steps solo como doc)
 - ✅ `EpisodeResult`: Resultado completo con métricas Grupos 2-5
+- ✅ `adapt_runtime_result_to_benchmark()`: Adaptador del payload real del runtime
+- ✅ Success/failure desde `certification.verdict` ('passed'/'certified' vs otros)
 - ✅ Persistencia en JSONL (episodes.jsonl) + JSON (summary.json)
 - ✅ Storage temporal por episodio
 - ✅ Manejo de errores robusto
+- ✅ NO pasa `max_steps` al runtime (no existe en el contrato)
 
 #### `benchmark_config.yaml`
 Configuración experimental:
