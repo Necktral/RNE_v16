@@ -268,8 +268,9 @@ def compute_spatial_information_usage(
     Returns:
         Valor entre 0.0 y 1.0.
         - 0.0: Isomorfismo completo (5x5 ignora estructura espacial)
-        - > 0.3: Uso significativo de información espacial
-        - > 0.6: Uso fuerte de información espacial
+        - > 0.2: Umbral mínimo de uso espacial
+        - > 0.3: Uso espacial moderado
+        - > 0.6: Uso espacial fuerte
     """
     if not pairs_results:
         return 0.0
@@ -277,12 +278,12 @@ def compute_spatial_information_usage(
     different_count = 0
 
     for pair in pairs_results:
-        # Comparar si hubo diferencias en proposiciones, intervención o contrafactual
+        # Contar par como "diferente" si AL MENOS UNO de estos difiere
         if pair.get('propositions_differ', False):
             different_count += 1
         elif pair.get('intervention_differs', False):
             different_count += 1
-        elif pair.get('counterfactual_quality_differs', False):
+        elif pair.get('level_differs', False):
             different_count += 1
 
     return different_count / len(pairs_results)
@@ -318,7 +319,7 @@ class TestCognitiveFrontierPhase0:
 
         Criterio de éxito:
         - spatial_information_usage > 0.2
-        - Al menos 5/10 pares muestran diferencias significativas
+        - Al menos 5/10 pares muestran diferencias en decisiones
         """
         storage = _storage(tmp_path)
 
@@ -337,7 +338,7 @@ class TestCognitiveFrontierPhase0:
         ]
 
         pairs_results = []
-        significant_differences = 0
+        pairs_with_differences = 0
 
         for idx, (target_mean, topo_a, topo_b, description) in enumerate(test_pairs):
             print(f"\n=== Par {idx + 1}/10: {description} (mean={target_mean:.2f}) ===")
@@ -388,8 +389,8 @@ class TestCognitiveFrontierPhase0:
             # Registrar resultados
             any_difference = props_differ or intervention_differs or level_differs
             if any_difference:
-                significant_differences += 1
-                print(f"  ✓ DIFERENCIA SIGNIFICATIVA detectada")
+                pairs_with_differences += 1
+                print(f"  ✓ DIFERENCIA detectada")
             else:
                 print(f"  ✗ Sin diferencias cognitivas")
 
@@ -401,8 +402,14 @@ class TestCognitiveFrontierPhase0:
                 'topology_b': topo_b,
                 'mean_a': mean_a,
                 'mean_b': mean_b,
+                'propositions_a': list(obs_a.propositions),
+                'propositions_b': list(obs_b.propositions),
                 'propositions_differ': props_differ,
+                'intervention_a': intervention_a,
+                'intervention_b': intervention_b,
                 'intervention_differs': intervention_differs,
+                'level_a': level_a,
+                'level_b': level_b,
                 'level_differs': level_differs,
                 'any_difference': any_difference,
             })
@@ -410,15 +417,27 @@ class TestCognitiveFrontierPhase0:
         # Calcular spatial_information_usage
         spatial_usage = compute_spatial_information_usage(pairs_results)
 
+        # Persistir resultados completos para análisis
+        import json
+        results_file = tmp_path / "phase0_gate_results.json"
+        with open(results_file, 'w') as f:
+            json.dump({
+                'spatial_information_usage': spatial_usage,
+                'pairs_with_differences': pairs_with_differences,
+                'total_pairs': len(test_pairs),
+                'pairs': pairs_results,
+            }, f, indent=2)
+        print(f"\n📊 Resultados detallados guardados en: {results_file}")
+
         print(f"\n{'='*70}")
         print(f"RESULTADOS DEL TEST DE NO-ISOMORFISMO")
         print(f"{'='*70}")
-        print(f"Pares con diferencias significativas: {significant_differences}/10")
+        print(f"Pares con diferencias: {pairs_with_differences}/10")
         print(f"spatial_information_usage: {spatial_usage:.3f}")
         print(f"{'='*70}")
 
         # Evaluar criterio de éxito
-        gate_passed = spatial_usage > 0.2 and significant_differences >= 5
+        gate_passed = spatial_usage > 0.2 and pairs_with_differences >= 5
 
         if gate_passed:
             print("✅ GATE PASSED: El 5x5 USA información espacial para cognición")
@@ -429,8 +448,8 @@ class TestCognitiveFrontierPhase0:
             print(f"\n   Razón del fallo:")
             if spatial_usage <= 0.2:
                 print(f"   - spatial_information_usage ({spatial_usage:.3f}) ≤ 0.2")
-            if significant_differences < 5:
-                print(f"   - Diferencias significativas ({significant_differences}) < 5")
+            if pairs_with_differences < 5:
+                print(f"   - Pares con diferencias ({pairs_with_differences}) < 5")
 
         storage.close()
 
@@ -438,7 +457,7 @@ class TestCognitiveFrontierPhase0:
         assert gate_passed, (
             f"Test de No-Isomorfismo FALLÓ: "
             f"spatial_usage={spatial_usage:.3f} (requiere >0.2), "
-            f"diferencias={significant_differences}/10 (requiere ≥5)"
+            f"diferencias={pairs_with_differences}/10 (requiere ≥5)"
         )
 
         return spatial_usage, pairs_results
