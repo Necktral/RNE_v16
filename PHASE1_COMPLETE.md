@@ -61,6 +61,10 @@ IVC-R robusto:
 - ✅ Descomposición por componentes
 - ✅ Intervalos de confianza via bootstrap (1000 resamples)
 - ✅ Pesos configurables
+- ⚠️ **Usa proxies temporales**:
+  - `cierre_rate` → `success_rate` (1.0 si outcome=='success', 0.0 si no)
+  - `continuity_score` → `viability_margin` (del viability_assessment)
+  - Proxies válidos hasta que exista world_trace formal
 
 #### `failure_taxonomy.py` (Grupo 5) - CORREGIDO
 Clasificación de fallos (basada en señales reales):
@@ -103,7 +107,7 @@ Suite de tests pytest:
 - ✅ `test_level_sweep_5x5`: Barrido por 4 niveles (5x5)
 - ✅ Marcado con `@pytest.mark.requires_extended_bench` (ejecución explícita)
 
-#### `analysis_report.py`
+#### `analysis_report.py` - CORREGIDO
 Análisis estadístico y reportes:
 - ✅ `BenchmarkAnalyzer`: Carga y compara resultados 1x1 vs 5x5
 - ✅ Tests estadísticos: Mann-Whitney U, Cohen's d, bootstrap CI
@@ -111,6 +115,10 @@ Análisis estadístico y reportes:
 - ✅ Comparación de distribuciones de fallos
 - ✅ Generación automática de tablas Markdown
 - ✅ Generación de reporte completo con dictamen preliminar
+- ✅ **Alineado con métricas reales**:
+  - Usa `success_rate` (proxy de cierre_rate)
+  - Usa `viability_margin` (proxy de continuity_score)
+  - NO usa `memory_pressure_mb` (removida, peso redistribuido a wall_time)
 
 ---
 

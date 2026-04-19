@@ -51,20 +51,23 @@ class BenchmarkAnalyzer:
     def compute_statistical_comparison(self) -> Dict[str, Any]:
         """Ejecuta comparación estadística completa.
 
+        CORREGIDO: Usa solo métricas reales del contrato.
+
         Returns:
             Diccionario con resultados de comparación.
         """
         comparison = {}
 
-        # Métricas a comparar
+        # Métricas a comparar (solo las que existen en el contrato real)
         metrics = [
-            'cierre_rate',
-            'continuity_score',
+            'success_rate',  # Proxy de cierre_rate (desde outcome=='success')
+            'viability_margin',  # Proxy de continuity_score
             'intervention_precision',
             'proposition_diversity',
             'spatial_information_usage',
             'wall_time_ms',
             'artifact_size_bytes',
+            'reasoning_trace_length',
             'ivc_r',
         ]
 
@@ -246,6 +249,8 @@ class BenchmarkAnalyzer:
     def _compute_net_cognitive_gain(self) -> Dict[str, Any]:
         """Calcula ganancia cognitiva neta según fórmula de especificación.
 
+        CORREGIDO: No usa memory_pressure_mb (no instrumentada).
+
         Formula:
         Ganancia_Neta = (IVC-R_5x5 - IVC-R_1x1) - Penalización_Costo
 
@@ -262,22 +267,17 @@ class BenchmarkAnalyzer:
         artifact_1x1 = self._mean_metric(self.data_1x1, 'artifact_size_bytes')
         artifact_5x5 = self._mean_metric(self.data_5x5, 'artifact_size_bytes')
 
-        memory_1x1 = self._mean_metric(self.data_1x1, 'memory_pressure_mb')
-        memory_5x5 = self._mean_metric(self.data_5x5, 'memory_pressure_mb')
-
         # Ratios
         wall_time_ratio = wall_time_5x5 / wall_time_1x1 if wall_time_1x1 > 0 else 1.0
         artifact_ratio = artifact_5x5 / artifact_1x1 if artifact_1x1 > 0 else 1.0
-        memory_ratio = memory_5x5 / memory_1x1 if memory_1x1 > 0 else 1.0
 
-        # Penalización de costo
+        # Penalización de costo (sin memory_ratio - no instrumentada)
         def normalize(x, max_val):
             return min(x, max_val) / max_val
 
         penalizacion_costo = (
-            0.10 * normalize(wall_time_ratio - 1.0, 1.0) +
-            0.05 * normalize(artifact_ratio - 1.0, 2.0) +
-            0.05 * normalize(memory_ratio - 1.0, 1.0)
+            0.15 * normalize(wall_time_ratio - 1.0, 1.0) +  # 0.10 -> 0.15 (redistribuir peso)
+            0.05 * normalize(artifact_ratio - 1.0, 2.0)
         )
 
         # Ganancia bruta
@@ -294,7 +294,6 @@ class BenchmarkAnalyzer:
             'ivc_r_5x5': ivc_r_5x5,
             'wall_time_ratio': wall_time_ratio,
             'artifact_ratio': artifact_ratio,
-            'memory_ratio': memory_ratio,
         }
 
     def _mean_metric(self, data: List[Dict[str, Any]], metric: str) -> float:
@@ -344,13 +343,14 @@ class BenchmarkAnalyzer:
         lines.append("|---------|-----|-----|---|----|-----------|---------|\n")
 
         metrics_display = {
-            'cierre_rate': 'Cierre Rate',
-            'continuity_score': 'Continuity Score',
+            'success_rate': 'Success Rate (proxy: cierre_rate)',
+            'viability_margin': 'Viability Margin (proxy: continuity_score)',
             'intervention_precision': 'Intervention Precision',
             'proposition_diversity': 'Proposition Diversity',
             'spatial_information_usage': 'Spatial Information Usage',
             'wall_time_ms': 'Wall Time (ms)',
             'artifact_size_bytes': 'Artifact Size (bytes)',
+            'reasoning_trace_length': 'Reasoning Trace Length',
             'ivc_r': '**IVC-R**',
         }
 
@@ -439,15 +439,18 @@ class BenchmarkAnalyzer:
         print(f"\n📄 Reporte generado en: {output_file}")
 
     def _generate_verdict(self, comparison: Dict[str, Any]) -> str:
-        """Genera dictamen basado en criterios de especificación."""
+        """Genera dictamen basado en criterios de especificación.
+
+        CORREGIDO: Usa success_rate en lugar de cierre_rate.
+        """
         ncg = comparison.get('net_cognitive_gain', {})
         ganancia_neta = ncg.get('ganancia_neta', 0.0)
 
         precision_stats = comparison.get('intervention_precision', {})
         precision_delta = precision_stats.get('delta', 0.0)
 
-        cierre_stats = comparison.get('cierre_rate', {})
-        cierre_delta = cierre_stats.get('delta', 0.0)
+        success_stats = comparison.get('success_rate', {})
+        success_delta = success_stats.get('delta', 0.0)
 
         wall_time_ratio = ncg.get('wall_time_ratio', 1.0)
         artifact_ratio = ncg.get('artifact_ratio', 1.0)
@@ -469,7 +472,7 @@ class BenchmarkAnalyzer:
 
         lines.append(f"\n### Detalles:")
         lines.append(f"- Precision improvement: {precision_delta:+.1%}")
-        lines.append(f"- Cierre rate delta: {cierre_delta:+.1%}")
+        lines.append(f"- Success rate delta: {success_delta:+.1%}")
         lines.append(f"- Wall time ratio: {wall_time_ratio:.2f}x")
         lines.append(f"- Artifact size ratio: {artifact_ratio:.2f}x")
 

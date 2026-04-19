@@ -88,6 +88,8 @@ class EpisodeResult:
             'metadata': self.metadata,
             'wall_time_ms': self.wall_time_ms,
             'timestamp': self.start_time.isoformat() if self.start_time else None,
+            # Proxy metrics for analysis compatibility
+            'success_rate': 1.0 if self.outcome == 'success' else 0.0,
             **self.metrics,
         }
 
