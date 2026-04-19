@@ -1,109 +1,69 @@
 """Grupo 2: Métricas de Calidad Cognitiva.
 
-Métricas que evalúan la calidad de las decisiones y cognición del sistema:
-- factual_counterfactual_divergence: Distancia entre factual y mejor contrafactual
-- intervention_precision: Proporción de intervenciones beneficiosas
-- proposition_diversity: Entropía de proposiciones observadas
-- world_level_transitions: Transiciones entre niveles del mundo
-- spatial_coherence_index: Correlación espacial entre celdas vecinas (solo 5x5)
-- spatial_information_usage: Proporción de decisiones dependientes de topología
+CORREGIDO: Adaptado al contrato real del runtime.
+
+El runtime NO retorna trace de múltiples pasos del mundo.
+Cada episodio es UN SOLO paso cognitivo con:
+- observation: estado inicial
+- updated_world: estado final post-intervención
+- counterfactual_world: mundo contrafactual (si existe)
+- organism_trajectory: trayectoria con puntos de viabilidad
+- reasoning_sequence: pasos del scheduler (NO pasos del mundo)
+
+Métricas disponibles:
+- intervention_precision: Eficacia de intervención (delta temperatura)
+- proposition_diversity: Entropía de proposiciones en observación
+- spatial_information_usage: Uso de proposiciones espaciales (solo 5x5)
+
+Métricas NO disponibles (requieren multi-step trace):
+- factual_counterfactual_divergence: No hay trace multi-step
+- world_level_transitions: Solo un paso, no hay transiciones
+- spatial_coherence_index: Solo un snapshot, no hay evolución temporal
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 import math
 from collections import Counter
 
 
-def compute_factual_cf_divergence(episode: Dict[str, Any]) -> Optional[float]:
-    """Calcula divergencia entre trayectoria factual y mejor contrafactual.
+def compute_intervention_precision(episode: Dict[str, Any]) -> Optional[float]:
+    """Calcula precisión de intervención (beneficio térmico obtenido).
 
-    Formula: divergence = (steps_factual - steps_counterfactual) / steps_factual
+    CORREGIDO: Compara observation vs updated_world (un solo paso).
 
-    Args:
-        episode: Diccionario con datos del episodio (debe incluir trace).
-
-    Returns:
-        Divergencia en [-∞, 1.0] donde:
-        - 1.0: factual es óptimo
-        - 0.0: ambos iguales
-        - <0: factual peor que contrafactual
-        - None: si contrafactual no está disponible o falló
-    """
-    # Verificar que exista información de contrafactual
-    if 'counterfactual' not in episode or episode.get('counterfactual') is None:
-        return None
-
-    cf = episode['counterfactual']
-
-    # Verificar que contrafactual cerró exitosamente
-    if not cf.get('closed', False):
-        return None
-
-    factual_steps = episode.get('trace_length', episode.get('steps', 0))
-    cf_steps = cf.get('steps', 0)
-
-    if factual_steps == 0:
-        return None
-
-    divergence = (factual_steps - cf_steps) / factual_steps
-
-    return divergence
-
-
-def compute_intervention_precision(episode: Dict[str, Any]) -> float:
-    """Calcula precisión de intervenciones (proporción beneficiosa vs perjudicial).
-
-    Clasifica cada intervención como:
-    - Beneficiosa: reduce temperatura o distancia a safe zone
-    - Neutral: sin cambio significativo (<0.01)
-    - Perjudicial: incrementa temperatura o alarma
+    Formula: precision = (temp_initial - temp_final) / temp_initial
+    Si temp_final < temp_initial → precisión positiva (beneficioso)
 
     Args:
-        episode: Diccionario con trace de episodio.
+        episode: Diccionario adaptado con observation y updated_world.
 
     Returns:
-        Precisión en [0.0, 1.0].
+        Precisión en [-∞, 1.0] donde:
+        - > 0: intervención beneficiosa (redujo temperatura)
+        - = 0: sin efecto
+        - < 0: intervención perjudicial (aumentó temperatura)
+        - None: si no hay datos
     """
-    trace = episode.get('trace', [])
+    observation = episode.get('observation')
+    updated_world = episode.get('updated_world')
 
-    if not trace or len(trace) < 2:
-        return 0.0
+    if not observation or not updated_world:
+        return None
 
-    beneficial = 0
-    neutral = 0
-    harmful = 0
+    # Obtener temperatura inicial y final
+    # Para 1x1: observation['temperature']
+    # Para 5x5: observation['world_level'] (global_temp_mean)
+    temp_initial = observation.get('world_level') or observation.get('temperature')
+    temp_final = updated_world.get('world_level') or updated_world.get('temperature')
 
-    for i in range(len(trace) - 1):
-        step = trace[i]
-        next_step = trace[i + 1]
+    if temp_initial is None or temp_final is None:
+        return None
 
-        # Verificar si hubo intervención
-        if 'intervention' not in step or step['intervention'] is None:
-            continue
+    if temp_initial == 0.0:
+        return None
 
-        # Obtener temperatura antes y después
-        temp_before = step.get('state', {}).get('global_temp_mean',
-                                                  step.get('state', {}).get('temperature', 0.0))
-        temp_after = next_step.get('state', {}).get('global_temp_mean',
-                                                      next_step.get('state', {}).get('temperature', 0.0))
-
-        delta = temp_after - temp_before
-
-        # Clasificar intervención
-        if abs(delta) < 0.01:
-            neutral += 1
-        elif delta < 0:  # Temperatura bajó
-            beneficial += 1
-        else:  # Temperatura subió
-            harmful += 1
-
-    total = beneficial + neutral + harmful
-
-    if total == 0:
-        return 0.0
-
-    # Considerar neutrales como medio punto
-    precision = (beneficial + 0.5 * neutral) / total
+    # Precisión: proporción de reducción térmica
+    precision = (temp_initial - temp_final) / temp_initial
 
     return precision
 
@@ -111,34 +71,31 @@ def compute_intervention_precision(episode: Dict[str, Any]) -> float:
 def compute_proposition_diversity(episode: Dict[str, Any]) -> float:
     """Calcula entropía de Shannon del conjunto de proposiciones observadas.
 
+    CORREGIDO: Lee proposiciones de observation (snapshot único).
+
     Formula: diversity = -Σ(p_i * log2(p_i)) donde p_i = freq(prop_i)
 
     Args:
-        episode: Diccionario con trace de episodio.
+        episode: Diccionario adaptado con observation.
 
     Returns:
         Entropía en [0.0, log2(N)] donde N = proposiciones únicas.
     """
-    trace = episode.get('trace', [])
+    observation = episode.get('observation')
 
-    if not trace:
+    if not observation:
+        return 0.0
+
+    propositions = observation.get('propositions', [])
+
+    if not propositions:
         return 0.0
 
     # Contar frecuencia de cada proposición
-    prop_counts = Counter()
-
-    for step in trace:
-        obs = step.get('observation', {})
-        props = obs.get('propositions', [])
-
-        for prop in props:
-            prop_counts[prop] += 1
-
-    if not prop_counts:
-        return 0.0
+    prop_counts = Counter(propositions)
 
     # Calcular probabilidades
-    total = sum(prop_counts.values())
+    total = len(propositions)
     probabilities = [count / total for count in prop_counts.values()]
 
     # Calcular entropía de Shannon
@@ -150,169 +107,28 @@ def compute_proposition_diversity(episode: Dict[str, Any]) -> float:
     return entropy
 
 
-def compute_world_level_transitions(episode: Dict[str, Any]) -> Dict[str, Any]:
-    """Analiza transiciones entre niveles discretos del mundo.
-
-    Args:
-        episode: Diccionario con trace de episodio.
-
-    Returns:
-        Diccionario con:
-        - total_transitions: int
-        - upward: int (SAFE→ELEVATED, etc.)
-        - downward: int (CRITICAL→WARNING, etc.)
-        - stable: int (mismo nivel)
-        - transition_matrix: list[list[int]] (4x4 desde/hacia)
-    """
-    trace = episode.get('trace', [])
-
-    # Mapeo de niveles a índices
-    level_map = {
-        'SAFE': 1,
-        'ELEVATED': 2,
-        'WARNING': 3,
-        'CRITICAL': 4,
-    }
-
-    # Inicializar contadores
-    transitions = {
-        'total_transitions': 0,
-        'upward': 0,
-        'downward': 0,
-        'stable': 0,
-        'transition_matrix': [[0 for _ in range(4)] for _ in range(4)],
-    }
-
-    if len(trace) < 2:
-        return transitions
-
-    for i in range(len(trace) - 1):
-        # Obtener nivel actual y siguiente
-        current_obs = trace[i].get('observation', {})
-        next_obs = trace[i + 1].get('observation', {})
-
-        current_level_name = current_obs.get('state', {}).get('world_level_semantic', 'SAFE')
-        next_level_name = next_obs.get('state', {}).get('world_level_semantic', 'SAFE')
-
-        current_level = level_map.get(current_level_name, 1)
-        next_level = level_map.get(next_level_name, 1)
-
-        transitions['total_transitions'] += 1
-
-        # Actualizar matriz de transición (0-indexed)
-        transitions['transition_matrix'][current_level - 1][next_level - 1] += 1
-
-        # Clasificar transición
-        if next_level > current_level:
-            transitions['upward'] += 1
-        elif next_level < current_level:
-            transitions['downward'] += 1
-        else:
-            transitions['stable'] += 1
-
-    return transitions
-
-
-def compute_spatial_coherence_index(episode: Dict[str, Any]) -> Optional[float]:
-    """Calcula correlación entre temperatura de celdas vecinas (solo 5x5).
-
-    Formula: coherence = Σ(correlation(cell_i, neighbors(cell_i))) / N_cells
-    Vecindad: 4-vecinos (norte, sur, este, oeste)
-
-    Args:
-        episode: Diccionario con trace de episodio (debe ser 5x5).
-
-    Returns:
-        Coherencia en [-1.0, 1.0], típicamente [0.5, 1.0].
-        None si no es 5x5 o no hay datos espaciales.
-    """
-    trace = episode.get('trace', [])
-
-    if not trace:
-        return None
-
-    # Verificar que es un escenario 5x5
-    first_step = trace[0]
-    state = first_step.get('observation', {}).get('state', {})
-
-    # Verificar si tiene estructura de grid
-    if 'cells' not in state:
-        return None
-
-    cells = state['cells']
-
-    # Inferir grid_size
-    grid_size = int(math.sqrt(len(cells)))
-
-    if grid_size != 5:
-        return None
-
-    # Calcular coherencia promedio a través de todos los steps
-    coherences = []
-
-    for step in trace:
-        state = step.get('observation', {}).get('state', {})
-        cells = state.get('cells', [])
-
-        if len(cells) != 25:
-            continue
-
-        # Para cada celda, calcular correlación con vecinos
-        step_coherence = 0.0
-        cell_count = 0
-
-        for idx, cell in enumerate(cells):
-            row = idx // grid_size
-            col = idx % grid_size
-            temp = cell.get('temperature', 0.0)
-
-            # Obtener vecinos (4-vecindad)
-            neighbors = []
-            if row > 0:  # norte
-                neighbors.append(cells[(row - 1) * grid_size + col].get('temperature', 0.0))
-            if row < grid_size - 1:  # sur
-                neighbors.append(cells[(row + 1) * grid_size + col].get('temperature', 0.0))
-            if col > 0:  # oeste
-                neighbors.append(cells[row * grid_size + (col - 1)].get('temperature', 0.0))
-            if col < grid_size - 1:  # este
-                neighbors.append(cells[row * grid_size + (col + 1)].get('temperature', 0.0))
-
-            if not neighbors:
-                continue
-
-            # Correlación simple: 1 - diferencia absoluta promedio
-            avg_neighbor_temp = sum(neighbors) / len(neighbors)
-            similarity = 1.0 - abs(temp - avg_neighbor_temp)
-
-            step_coherence += similarity
-            cell_count += 1
-
-        if cell_count > 0:
-            coherences.append(step_coherence / cell_count)
-
-    if not coherences:
-        return None
-
-    # Retornar coherencia promedio del episodio
-    return sum(coherences) / len(coherences)
-
-
 def compute_spatial_information_usage(episode: Dict[str, Any]) -> float:
-    """Calcula proporción de pasos donde decisión depende de topología espacial.
+    """Calcula proporción de proposiciones espaciales activas.
 
-    Esta métrica requiere comparar decisiones con y sin información espacial.
-    Para simplificar, se calcula como proporción de proposiciones espaciales
-    activas respecto al total.
+    CORREGIDO: Lee proposiciones de observation (snapshot único).
+
+    Esta métrica mide si el sistema usa información espacial
+    disponible en escenarios 5x5.
 
     Args:
-        episode: Diccionario con trace de episodio.
+        episode: Diccionario adaptado con observation.
 
     Returns:
         Uso de información espacial en [0.0, 1.0].
     """
-    trace = episode.get('trace', [])
+    observation = episode.get('observation')
 
-    if not trace:
+    if not observation:
+        return 0.0
+
+    propositions = observation.get('propositions', [])
+
+    if not propositions:
         return 0.0
 
     # Proposiciones que indican uso de información espacial
@@ -341,37 +157,26 @@ def compute_spatial_information_usage(episode: Dict[str, Any]) -> float:
         'HIGH_SPATIAL_ENTROPY',
     ]
 
-    steps_with_spatial = 0
-    total_steps = len(trace)
+    # Contar proposiciones espaciales
+    spatial_count = sum(1 for prop in propositions if prop in spatial_indicators)
 
-    for step in trace:
-        obs = step.get('observation', {})
-        props = obs.get('propositions', [])
-
-        # Verificar si alguna proposición espacial está presente
-        if any(prop in spatial_indicators for prop in props):
-            steps_with_spatial += 1
-
-    if total_steps == 0:
-        return 0.0
-
-    return steps_with_spatial / total_steps
+    # Ratio de proposiciones espaciales
+    return spatial_count / len(propositions)
 
 
 def compute_all_cognitive_metrics(episode: Dict[str, Any]) -> Dict[str, Any]:
     """Calcula todas las métricas de calidad cognitiva para un episodio.
 
+    CORREGIDO: Solo métricas compatibles con episodio single-step.
+
     Args:
-        episode: Diccionario completo del episodio.
+        episode: Diccionario adaptado del episodio.
 
     Returns:
-        Diccionario con todas las métricas del Grupo 2.
+        Diccionario con métricas observables del Grupo 2.
     """
     return {
-        'factual_cf_divergence': compute_factual_cf_divergence(episode),
         'intervention_precision': compute_intervention_precision(episode),
         'proposition_diversity': compute_proposition_diversity(episode),
-        'world_level_transitions': compute_world_level_transitions(episode),
-        'spatial_coherence_index': compute_spatial_coherence_index(episode),
         'spatial_information_usage': compute_spatial_information_usage(episode),
     }

@@ -1,8 +1,28 @@
 """Grupo 5: Taxonomía de Fallos.
 
-Clasificación sistemática de fallos en episodios:
-- Categorías primarias: timeout, error, counterfactual_failed, etc.
-- Causas secundarias: high_initial_temp, weak_cooling, spatial_complexity, etc.
+CORREGIDO: Adaptado al contrato real del runtime (single-step).
+
+El runtime retorna certification_verdict que determina success/failure:
+- 'passed' o 'certified' → success
+- otros valores → failure
+
+Categorías primarias de fallos (basadas en señales reales):
+- ERROR: exception durante ejecución
+- CERTIFICATION_FAILED: certificación no pasó
+- VIABILITY_FAILED: no viable según viability_assessment
+- BOTH_FAILED: certificación y viabilidad fallaron
+
+Causas secundarias (basadas en metadata observable):
+- HIGH_INITIAL_TEMP: temperatura inicial > 0.95
+- WEAK_COOLING: cooling_effect < 0.05
+- TIGHT_THRESHOLD: margen entre initial_temp y alarm_threshold < 0.05
+- SPATIAL_COMPLEXITY: escenario 5x5 con topología compleja
+
+NO clasificamos (requieren multi-step trace):
+- TIMEOUT: no hay concepto de timeout en single-step
+- ALARM_PERSISTENT: no hay trace de alarmas
+- OSCILLATION: no hay trace multi-step
+- SCHEDULER_OVERHEAD: no hay timing separado del scheduler
 """
 
 from typing import Dict, Any, List, Optional
@@ -10,12 +30,10 @@ from typing import Dict, Any, List, Optional
 
 # Categorías primarias de fallos
 class FailureCategory:
-    TIMEOUT = 'timeout'
     ERROR = 'error'
-    COUNTERFACTUAL_FAILED = 'counterfactual_failed'
+    CERTIFICATION_FAILED = 'certification_failed'
+    VIABILITY_FAILED = 'viability_failed'
     BOTH_FAILED = 'both_failed'
-    ALARM_PERSISTENT = 'alarm_persistent'
-    OSCILLATION = 'oscillation'
 
 
 # Causas secundarias de fallos
@@ -23,66 +41,59 @@ class FailureCause:
     HIGH_INITIAL_TEMP = 'high_initial_temp'
     WEAK_COOLING = 'weak_cooling'
     TIGHT_THRESHOLD = 'tight_threshold'
-    SCHEDULER_OVERHEAD = 'scheduler_overhead'
     SPATIAL_COMPLEXITY = 'spatial_complexity'
 
 
 def classify_failure_primary(episode: Dict[str, Any]) -> Optional[str]:
     """Clasifica la categoría primaria de fallo de un episodio.
 
+    CORREGIDO: Usa señales reales del runtime.
+
     Args:
-        episode: Diccionario del episodio.
+        episode: Diccionario del episodio con certification_verdict y is_viable.
 
     Returns:
-        Categoría de fallo o None si episodio cerró exitosamente.
+        Categoría de fallo o None si episodio pasó certificación.
     """
-    # Verificar si el episodio cerró exitosamente
+    # Verificar outcome directo
     outcome = episode.get('outcome')
-    if outcome == 'success':
-        cierre_rate = episode.get('cierre_rate', 0.0)
-        if cierre_rate >= 1.0:
-            return None
 
-    # Verificar error explícito
-    if episode.get('error') or outcome == 'error':
+    # ERROR explícito
+    if outcome == 'error' or episode.get('error'):
         return FailureCategory.ERROR
 
-    # Verificar timeout
-    max_steps = episode.get('max_steps', 50)
-    trace_length = episode.get('trace_length', 0)
+    # SUCCESS: certificación pasó
+    if outcome == 'success':
+        return None
 
-    if trace_length >= max_steps:
-        # Verificar si es por alarma persistente
-        if _has_persistent_alarm(episode):
-            return FailureCategory.ALARM_PERSISTENT
-        else:
-            return FailureCategory.TIMEOUT
+    # Si no es success, determinar por qué falló
+    cert_verdict = episode.get('certification_verdict')
+    is_viable = episode.get('is_viable', True)
 
-    # Verificar oscillation (ciclo detectado)
-    if _has_oscillation(episode):
-        return FailureCategory.OSCILLATION
+    # Certificación falló
+    cert_failed = cert_verdict not in ['passed', 'certified']
 
-    # Verificar fallos de contrafactual
-    cf = episode.get('counterfactual')
-    factual_closed = episode.get('cierre_rate', 0.0) >= 1.0
+    # Viabilidad falló
+    viability_failed = not is_viable
 
-    if cf is not None:
-        cf_closed = cf.get('closed', False)
+    if cert_failed and viability_failed:
+        return FailureCategory.BOTH_FAILED
+    elif viability_failed:
+        return FailureCategory.VIABILITY_FAILED
+    elif cert_failed:
+        return FailureCategory.CERTIFICATION_FAILED
 
-        if factual_closed and not cf_closed:
-            return FailureCategory.COUNTERFACTUAL_FAILED
-        elif not factual_closed and not cf_closed:
-            return FailureCategory.BOTH_FAILED
-
-    # Si llegamos aquí y outcome != success, clasificar como timeout genérico
-    if outcome != 'success':
-        return FailureCategory.TIMEOUT
+    # Si outcome es 'failure' pero no podemos clasificar, usar CERTIFICATION_FAILED
+    if outcome == 'failure':
+        return FailureCategory.CERTIFICATION_FAILED
 
     return None
 
 
 def classify_failure_secondary(episode: Dict[str, Any]) -> List[str]:
     """Clasifica las causas secundarias de fallo.
+
+    CORREGIDO: Usa solo metadata observable.
 
     Args:
         episode: Diccionario del episodio.
@@ -110,90 +121,16 @@ def classify_failure_secondary(episode: Dict[str, Any]) -> List[str]:
     if 0 < diff < 0.05:
         causes.append(FailureCause.TIGHT_THRESHOLD)
 
-    # Scheduler overhead
-    wall_time = episode.get('wall_time_ms', 0.0)
-    scheduler_time = episode.get('scheduler_cpu_time_ms', 0.0)
-
-    if wall_time > 0 and (scheduler_time / wall_time) > 0.5:
-        causes.append(FailureCause.SCHEDULER_OVERHEAD)
-
     # Spatial complexity (solo para 5x5)
-    spatial_coherence = episode.get('spatial_coherence_index')
-    if spatial_coherence is not None and spatial_coherence < 0.3:
-        causes.append(FailureCause.SPATIAL_COMPLEXITY)
+    grid_size = metadata.get('grid_size', 1)
+    topology = metadata.get('topology')
+
+    if grid_size == 5 and topology not in ['uniform', None]:
+        # Topologías heterogéneas pueden aumentar complejidad
+        if topology in ['hotspot_center', 'gradient_ns', 'gradient_ew', 'checkerboard']:
+            causes.append(FailureCause.SPATIAL_COMPLEXITY)
 
     return causes
-
-
-def _has_persistent_alarm(episode: Dict[str, Any]) -> bool:
-    """Verifica si la alarma nunca se desactivó en X pasos consecutivos.
-
-    Args:
-        episode: Diccionario del episodio.
-
-    Returns:
-        True si alarma persistente detectada.
-    """
-    trace = episode.get('trace', [])
-
-    if len(trace) < 10:
-        return False
-
-    # Verificar últimos 10 pasos
-    consecutive_alarm = 0
-    threshold = 10
-
-    for step in trace[-threshold:]:
-        obs = step.get('observation', {})
-        alarm = obs.get('alarm', False)
-
-        if alarm:
-            consecutive_alarm += 1
-        else:
-            consecutive_alarm = 0
-
-    return consecutive_alarm >= threshold
-
-
-def _has_oscillation(episode: Dict[str, Any]) -> bool:
-    """Verifica si hay ciclo detectado (estado repetido >3 veces).
-
-    Args:
-        episode: Diccionario del episodio.
-
-    Returns:
-        True si oscillation detectada.
-    """
-    trace = episode.get('trace', [])
-
-    if len(trace) < 10:
-        return False
-
-    # Usar hash simplificado del estado
-    state_hashes = []
-
-    for step in trace:
-        obs = step.get('observation', {})
-        state = obs.get('state', {})
-
-        # Crear hash basado en temperatura media y alarma
-        temp = state.get('global_temp_mean', state.get('temperature', 0.0))
-        alarm = obs.get('alarm', False)
-
-        # Redondear temperatura para detectar oscilación
-        temp_rounded = round(temp, 2)
-        state_hash = (temp_rounded, alarm)
-
-        state_hashes.append(state_hash)
-
-    # Contar repeticiones
-    from collections import Counter
-    counts = Counter(state_hashes)
-
-    # Si algún estado aparece >3 veces, hay oscilación
-    max_count = max(counts.values()) if counts else 0
-
-    return max_count > 3
 
 
 def classify_episode_failures(episode: Dict[str, Any]) -> Dict[str, Any]:
