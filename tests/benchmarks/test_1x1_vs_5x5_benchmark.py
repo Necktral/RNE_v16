@@ -44,9 +44,9 @@ def _compute_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     # Trace lengths
     trace_lengths = [
-        len(r.get("trace", {}).get("steps", []))
+        len(r.get("episode", {}).get("trace", []))
         for r in results
-        if "trace" in r
+        if "episode" in r and "trace" in r["episode"]
     ]
     mean_trace_length = sum(trace_lengths) / len(trace_lengths) if trace_lengths else 0
 
@@ -72,7 +72,7 @@ def _compute_metrics(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Trace integrity
     valid_traces = sum(
         1 for r in results
-        if "trace" in r and len(r.get("trace", {}).get("steps", [])) > 0
+        if "episode" in r and "trace" in r["episode"] and len(r["episode"]["trace"]) > 0
     )
     trace_integrity_rate = valid_traces / len(results)
 
@@ -240,7 +240,7 @@ class TestBenchmark1x1vs5x5:
             scenario="thermal_homeostasis"
         )
         result_1x1 = runner_1x1.run_episode(external_input=0.04)
-        trace_len_1x1 = len(result_1x1.get("trace", {}).get("steps", []))
+        trace_len_1x1 = len(result_1x1.get("episode", {}).get("trace", []))
 
         # Episodio 5x5
         runner_5x5 = ScenarioEpisodeRunner(
@@ -249,7 +249,7 @@ class TestBenchmark1x1vs5x5:
             scenario="grid_thermal_5x5"
         )
         result_5x5 = runner_5x5.run_episode(external_input=0.04)
-        trace_len_5x5 = len(result_5x5.get("trace", {}).get("steps", []))
+        trace_len_5x5 = len(result_5x5.get("episode", {}).get("trace", []))
 
         print(f"\n1x1 trace length: {trace_len_1x1}")
         print(f"5x5 trace length: {trace_len_5x5}")
