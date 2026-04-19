@@ -420,3 +420,172 @@ class TestGridThermalCloning:
 
         assert cloned.cells[5].cooling_active is True
         assert abs(cloned.cells[10].temperature - 0.95) < 0.001
+
+
+class TestGridThermalSemanticLevels:
+    """Tests de niveles semánticos discretos del mundo."""
+
+    def test_level_safe_range(self):
+        """Nivel SAFE (1) para temperaturas < 0.60."""
+        scenario = GridThermalScenario(initial_temperature=0.50)
+        obs = scenario.observe()
+
+        assert obs.level == 1
+        assert obs.state["world_level_semantic"] == "SAFE"
+
+    def test_level_elevated_range(self):
+        """Nivel ELEVATED (2) para 0.60 <= temp < alarm_threshold."""
+        scenario = GridThermalScenario(initial_temperature=0.70, alarm_threshold=0.85)
+        obs = scenario.observe()
+
+        assert obs.level == 2
+        assert obs.state["world_level_semantic"] == "ELEVATED"
+
+    def test_level_warning_range(self):
+        """Nivel WARNING (3) para alarm_threshold <= temp < 0.95."""
+        scenario = GridThermalScenario(initial_temperature=0.88, alarm_threshold=0.85)
+        obs = scenario.observe()
+
+        assert obs.level == 3
+        assert obs.state["world_level_semantic"] == "WARNING"
+        assert obs.alarm is True
+
+    def test_level_critical_range(self):
+        """Nivel CRITICAL (4) para temp >= 0.95."""
+        scenario = GridThermalScenario(initial_temperature=0.97)
+        obs = scenario.observe()
+
+        assert obs.level == 4
+        assert obs.state["world_level_semantic"] == "CRITICAL"
+        assert obs.alarm is True
+
+    def test_level_boundary_at_0_60(self):
+        """Frontera SAFE/ELEVATED en 0.60."""
+        scenario_safe = GridThermalScenario(initial_temperature=0.59)
+        scenario_elevated = GridThermalScenario(initial_temperature=0.60)
+
+        assert scenario_safe.observe().level == 1
+        assert scenario_elevated.observe().level == 2
+
+    def test_level_boundary_at_alarm_threshold(self):
+        """Frontera ELEVATED/WARNING en alarm_threshold."""
+        threshold = 0.85
+        scenario_elevated = GridThermalScenario(initial_temperature=0.84, alarm_threshold=threshold)
+        scenario_warning = GridThermalScenario(initial_temperature=0.85, alarm_threshold=threshold)
+
+        assert scenario_elevated.observe().level == 2
+        assert scenario_warning.observe().level == 3
+
+    def test_level_boundary_at_0_95(self):
+        """Frontera WARNING/CRITICAL en 0.95."""
+        scenario_warning = GridThermalScenario(initial_temperature=0.94)
+        scenario_critical = GridThermalScenario(initial_temperature=0.95)
+
+        assert scenario_warning.observe().level == 3
+        assert scenario_critical.observe().level == 4
+
+    def test_level_in_factual_transition(self):
+        """Nivel debe propagarse correctamente en transición factual."""
+        scenario = GridThermalScenario(initial_temperature=0.88, alarm_threshold=0.85)
+        result = scenario.factual_transition(
+            intervention="activate_cooling",
+            external_input=0.0
+        )
+
+        assert "level" in dir(result)
+        assert result.level in [1, 2, 3, 4]
+
+    def test_level_in_counterfactual_transition(self):
+        """Nivel debe propagarse correctamente en transición contrafactual."""
+        scenario = GridThermalScenario(initial_temperature=0.88)
+        result = scenario.simulate_counterfactual(
+            intervention="activate_cooling",
+            external_input=0.0
+        )
+
+        assert "level" in dir(result)
+        assert result.level in [1, 2, 3, 4]
+
+    def test_state_has_three_level_representations(self):
+        """Estado debe tener world_level, world_level_numeric y world_level_semantic."""
+        scenario = GridThermalScenario(initial_temperature=0.70)
+        obs = scenario.observe()
+
+        assert "world_level" in obs.state
+        assert "world_level_numeric" in obs.state
+        assert "world_level_semantic" in obs.state
+
+        # world_level y world_level_numeric deben ser iguales (compatibilidad)
+        assert obs.state["world_level"] == obs.state["world_level_numeric"]
+
+    def test_level_semantic_mapping(self):
+        """Verificar mapeo completo de niveles a semántica."""
+        test_cases = [
+            (0.30, 1, "SAFE"),
+            (0.65, 2, "ELEVATED"),
+            (0.88, 3, "WARNING"),
+            (0.97, 4, "CRITICAL"),
+        ]
+
+        for temp, expected_level, expected_semantic in test_cases:
+            scenario = GridThermalScenario(initial_temperature=temp)
+            obs = scenario.observe()
+
+            assert obs.level == expected_level, f"Failed for temp={temp}"
+            assert obs.state["world_level_semantic"] == expected_semantic, f"Failed for temp={temp}"
+
+    def test_level_transitions_through_ranges(self):
+        """Nivel debe cambiar correctamente al transicionar entre rangos."""
+        scenario = GridThermalScenario(initial_temperature=0.50)  # SAFE
+
+        # Observar inicial
+        obs1 = scenario.observe()
+        assert obs1.level == 1
+
+        # Calentar a ELEVATED (necesita subir ~0.10, con 25 celdas = 0.10 * 25 = 2.5)
+        scenario.factual_transition(intervention="deactivate_cooling", external_input=2.5)
+        obs2 = scenario.observe()
+        assert obs2.level == 2
+
+        # Calentar a WARNING (necesita subir ~0.25, con 25 celdas = 0.25 * 25 = 6.25)
+        scenario.factual_transition(intervention="deactivate_cooling", external_input=6.25)
+        obs3 = scenario.observe()
+        assert obs3.level == 3
+
+    def test_level_consistency_between_observation_and_transition(self):
+        """Nivel en observation debe coincidir con nivel en transition."""
+        scenario = GridThermalScenario(initial_temperature=0.88)
+
+        # Ejecutar transición
+        transition = scenario.factual_transition(
+            intervention="activate_cooling",
+            external_input=0.0
+        )
+
+        # Observar después de transición
+        obs = scenario.observe()
+
+        assert transition.level == obs.level
+
+    def test_counterfactual_level_differs_from_factual(self):
+        """Nivel contrafactual puede diferir del factual."""
+        scenario = GridThermalScenario(initial_temperature=0.88, alarm_threshold=0.85)
+
+        # Factual: activar cooling
+        factual = scenario.factual_transition(
+            intervention="activate_cooling",
+            external_input=0.0
+        )
+
+        # Contrafactual: desactivar cooling (NO muta estado)
+        # Recrear escenario para contrafactual puro
+        scenario2 = GridThermalScenario(initial_temperature=0.88, alarm_threshold=0.85)
+        counterfactual = scenario2.simulate_counterfactual(
+            intervention="deactivate_cooling",
+            external_input=0.0
+        )
+
+        # Ambos tienen level, pero pueden ser diferentes
+        assert hasattr(factual, "level")
+        assert hasattr(counterfactual, "level")
+

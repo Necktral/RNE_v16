@@ -203,11 +203,17 @@ class GridThermalScenario(CognitiveScenario):
 
     def _build_aggregate_state(self) -> dict:
         """Construye diccionario de estado agregado para observación."""
+        world_level_numeric = self._derive_world_level_numeric()
+        world_level_discrete = self._derive_world_level(world_level_numeric)
+        world_level_semantic = self._level_to_semantic(world_level_discrete)
+
         return {
             "global_temp_mean": self._grid.global_temp_mean,
             "global_temp_max": self._grid.global_temp_max,
             "cooling_cells_count": self._grid.cooling_cells_count,
-            "world_level": self._grid.global_temp_mean,  # Para comparabilidad con 1x1
+            "world_level": world_level_numeric,  # Compatibilidad 1x1 (numérico)
+            "world_level_numeric": world_level_numeric,  # Explícito
+            "world_level_semantic": world_level_semantic,  # Categoría semántica
         }
 
     def _build_cell_states_list(self) -> List[dict]:
@@ -221,6 +227,55 @@ class GridThermalScenario(CognitiveScenario):
             }
             for cell in self._grid.cells
         ]
+
+    def _derive_world_level(self, global_temp_mean: float) -> int:
+        """Deriva nivel discreto del mundo desde temperatura media global.
+
+        Umbrales basados en alarm_threshold y severidad de crisis:
+        - SAFE (1): 0.00 <= temp < 0.60
+        - ELEVATED (2): 0.60 <= temp < alarm_threshold (0.85)
+        - WARNING (3): alarm_threshold <= temp < 0.95
+        - CRITICAL (4): 0.95 <= temp <= 1.00
+
+        Args:
+            global_temp_mean: Temperatura media global [0.0, 1.0].
+
+        Returns:
+            Nivel discreto 1-4.
+        """
+        if global_temp_mean >= 0.95:
+            return 4  # CRITICAL
+        elif global_temp_mean >= self._alarm_threshold:
+            return 3  # WARNING
+        elif global_temp_mean >= 0.60:
+            return 2  # ELEVATED
+        else:
+            return 1  # SAFE
+
+    def _level_to_semantic(self, level: int) -> str:
+        """Convierte nivel discreto a etiqueta semántica.
+
+        Args:
+            level: Nivel discreto 1-4.
+
+        Returns:
+            Etiqueta semántica.
+        """
+        mapping = {
+            1: "SAFE",
+            2: "ELEVATED",
+            3: "WARNING",
+            4: "CRITICAL",
+        }
+        return mapping.get(level, "UNKNOWN")
+
+    def _derive_world_level_numeric(self) -> float:
+        """Deriva nivel numérico (alias de global_temp_mean para compatibilidad 1x1).
+
+        Returns:
+            Temperatura media global [0.0, 1.0].
+        """
+        return self._grid.global_temp_mean
 
     def observe(self) -> ScenarioObservation:
         """Observa el estado actual del grid.
@@ -241,10 +296,14 @@ class GridThermalScenario(CognitiveScenario):
         state["world_shape"] = f"{self._grid_size}x{self._grid_size}"
         state["cell_count"] = self._cell_count
 
+        # Derivar nivel discreto para contrato formal
+        level = self._derive_world_level(self._grid.global_temp_mean)
+
         return ScenarioObservation(
             state=state,
             propositions=propositions,
             alarm=self._grid.global_alarm,
+            level=level,
         )
 
     def _clone_grid(self) -> GridState:
@@ -332,10 +391,14 @@ class GridThermalScenario(CognitiveScenario):
         state["world_shape"] = f"{self._grid_size}x{self._grid_size}"
         state["cell_count"] = self._cell_count
 
+        # Derivar nivel discreto para contrato formal
+        level = self._derive_world_level(self._grid.global_temp_mean)
+
         return ScenarioTransition(
             state=state,
             propositions=self.observe().propositions,
             alarm=self._grid.global_alarm,
+            level=level,
         )
 
     def simulate_counterfactual(
@@ -365,11 +428,17 @@ class GridThermalScenario(CognitiveScenario):
 
         # Construir estado agregado desde el clon
         temps = [cell.temperature for cell in simulated_grid.cells]
+        world_level_numeric = simulated_grid.global_temp_mean
+        world_level_discrete = self._derive_world_level(world_level_numeric)
+        world_level_semantic = self._level_to_semantic(world_level_discrete)
+
         state = {
             "global_temp_mean": simulated_grid.global_temp_mean,
             "global_temp_max": simulated_grid.global_temp_max,
             "cooling_cells_count": simulated_grid.cooling_cells_count,
-            "world_level": simulated_grid.global_temp_mean,
+            "world_level": world_level_numeric,
+            "world_level_numeric": world_level_numeric,
+            "world_level_semantic": world_level_semantic,
         }
 
         propositions = [
@@ -380,6 +449,7 @@ class GridThermalScenario(CognitiveScenario):
             state=state,
             propositions=propositions,
             alarm=simulated_grid.global_alarm,
+            level=world_level_discrete,
         )
 
     def get_formula(self, observation: ScenarioObservation) -> str:

@@ -19,11 +19,13 @@ class ScenarioObservation:
         state: Diccionario con estado observable del mundo.
         propositions: Lista de proposiciones inferibles del estado.
         alarm: Indicador de condición de alarma/umbral.
+        level: Nivel discreto del mundo (1=SAFE, 2=ELEVATED, 3=WARNING, 4=CRITICAL).
     """
 
     state: Dict[str, Any]
     propositions: List[str]
     alarm: bool
+    level: int = 1
 
 
 @dataclass
@@ -34,11 +36,13 @@ class ScenarioTransition:
         state: Nuevo estado después de la transición.
         propositions: Proposiciones actualizadas.
         alarm: Estado de alarma actualizado.
+        level: Nivel discreto del mundo (1=SAFE, 2=ELEVATED, 3=WARNING, 4=CRITICAL).
     """
 
     state: Dict[str, Any]
     propositions: List[str]
     alarm: bool
+    level: int = 1
 
 
 @dataclass

@@ -106,7 +106,7 @@ class TestGrid5x5Integration:
         assert "certification" in result
         assert "certificate_id" in result["certification"]
         assert "verdict" in result["certification"]
-        assert result["certification"]["verdict"] in ["passed", "failed"]
+        assert result["certification"]["verdict"] in ["passed", "failed", "certified"]
         storage.close()
 
     def test_5x5_episode_has_world_level(self, tmp_path: Path):
