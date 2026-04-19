@@ -33,6 +33,7 @@ class BenchmarkConfig:
         base_seed: int,
         max_steps: int,  # Mantenido para config, pero NO se pasa al runtime
         output_dir: Path,
+        run_id: Optional[str] = None,
     ):
         self.scenario_name = scenario_name
         self.scenario_class = scenario_class
@@ -41,6 +42,7 @@ class BenchmarkConfig:
         self.base_seed = base_seed
         self.max_steps = max_steps  # Usado solo para documentación
         self.output_dir = output_dir
+        self.run_id = run_id
 
 
 class EpisodeResult:
@@ -149,9 +151,12 @@ def adapt_runtime_result_to_benchmark(runtime_result: Dict[str, Any]) -> Dict[st
 class BenchmarkRunner:
     """Ejecuta benchmarks comparativos entre escenarios."""
 
-    def __init__(self, output_root: Path):
+    def __init__(self, output_root: Path, storage_config: Optional[StorageConfig] = None):
         self.output_root = Path(output_root)
         self.output_root.mkdir(parents=True, exist_ok=True)
+        self.storage_config = storage_config
+        self._active_storage = None
+        self._active_run_id = None
 
     def run_benchmark(self, config: BenchmarkConfig) -> Dict[str, Any]:
         """Ejecuta benchmark completo según configuración.
@@ -173,38 +178,56 @@ class BenchmarkRunner:
         # Crear directorio de salida
         config.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Ejecutar episodios
-        results = []
-        for i in range(config.episodes):
-            seed = config.base_seed + i
-            episode_id = str(uuid.uuid4())
+        benchmark_run_id = self._build_benchmark_run_id(config)
+        self._active_storage = self._create_benchmark_storage()
+        self._active_run_id = benchmark_run_id
 
-            print(f"Episodio {i+1}/{config.episodes} (seed={seed})...", end=" ", flush=True)
+        try:
+            # Ejecutar episodios
+            results = []
+            for i in range(config.episodes):
+                seed = config.base_seed + i
+                episode_id = str(uuid.uuid4())
 
-            try:
-                result = self.run_single_episode(
-                    config=config,
-                    episode_id=episode_id,
-                    seed=seed,
-                )
-                results.append(result)
-                print(f"✓ {result.outcome} ({result.certification_verdict}, {result.wall_time_ms:.1f}ms)")
+                print(f"Episodio {i+1}/{config.episodes} (seed={seed})...", end=" ", flush=True)
 
-            except Exception as e:
-                print(f"✗ ERROR: {str(e)}")
-                # Crear resultado de error
-                error_result = EpisodeResult(episode_id, config.scenario_name, seed)
-                error_result.outcome = 'error'
-                error_result.error = str(e)
-                results.append(error_result)
+                try:
+                    result = self.run_single_episode(
+                        config=config,
+                        episode_id=episode_id,
+                        seed=seed,
+                    )
+                    results.append(result)
+                    print(f"✓ {result.outcome} ({result.certification_verdict}, {result.wall_time_ms:.1f}ms)")
 
-        # Persistir resultados
-        self.persist_results(results, config.output_dir)
+                except Exception as e:
+                    print(f"✗ ERROR: {str(e)}")
+                    # Crear resultado de error
+                    error_result = EpisodeResult(episode_id, config.scenario_name, seed)
+                    error_result.outcome = 'error'
+                    error_result.error = str(e)
+                    results.append(error_result)
 
-        # Generar resumen
-        summary = self.generate_summary(results, config)
+            # Persistir resultados
+            self.persist_results(results, config.output_dir)
 
-        return summary
+            # Generar resumen
+            summary = self.generate_summary(results, config)
+
+            # Persistir resumen agregado en DB dedicada de storage
+            self.persist_benchmark_summary(
+                summary=summary,
+                results=results,
+                config=config,
+                benchmark_run_id=benchmark_run_id,
+            )
+
+            return summary
+        finally:
+            if self._active_storage is not None:
+                self._active_storage.close()
+            self._active_storage = None
+            self._active_run_id = None
 
     def run_single_episode(
         self,
@@ -230,8 +253,12 @@ class BenchmarkRunner:
         # Iniciar timer
         t0 = time.perf_counter()
 
-        # Crear storage temporal
-        temp_storage = self._create_temp_storage()
+        storage = self._active_storage
+        owns_storage = False
+        if storage is None:
+            # Fallback para compatibilidad si run_single_episode se invoca en aislamiento.
+            storage = self._create_benchmark_storage()
+            owns_storage = True
 
         try:
             # Crear escenario
@@ -249,8 +276,8 @@ class BenchmarkRunner:
             # Crear runner SIN max_steps (no existe en el contrato)
             runner = ScenarioEpisodeRunner(
                 scenario=scenario,
-                storage=temp_storage,
-                run_id=f"bench-{episode_id[:8]}",
+                storage=storage,
+                run_id=self._active_run_id or f"bench-{episode_id[:8]}",
             )
 
             # Ejecutar UN SOLO EPISODIO (un paso cognitivo)
@@ -288,7 +315,8 @@ class BenchmarkRunner:
             result.error = f"{type(e).__name__}: {str(e)}"
 
         finally:
-            temp_storage.close()
+            if owns_storage:
+                storage.close()
 
         # Finalizar timer
         t1 = time.perf_counter()
@@ -314,11 +342,20 @@ class BenchmarkRunner:
 
             # Grupo 4: IVC-R (ADAPTADO)
             # IVC-R requiere métricas ya calculadas
+            def _to_nonnegative(value: Any) -> float:
+                try:
+                    return max(float(value), 0.0)
+                except (TypeError, ValueError):
+                    return 0.0
+
             ivc_r_input = {
                 **result.to_dict(),
                 **result.metrics,
                 'cierre_rate': 1.0 if result.outcome == 'success' else 0.0,
-                'continuity_score': result.viability_margin if result.viability_margin else 0.0,
+                'continuity_score': _to_nonnegative(result.viability_margin),
+                # intervention_precision puede ser negativa si la intervención fue perjudicial.
+                # Para IVC-R se acota a dominio no negativo para evitar log(<0).
+                'intervention_precision': _to_nonnegative(result.metrics.get('intervention_precision')),
             }
             ivc_r_result = compute_ivc_r_from_episode(ivc_r_input)
             result.metrics['ivc_r'] = ivc_r_result.get('ivc_r', 0.0)
@@ -371,18 +408,18 @@ class BenchmarkRunner:
 
         # Calcular promedios de métricas (solo episodios exitosos)
         success_results = [r for r in results if r.outcome == 'success']
+        metric_keys = [
+            'intervention_precision',
+            'proposition_diversity',
+            'spatial_information_usage',
+            'wall_time_ms',
+            'artifact_size_bytes',
+            'reasoning_trace_length',
+            'ivc_r',
+        ]
 
         if success_results:
             avg_metrics = {}
-            metric_keys = [
-                'intervention_precision',
-                'proposition_diversity',
-                'spatial_information_usage',
-                'wall_time_ms',
-                'artifact_size_bytes',
-                'reasoning_trace_length',
-                'ivc_r',
-            ]
 
             for key in metric_keys:
                 values = []
@@ -436,18 +473,51 @@ class BenchmarkRunner:
 
         return summary
 
-    def _create_temp_storage(self):
-        """Crea storage temporal para episodio."""
-        import tempfile
-        temp_dir = Path(tempfile.mkdtemp())
+    def persist_benchmark_summary(
+        self,
+        *,
+        summary: Dict[str, Any],
+        results: List[EpisodeResult],
+        config: BenchmarkConfig,
+        benchmark_run_id: str,
+    ) -> None:
+        """Persiste resumen agregado en reality_bench_runs."""
+        if self._active_storage is None:
+            return
 
-        config = StorageConfig(
-            mode="sqlite",
-            sqlite_db_path=str(temp_dir / "temp.db"),
-            postgres_dsn=None,
-            artifact_root=temp_dir / "artifacts",
-            prefer_postgres_reads=False,
-            strict_dual_write=False,
+        collapse_count = sum(1 for r in results if r.is_viable is False)
+        summary_for_db = {
+            **summary,
+            'proxy_mapping': {
+                'closure_rate': 'success_rate',
+                'continuity_mean': 'viability_margin',
+            },
+            'benchmark_run_id': benchmark_run_id,
+            'runtime_contract_mode': 'runtime_to_benchmark',
+        }
+
+        self._active_storage.write_reality_bench_run(
+            bench_run_id=benchmark_run_id,
+            run_id=benchmark_run_id,
+            total_episodes=int(summary.get('total_episodes', 0)),
+            closure_rate=float(summary.get('success_rate', 0.0)),
+            continuity_mean=float(summary.get('avg_metrics', {}).get('viability_margin', 0.0)),
+            collapse_count=collapse_count,
+            gate_profile=config.scenario_name,
+            passed=bool(summary.get('errors', 0) == 0 and summary.get('successful', 0) > 0),
+            summary=summary_for_db,
         )
 
+    def _build_benchmark_run_id(self, config: BenchmarkConfig) -> str:
+        if config.run_id:
+            return config.run_id
+
+        scenario_token = config.scenario_name.replace(" ", "_")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        suffix = uuid.uuid4().hex[:8]
+        return f"bench-{scenario_token}-{timestamp}-{suffix}"
+
+    def _create_benchmark_storage(self):
+        """Crea storage persistente para ejecución de benchmark."""
+        config = self.storage_config or StorageConfig.from_env()
         return StorageFactory.create_facade(config)

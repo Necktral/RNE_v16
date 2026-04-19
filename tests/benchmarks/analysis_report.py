@@ -153,9 +153,13 @@ class BenchmarkAnalyzer:
 
         n1 = len(values_1)
         n2 = len(values_2)
+        dof = n1 + n2 - 2
 
         # Pooled standard deviation
-        pooled_var = ((n1 - 1) * std_1**2 + (n2 - 1) * std_2**2) / (n1 + n2 - 2)
+        if dof <= 0:
+            return 0.0
+
+        pooled_var = ((n1 - 1) * std_1**2 + (n2 - 1) * std_2**2) / dof
         pooled_std = math.sqrt(pooled_var)
 
         if pooled_std == 0:

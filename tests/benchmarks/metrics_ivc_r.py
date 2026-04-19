@@ -28,6 +28,14 @@ DEFAULT_WEIGHTS = {
 EPSILON = 1e-6
 
 
+def _clip_nonnegative(value: Any) -> float:
+    """Convierte a float y acota en dominio no negativo."""
+    try:
+        return max(float(value), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def compute_ivc_r(
     cierre_rate: float,
     continuity_score: float,
@@ -60,6 +68,13 @@ def compute_ivc_r(
     """
     if weights is None:
         weights = DEFAULT_WEIGHTS
+
+    # Asegurar dominio válido para log().
+    cierre_rate = min(_clip_nonnegative(cierre_rate), 1.0)
+    continuity_score = min(_clip_nonnegative(continuity_score), 1.0)
+    intervention_precision = _clip_nonnegative(intervention_precision)
+    proposition_diversity = _clip_nonnegative(proposition_diversity)
+    episode_wall_time_ms = max(_clip_nonnegative(episode_wall_time_ms), EPSILON)
 
     # Normalizar proposition_diversity a [0, 1] para comparabilidad
     # Asumimos max_diversity ≈ 4.0 (log2(16) para ~16 props únicas)

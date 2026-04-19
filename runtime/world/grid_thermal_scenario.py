@@ -405,11 +405,17 @@ class GridThermalScenario(CognitiveScenario):
         Returns:
             Nivel discreto 1-4.
         """
-        if global_temp_mean >= 0.95:
+        # Promedios sobre 25 celdas pueden introducir errores binarios mínimos
+        # (ej. 0.60 -> 0.5999999999999998). Usamos una tolerancia pequeña para
+        # preservar la semántica contractual de fronteras inclusivas.
+        level_epsilon = 1e-9
+        adjusted_mean = float(global_temp_mean) + level_epsilon
+
+        if adjusted_mean >= 0.95:
             return 4  # CRITICAL
-        elif global_temp_mean >= self._alarm_threshold:
+        elif adjusted_mean >= self._alarm_threshold:
             return 3  # WARNING
-        elif global_temp_mean >= 0.60:
+        elif adjusted_mean >= 0.60:
             return 2  # ELEVATED
         else:
             return 1  # SAFE
