@@ -64,5 +64,5 @@ def execute(state: Dict[str, Any]) -> Dict[str, Any]:
         "cost": min(5.0, 0.5 + (0.01 * float(result["run"]["candidate_count"]))),
         "candidate_count": result["run"]["candidate_count"],
         "recommended_next_family": "PROB",
+        "artifacts": result.get("artifacts", {}),
     }
-

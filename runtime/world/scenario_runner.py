@@ -16,6 +16,7 @@ from runtime.organism.constitution import OrganismConstitution
 from runtime.organism.state import OrganismState, IdentityState, transition_organism_state
 from runtime.organism.trajectory import OrganismTrajectory
 from runtime.organism.viability import ViabilityKernel
+from runtime.reasoning.context import build_reasoning_context, resolve_reasoning_mode
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
 from runtime.reality.belief_state import BeliefState, build_belief_state
 from runtime.smg import SMGMin
@@ -89,10 +90,11 @@ class ScenarioEpisodeRunner:
                 f"Válidos: {sorted(_VALID_CLOSURE_PROFILES)}"
             )
         self.closure_profile = closure_profile
+        self.reasoning_mode = resolve_reasoning_mode(closure_profile)
 
         self.smg = SMGMin(storage=self.storage, run_id=self.run_id)
         self.lotf = LOTFMin()
-        self.scheduler = MetaScheduler(trace_store=self.storage)
+        self.scheduler = MetaScheduler(trace_store=self.storage, mode=self.reasoning_mode)
         self.memory_retrieval = MemoryRetrieval(storage=self.storage)
         self.promotion_gate = PromotionGate(storage=self.storage)
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
@@ -258,15 +260,29 @@ class ScenarioEpisodeRunner:
                 ),
             },
         )
+        counterfactual_dict = self.scenario.to_transition_dict(counterfactual)
+        updated_world = self.scenario.to_transition_dict(factual)
+        belief_input = asdict(self._previous_belief) if self._previous_belief else None
 
         # 9. Ejecutar scheduler de razonamiento
-        reasoning = self.scheduler.run({
-            "episode_id": episode_id,
-            "run_id": self.run_id,
-            "observation": observation_dict,
-            "intervention": intervention,
-            "scenario": self.scenario.config.name,
-        })
+        reasoning = self.scheduler.run(
+            build_reasoning_context(
+                episode_id=episode_id,
+                run_id=self.run_id,
+                observation=observation_dict,
+                intervention=intervention,
+                formula=formula,
+                memory_hits=memory_hits,
+                counterfactual=counterfactual_dict,
+                updated_world=updated_world,
+                relation_kind=relation_kind,
+                scenario=self.scenario.config.name,
+                scenario_metadata=scenario_metadata,
+                belief_state=belief_input,
+                closure_profile=self.closure_profile,
+                reasoning_mode=self.reasoning_mode,
+            )
+        )
 
         # 10. Construir payload de episodio
         factual_delta = float(factual.state.get(self.scenario.config.main_variable, 0.0)) - float(
@@ -285,12 +301,12 @@ class ScenarioEpisodeRunner:
                 "observation": observation_dict,
                 "formula": formula,
                 "intervention": intervention,
-                "counterfactual": self.scenario.to_transition_dict(counterfactual),
+                "counterfactual": counterfactual_dict,
                 "retrieved_memory": memory_hits,
                 "closure_profile": self.closure_profile,
             },
             "result": {
-                "updated_world": self.scenario.to_transition_dict(factual),
+                "updated_world": updated_world,
                 "relation_kind": relation_kind,
                 "reasoning_sequence": reasoning["sequence"],
                 "factual_delta": factual_delta,

@@ -65,7 +65,7 @@ ADAPTIVE_MIN_PROFILE = ClosureProfile(
         "CTF": {"DED", "PROB"},
         "DED": {"PROB"},
     },
-    optional_families={"DIA_ADV", "HEUR", "FAL_GUARD", "EML_SR"},
+    optional_families={"DIA_ADV", "HEUR", "FAL_GUARD", "EML_SR", "IND"},
     prob_must_close=True,
 )
 

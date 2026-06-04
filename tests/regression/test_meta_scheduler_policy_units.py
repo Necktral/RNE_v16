@@ -5,7 +5,11 @@ from runtime.reasoning.scheduler_meta.fallbacks import (
     cost_from_step,
     should_early_stop,
 )
-from runtime.reasoning.scheduler_meta.policy import select_sequence
+from runtime.reasoning.scheduler_meta.policy import (
+    resolve_regime_labels,
+    select_sequence,
+    validate_reasoning_sequence,
+)
 
 
 def test_context_features_extracts_bounded_values():
@@ -49,6 +53,67 @@ def test_policy_selects_adversarial_guard_when_contradiction_is_high():
     sequence, _, _ = select_sequence(features=features, budget={"max_steps": 8.0})
     assert "dia_adv" in sequence
     assert "fal_guard" in sequence
+
+
+def test_vram_favorable_inherits_floor_from_cognitive_regime():
+    labels = resolve_regime_labels(
+        regime_hint="vram_favorable",
+        features={
+            "vram_favorable_signal": 0.9,
+            "heterogeneity_signal": 0.52,
+            "world_level_signal": 0.70,
+            "viability_edge_signal": 0.20,
+        },
+    )
+    assert labels["primary_regime_label"] == "vram_favorable"
+    assert labels["cognitive_regime_label"] == "heterogeneous_elevated"
+    assert labels["floor_regime_label"] == "heterogeneous_elevated"
+
+
+def test_validate_reasoning_sequence_corrige_patologia_v1_que_desplaza_ded():
+    validation = validate_reasoning_sequence(
+        proposed_sequence=["abd", "heur", "ana", "cau", "ctf", "prob"],
+        allowed_families=["abd", "ana", "cau", "ctf", "ded", "prob", "heur"],
+        requested_max_steps=6,
+        primary_regime_label="heterogeneous_elevated",
+        cognitive_regime_label="heterogeneous_elevated",
+        floor_regime_label="heterogeneous_elevated",
+        mandatory_family_floor=["abd", "ana", "cau", "ctf"],
+        default_overlays=["heur"],
+        admitted_overlays=["heur"],
+        scores={"heur": 0.9, "abd": 1.0, "ana": 1.0, "cau": 1.0, "ctf": 1.0, "ded": 1.0, "prob": 1.0},
+        allow_experimental=False,
+        features={},
+        enforce_overlay_anchors=True,
+    )
+    assert validation["proposed_passed"] is False
+    assert validation["validated_passed"] is True
+    assert validation["autocorrected"] is True
+    assert validation["fallback_used"] is False
+    assert validation["missing_core"] == ["DED"]
+    assert validation["validated_sequence"] == ["ABD", "ANA", "CAU", "CTF", "DED", "PROB"]
+
+
+def test_validate_reasoning_sequence_activa_fallback_si_allowed_families_rompen_cierre():
+    validation = validate_reasoning_sequence(
+        proposed_sequence=["abd", "heur", "ana", "cau", "ctf"],
+        allowed_families=["abd", "ana", "cau", "ctf", "ded", "heur"],
+        requested_max_steps=6,
+        primary_regime_label="heterogeneous_warning",
+        cognitive_regime_label="heterogeneous_warning",
+        floor_regime_label="heterogeneous_warning",
+        mandatory_family_floor=["abd", "ana", "cau", "ctf", "ded"],
+        default_overlays=["heur", "fal_guard"],
+        admitted_overlays=["heur"],
+        scores={"heur": 0.9, "fal_guard": 0.8, "abd": 1.0, "ana": 1.0, "cau": 1.0, "ctf": 1.0, "ded": 1.0},
+        allow_experimental=False,
+        features={},
+        enforce_overlay_anchors=True,
+    )
+    assert validation["proposed_passed"] is False
+    assert validation["fallback_used"] is True
+    assert validation["validated_passed"] is False
+    assert validation["fallback_profile_name"] == "core_plus_guard"
 
 
 def test_fallback_primitives_are_deterministic():

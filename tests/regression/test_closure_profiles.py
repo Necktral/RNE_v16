@@ -15,6 +15,7 @@ from runtime.reality.evaluator import (
     _validate_required_families,
     _validate_prob_closes,
 )
+from runtime.reasoning.context import resolve_reasoning_mode
 from runtime.storage import StorageConfig, StorageFactory
 from runtime.world.min_cognitive_episode import MinimalCognitiveEpisodeRunner
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
@@ -34,6 +35,10 @@ def _storage(tmp_path: Path):
 
 class TestClosureProfiles:
     """Tests unitarios para perfiles de cierre."""
+
+    def test_closure_profile_maps_expected_scheduler_mode(self):
+        assert resolve_reasoning_mode("baseline_fixed") == "fixed"
+        assert resolve_reasoning_mode("adaptive_min") == "adaptive"
 
     def test_baseline_fixed_profile_exists(self):
         """El perfil baseline_fixed existe en el registro."""
@@ -165,7 +170,11 @@ class TestEvaluateEpisodeClosureWithProfile:
     def test_baseline_fixed_episode_passes(self, tmp_path: Path):
         """Episodio con secuencia baseline fija pasa."""
         storage = _storage(tmp_path)
-        runner = MinimalCognitiveEpisodeRunner(storage=storage, run_id="run-baseline")
+        runner = MinimalCognitiveEpisodeRunner(
+            storage=storage,
+            run_id="run-baseline",
+            closure_profile="baseline_fixed",
+        )
         result = runner.run_episode(external_heat=0.05)
 
         closure = evaluate_episode_closure(
@@ -178,12 +187,17 @@ class TestEvaluateEpisodeClosureWithProfile:
         assert closure["closure_passed"] is True
         assert closure["closure_profile"] == "baseline_fixed"
         assert closure["sequence_validation"]["passed"] is True
+        assert result["reasoning"]["mode"] == "fixed"
         storage.close()
 
     def test_adaptive_min_episode_passes(self, tmp_path: Path):
         """Episodio con secuencia adaptativa pasa con perfil adaptive_min."""
         storage = _storage(tmp_path)
-        runner = MinimalCognitiveEpisodeRunner(storage=storage, run_id="run-adaptive")
+        runner = MinimalCognitiveEpisodeRunner(
+            storage=storage,
+            run_id="run-adaptive",
+            closure_profile="adaptive_min",
+        )
         result = runner.run_episode(external_heat=0.05)
 
         closure = evaluate_episode_closure(
@@ -195,6 +209,7 @@ class TestEvaluateEpisodeClosureWithProfile:
 
         assert closure["closure_passed"] is True
         assert closure["closure_profile"] == "adaptive_min"
+        assert result["reasoning"]["mode"] == "adaptive"
         storage.close()
 
     def test_backward_compatibility_default_profile(self, tmp_path: Path):
@@ -211,6 +226,7 @@ class TestEvaluateEpisodeClosureWithProfile:
 
         assert closure["closure_passed"] is True
         assert closure["closure_profile"] == "baseline_fixed"
+        assert result["reasoning"]["mode"] == "fixed"
         storage.close()
 
 

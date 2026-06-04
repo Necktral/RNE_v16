@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Dict, Iterable, List
 from uuid import uuid4
 
@@ -280,6 +281,63 @@ class RealityValidationService:
             "assessments": [asdict(item) for item in assessments],
             "artifact": asdict(artifact),
             "passed": passed,
+        }
+
+    # ───────────────  MSRC POLICY BENCHMARK  ────────────────────────────────
+
+    def run_msrc_policy_benchmark(
+        self,
+        *,
+        run_id: str | None = None,
+        policy_name: str = "adaptive_msrc",
+        episodes: int = 10,
+        base_seed: int = 42,
+        output_dir: str | Path = "data/benchmarks/msrc/default_run",
+        scenario_params: Dict[str, Any] | None = None,
+        external_input: float = 0.04,
+        level_label: str = "",
+        topology_label: str = "uniform",
+    ) -> Dict[str, Any]:
+        """Ejecuta benchmark de políticas de escala (MSRC).
+
+        Políticas soportadas:
+        - always_1x1
+        - always_5x5
+        - adaptive_msrc
+        - adaptive_msrc_aggressive
+        - adaptive_msrc_regime_v3
+        - always_highest_available
+        - probe_before_switch
+        """
+        from .msrc_policy_benchmark import MSRCPolicyBenchmarkRunner
+
+        if run_id is None:
+            run_id = f"run-msrc-{uuid4()}"
+        params = dict(scenario_params or {})
+        output_path = Path(output_dir)
+
+        runner = MSRCPolicyBenchmarkRunner(
+            storage=self.storage,
+            output_root=output_path.parent,
+        )
+        summary = runner.run_policy(
+            run_id=run_id,
+            policy_name=policy_name,
+            episodes=episodes,
+            base_seed=base_seed,
+            output_dir=output_path,
+            scenario_params=params,
+            external_input=external_input,
+            level_label=level_label,
+            topology_label=topology_label,
+        )
+
+        return {
+            "run_id": run_id,
+            "policy_name": policy_name,
+            "summary": summary,
+            "output_dir": str(output_path),
+            "passed": bool(summary.get("errors", 1) == 0 and summary.get("successful", 0) > 0),
         }
 
     # ───────────────  HETEROGENEOUS BENCHMARK  ───────────────────────────────

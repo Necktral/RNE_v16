@@ -69,10 +69,63 @@ class BenchmarkAnalyzer:
             'artifact_size_bytes',
             'reasoning_trace_length',
             'ivc_r',
+            'family_mix_entropy',
+            'family_optional_count',
+            'family_optional_used_flag',
+            'backbone_floor_satisfied_flag',
+            'sequence_validation_fail_flag',
+            'fallback_to_safe_sequence_flag',
+            'optional_displacement_flag',
+            'closure_break_flag',
         ]
+
+        optional_metrics = [
+            'scale_selection_accuracy',
+            'upgrade_regret',
+            'downgrade_regret',
+            'missed_upgrade_regret',
+            'keep_scale_rate',
+            'upgrade_rate',
+            'downgrade_rate',
+            'probe_rate',
+            'probe_commit_rate',
+            'oscillation_rate',
+            'probe_value_rate',
+            'mean_resolution_cost',
+            'resolution_efficiency',
+            'cross_scale_memory_contamination_rate',
+            'vram_headroom_mean',
+            'vram_peak_ratio',
+            'vram_recompute_avoided',
+            'vram_enabled_probe_success_rate',
+            'vram_efficiency_after_intelligence',
+            'regime_probe_rate',
+        ]
+
+        for metric in optional_metrics:
+            if self._metric_available_in_both(metric):
+                metrics.append(metric)
 
         for metric in metrics:
             comparison[metric] = self._compare_metric(metric)
+
+        if self._metric_available_in_both('family_optional_used_flag'):
+            comparison['optional_family_usage_rate'] = self._compare_metric('family_optional_used_flag')
+
+        comparison['family_specific_activation_counts'] = self._compare_family_activation_counts()
+
+        family_dict_metrics = [
+            'family_contribution_proxy',
+            'family_delta_ivc_r',
+            'family_delta_intervention_precision',
+            'family_delta_viability_margin',
+            'family_delta_reasoning_trace_length',
+            'family_delta_success_rate',
+            'family_delta_spatial_information_usage',
+        ]
+        for metric in family_dict_metrics:
+            if self._dict_metric_available_in_both(metric):
+                comparison[metric] = self._compare_family_dict_metric(metric)
 
         # Ganancia cognitiva neta
         comparison['net_cognitive_gain'] = self._compute_net_cognitive_gain()
@@ -81,6 +134,77 @@ class BenchmarkAnalyzer:
         comparison['failure_analysis'] = self._compare_failures()
 
         return comparison
+
+    def _metric_available_in_both(self, metric: str) -> bool:
+        has_1 = any(metric in ep and isinstance(ep.get(metric), (int, float)) for ep in self.data_1x1)
+        has_5 = any(metric in ep and isinstance(ep.get(metric), (int, float)) for ep in self.data_5x5)
+        return has_1 and has_5
+
+    def _dict_metric_available_in_both(self, metric: str) -> bool:
+        has_1 = any(metric in ep and isinstance(ep.get(metric), dict) and ep.get(metric) for ep in self.data_1x1)
+        has_5 = any(metric in ep and isinstance(ep.get(metric), dict) and ep.get(metric) for ep in self.data_5x5)
+        return has_1 and has_5
+
+    def _compare_family_dict_metric(self, metric: str) -> Dict[str, Any]:
+        families = set()
+        for row in self.data_1x1:
+            payload = row.get(metric)
+            if isinstance(payload, dict):
+                families.update(str(k) for k in payload.keys())
+        for row in self.data_5x5:
+            payload = row.get(metric)
+            if isinstance(payload, dict):
+                families.update(str(k) for k in payload.keys())
+
+        result: Dict[str, Any] = {}
+        for family in sorted(families):
+            values_1x1 = []
+            for row in self.data_1x1:
+                payload = row.get(metric)
+                if isinstance(payload, dict):
+                    values_1x1.append(float(payload.get(family, 0.0) or 0.0))
+            values_5x5 = []
+            for row in self.data_5x5:
+                payload = row.get(metric)
+                if isinstance(payload, dict):
+                    values_5x5.append(float(payload.get(family, 0.0) or 0.0))
+            if not values_1x1 or not values_5x5:
+                continue
+            mean_1x1 = sum(values_1x1) / len(values_1x1)
+            mean_5x5 = sum(values_5x5) / len(values_5x5)
+            result[family] = {
+                "mean_1x1": mean_1x1,
+                "mean_5x5": mean_5x5,
+                "delta": mean_5x5 - mean_1x1,
+            }
+        return result
+
+    def _compare_family_activation_counts(self) -> Dict[str, Any]:
+        def _aggregate(data: List[Dict[str, Any]]) -> Dict[str, int]:
+            counts: Dict[str, int] = defaultdict(int)
+            for row in data:
+                payload = row.get("family_activation_counts")
+                if not isinstance(payload, dict):
+                    continue
+                for family, value in payload.items():
+                    try:
+                        counts[str(family)] += int(float(value))
+                    except (TypeError, ValueError):
+                        continue
+            return dict(sorted(counts.items()))
+
+        counts_1x1 = _aggregate(self.data_1x1)
+        counts_5x5 = _aggregate(self.data_5x5)
+        families = set(counts_1x1.keys()) | set(counts_5x5.keys())
+        delta = {
+            family: int(counts_5x5.get(family, 0)) - int(counts_1x1.get(family, 0))
+            for family in sorted(families)
+        }
+        return {
+            "counts_1x1": counts_1x1,
+            "counts_5x5": counts_5x5,
+            "delta": delta,
+        }
 
     def _compare_metric(self, metric: str) -> Dict[str, Any]:
         """Compara una métrica específica entre 1x1 y 5x5.
@@ -91,8 +215,8 @@ class BenchmarkAnalyzer:
         Returns:
             Diccionario con estadísticas comparativas.
         """
-        values_1x1 = [ep.get(metric, 0.0) for ep in self.data_1x1 if metric in ep]
-        values_5x5 = [ep.get(metric, 0.0) for ep in self.data_5x5 if metric in ep]
+        values_1x1 = [float(ep.get(metric, 0.0)) for ep in self.data_1x1 if isinstance(ep.get(metric), (int, float))]
+        values_5x5 = [float(ep.get(metric, 0.0)) for ep in self.data_5x5 if isinstance(ep.get(metric), (int, float))]
 
         if not values_1x1 or not values_5x5:
             return {'error': 'Insufficient data'}
@@ -355,6 +479,8 @@ class BenchmarkAnalyzer:
             'wall_time_ms': 'Wall Time (ms)',
             'artifact_size_bytes': 'Artifact Size (bytes)',
             'reasoning_trace_length': 'Reasoning Trace Length',
+            'family_mix_entropy': 'Family Mix Entropy',
+            'family_optional_used_flag': 'Optional Family Usage Rate',
             'ivc_r': '**IVC-R**',
         }
 

@@ -11,6 +11,7 @@ from uuid import uuid4
 from runtime.certification.promotion_gate import PromotionGate
 from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
+from runtime.reasoning.context import build_reasoning_context, resolve_reasoning_mode
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
@@ -20,13 +21,27 @@ from runtime.world.cgwm_min import CGWMMin
 
 
 class MinimalCognitiveEpisodeRunner:
-    def __init__(self, *, storage=None, run_id: str | None = None):
+    def __init__(
+        self,
+        *,
+        storage=None,
+        run_id: str | None = None,
+        closure_profile: str = "baseline_fixed",
+    ):
         self.storage = storage or get_storage()
         self.run_id = run_id or f"run-{uuid4()}"
+        valid_closure_profiles = {"baseline_fixed", "adaptive_min"}
+        if closure_profile not in valid_closure_profiles:
+            raise ValueError(
+                f"closure_profile inválido: '{closure_profile}'. "
+                f"Válidos: {sorted(valid_closure_profiles)}"
+            )
+        self.closure_profile = closure_profile
+        self.reasoning_mode = resolve_reasoning_mode(closure_profile)
         self.smg = SMGMin(storage=self.storage, run_id=self.run_id)
         self.lotf = LOTFMin()
         self.world = CGWMMin()
-        self.scheduler = MetaScheduler(trace_store=self.storage)
+        self.scheduler = MetaScheduler(trace_store=self.storage, mode=self.reasoning_mode)
         self.memory_retrieval = MemoryRetrieval(storage=self.storage)
         self.promotion_gate = PromotionGate(storage=self.storage)
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
@@ -111,22 +126,32 @@ class MinimalCognitiveEpisodeRunner:
         )
 
         reasoning = self.scheduler.run(
-            {
-                "episode_id": episode_id,
-                "run_id": self.run_id,
-                "observation": observation,
-                "intervention": intervention,
-            }
+            build_reasoning_context(
+                episode_id=episode_id,
+                run_id=self.run_id,
+                observation=observation,
+                intervention=intervention,
+                formula=formula,
+                memory_hits=memory_hits,
+                counterfactual=counterfactual,
+                updated_world=factual,
+                relation_kind=relation_kind,
+                scenario="thermal_homeostasis",
+                closure_profile=self.closure_profile,
+                reasoning_mode=self.reasoning_mode,
+            )
         )
         episode_payload = {
             "episode_id": episode_id,
             "timestamp": utc_now_iso(),
+            "closure_profile": self.closure_profile,
             "context": {
                 "observation": observation,
                 "formula": formula,
                 "intervention": intervention,
                 "counterfactual": counterfactual,
                 "retrieved_memory": memory_hits,
+                "closure_profile": self.closure_profile,
             },
             "result": {
                 "updated_world": factual,

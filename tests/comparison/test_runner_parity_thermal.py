@@ -162,6 +162,7 @@ class TestRunnerParityThermal:
 
         # canonical sequence should still pass under adaptive_min
         assert res["episode"]["closure_profile"] == "adaptive_min"
+        assert res["reasoning"]["mode"] == "adaptive"
         valid_verdicts = {"certified", "PASSED", "CONDITIONALLY_PASSED"}
         assert res["certification"]["verdict"] in valid_verdicts
         storage.close()

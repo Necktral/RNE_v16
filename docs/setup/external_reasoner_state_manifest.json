@@ -1,0 +1,22 @@
+{
+  "activation_policy": "ExternalReasonerGate v1",
+  "allowed_in_nominal_runtime": false,
+  "component": "EXT_OPEN_THINKER",
+  "corrected_core_failure_rate": 0.875,
+  "evidence_status": "conflict_resolver_repetible",
+  "expected_sha256": "0b7344e4bf1c68fc40c4a10b14b9bd51f367423b8453d83544ea5bdbe08e7e5e",
+  "fallback_required": true,
+  "gguf_filename": "OpenThinker3-7B-Q4_K_M.gguf",
+  "gguf_quantization": "Q4_K_M",
+  "guard_required": true,
+  "latency_mean_s": 96.115,
+  "latency_p95_s": 98.953,
+  "llama_cpp_backend": "cuda",
+  "llama_cpp_ngl": 99,
+  "model": "open-thoughts/OpenThinker3-7B",
+  "recommended_models_root": "/mnt/d/rnfe_models",
+  "schema_required": true,
+  "status": "external_conflict_resolver_governed",
+  "validated_profile": "core_plus_external_reasoner_gated_v1",
+  "validated_regime": "causal_counterfactual_conflict"
+}

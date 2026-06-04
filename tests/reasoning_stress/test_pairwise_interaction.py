@@ -101,7 +101,7 @@ class InteractionResult:
         return nonlinear_count / len(self.measurements)
 
 
-def test_interaction_grid(
+def run_interaction_grid(
     feature1: str,
     feature2: str,
     values1: List[float],
@@ -186,7 +186,7 @@ def test_interaction_grid(
 
 def test_contradiction_edge_pressure_interaction():
     """Test interaction between contradiction and edge_pressure."""
-    result = test_interaction_grid(
+    result = run_interaction_grid(
         feature1="contradiction_signal",
         feature2="edge_pressure",
         values1=[0.0, 0.45, 0.8],
@@ -245,7 +245,7 @@ def test_contradiction_edge_pressure_budget_conflict():
 
 def test_contradiction_uncertainty_interaction():
     """Test interaction between contradiction and uncertainty."""
-    result = test_interaction_grid(
+    result = run_interaction_grid(
         feature1="contradiction_signal",
         feature2="uncertainty",
         values1=[0.0, 0.45, 0.8],
@@ -301,7 +301,7 @@ def test_contradiction_uncertainty_risk_budget_amplification():
 
 def test_symbolic_law_fit_interaction():
     """Test interaction between symbolic_regularity and law_fit_signal."""
-    result = test_interaction_grid(
+    result = run_interaction_grid(
         feature1="symbolic_regularity",
         feature2="law_fit_signal",
         values1=[0.0, 0.4, 0.8],
@@ -340,7 +340,7 @@ def test_symbolic_law_fit_no_double_activation():
 
 def test_causal_risk_contradiction_interaction():
     """Test interaction between causal_risk and contradiction."""
-    result = test_interaction_grid(
+    result = run_interaction_grid(
         feature1="causal_risk",
         feature2="contradiction_signal",
         values1=[0.0, 0.5, 0.9],
@@ -433,7 +433,7 @@ def test_interaction_matrix_all_pairs():
 
     for i, feat1 in enumerate(features_to_test):
         for feat2 in features_to_test[i+1:]:  # Avoid duplicates
-            result = test_interaction_grid(
+            result = run_interaction_grid(
                 feature1=feat1,
                 feature2=feat2,
                 values1=test_values,

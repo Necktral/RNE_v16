@@ -238,6 +238,48 @@ class TestScenarioEpisodeRunner:
 
         storage.close()
 
+    def test_runner_passes_enriched_reasoning_context(self, tmp_path: Path):
+        """Scheduler recibe contexto enriquecido reusable desde ScenarioEpisodeRunner."""
+        storage = _storage(tmp_path)
+        runner = ScenarioEpisodeRunner(
+            storage=storage,
+            run_id="run-reasoning-context",
+            scenario="thermal_homeostasis",
+        )
+        result = runner.run_episode(external_input=0.05)
+
+        reasoning_context = result["episode"]["trace"][0]["detail"]["reasoning_context"]
+        assert reasoning_context["formula"]
+        assert reasoning_context["memory_hits"] == reasoning_context["retrieved_memory"]
+        assert "counterfactual" in reasoning_context
+        assert "updated_world" in reasoning_context
+        assert "factual" in reasoning_context
+        assert reasoning_context["relation_kind"] in {"support", "contradiction"}
+        assert reasoning_context["scenario"] == "thermal_homeostasis"
+        assert reasoning_context["scenario_metadata"]["scenario_name"] == "thermal_homeostasis"
+        assert reasoning_context["reasoning_mode"] == "fixed"
+        ded_step = next(step for step in result["episode"]["trace"] if step["family"] == "DED")
+        assert ded_step["detail"]["artifacts"]["solver_result"] == "sat"
+        assert ded_step["detail"]["artifacts"]["formula_normalized"] == "TEMP_HIGH -> ACTIVATE_COOLING"
+        assert ded_step["detail"]["artifacts"]["z3_expression"]
+        storage.close()
+
+    def test_runner_second_episode_includes_prior_belief_state_in_reasoning_context(self, tmp_path: Path):
+        """Segundo episodio expone belief_state previo al scheduler."""
+        storage = _storage(tmp_path)
+        runner = ScenarioEpisodeRunner(
+            storage=storage,
+            run_id="run-belief-context",
+            scenario="thermal_homeostasis",
+        )
+        runner.run_episode(external_input=0.04)
+        second = runner.run_episode(external_input=0.04)
+
+        reasoning_context = second["episode"]["trace"][0]["detail"]["reasoning_context"]
+        assert "belief_state" in reasoning_context
+        assert reasoning_context["belief_state"]["scenario_name"] == "thermal_homeostasis"
+        storage.close()
+
     def test_runner_both_scenarios_produce_valid_episodes(self, tmp_path: Path):
         """Ambos escenarios producen episodios válidos."""
         storage = _storage(tmp_path)
