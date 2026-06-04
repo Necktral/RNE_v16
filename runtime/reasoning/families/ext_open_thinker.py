@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from json import JSONDecodeError
+import os
 import re
 from typing import Any, Dict, Mapping
 
@@ -81,6 +82,30 @@ def _collect_core_hypotheses(state: Mapping[str, Any]) -> Dict[str, Any]:
         "prob_calibrated",
     ]
     return {key: state.get(key) for key in keys if key in state}
+
+
+def _optional_int(value: Any) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
 
 
 def _strip_think_blocks(text: str) -> str:
@@ -225,7 +250,7 @@ def _validate_payload_shape(payload: Mapping[str, Any], *, allowed_interventions
     return normalized
 
 
-def _build_prompt(state: Mapping[str, Any]) -> str:
+def _build_standard_prompt(state: Mapping[str, Any]) -> str:
     observation = _safe_mapping(state.get("observation"))
     counterfactual = _safe_mapping(state.get("counterfactual"))
     factual = _safe_mapping(state.get("updated_world"))
@@ -274,6 +299,58 @@ def _build_prompt(state: Mapping[str, Any]) -> str:
     return json.dumps(prompt_payload, ensure_ascii=True, sort_keys=True)
 
 
+def _build_compact_prompt(state: Mapping[str, Any]) -> str:
+    observation = _safe_mapping(state.get("observation"))
+    counterfactual = _safe_mapping(state.get("counterfactual"))
+    factual = _safe_mapping(state.get("updated_world"))
+    allowed = _allowed_interventions(state)
+    prompt_payload = {
+        "task": "choose_intervention_json",
+        "json_only": True,
+        "required_keys": list(_REQUIRED_FIELDS),
+        "allowed_interventions": allowed,
+        "regime": state.get("regime_hint") or state.get("regime_label"),
+        "rule": state.get("formula"),
+        "obs": {
+            "temp": observation.get("global_temp_mean", observation.get("world_level")),
+            "max": observation.get("global_temp_max"),
+            "alarm": observation.get("alarm"),
+            "props": list(observation.get("propositions", []))[:6],
+        },
+        "core": {
+            "intervention": state.get("intervention"),
+            "temp": factual.get("global_temp_mean", factual.get("world_level")),
+            "alarm": factual.get("alarm"),
+        },
+        "alt": {
+            "temp": counterfactual.get("global_temp_mean", counterfactual.get("world_level")),
+            "alarm": counterfactual.get("alarm"),
+        },
+        "decision": "prefer lower temp, alarm false, valid intervention, confidence 0..1",
+    }
+    return json.dumps(prompt_payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+def _build_prompt(state: Mapping[str, Any]) -> str:
+    style = str(state.get("external_reasoner_prompt_style") or "standard").strip().lower()
+    if style == "compact":
+        return _build_compact_prompt(state)
+    return _build_standard_prompt(state)
+
+
+def _prompt_style_for_execution(state: Mapping[str, Any], client: Any) -> str:
+    configured = None
+    config = getattr(client, "config", None)
+    if config is not None:
+        configured = getattr(config, "prompt_style", None)
+    return str(
+        state.get("external_reasoner_prompt_style")
+        or configured
+        or os.environ.get("RNFE_EXTERNAL_REASONER_PROMPT_STYLE")
+        or "standard"
+    ).strip().lower()
+
+
 def parse_external_reasoner_payload(raw_text: str, *, allowed_interventions: list[str]) -> Dict[str, Any]:
     payload = _json_from_text(raw_text)
     return _validate_payload_shape(payload, allowed_interventions=allowed_interventions)
@@ -304,17 +381,34 @@ def _result(
 
 
 def execute(state: Dict[str, Any]) -> Dict[str, Any]:
-    prompt = _build_prompt(state)
     client = state.get("_external_reasoner_client")
     if client is None:
         client = LlamaCppClient()
+    prompt_style = _prompt_style_for_execution(state, client)
+    prompt_state = dict(state)
+    prompt_state["external_reasoner_prompt_style"] = prompt_style
+    prompt = _build_prompt(prompt_state)
+    prompt_bytes = len(prompt.encode("utf-8"))
 
     result = client.generate(
         prompt,
         backend=state.get("external_reasoner_backend"),
+        max_tokens=_optional_int(state.get("external_reasoner_max_tokens")),
+        temperature=_optional_float(state.get("external_reasoner_temperature")),
+        top_p=_optional_float(state.get("external_reasoner_top_p")),
+        timeout_s=_optional_float(state.get("external_reasoner_timeout_s")),
+        ngl=_optional_int(state.get("external_reasoner_ngl")),
+        ctx_size=_optional_int(state.get("external_reasoner_ctx_size")),
+        batch_size=_optional_int(state.get("external_reasoner_batch_size")),
+        ubatch_size=_optional_int(state.get("external_reasoner_ubatch_size")),
+        threads=_optional_int(state.get("external_reasoner_threads")),
+        threads_batch=_optional_int(state.get("external_reasoner_threads_batch")),
+        mlock=_optional_bool(state.get("external_reasoner_mlock")),
         allow_cpu_fallback=bool(state.get("external_reasoner_allow_cpu_fallback", False)),
     )
     latency = float(result.get("latency_s") or 0.0)
+    prompt_tps = result.get("prompt_tps")
+    prompt_tps_float = float(prompt_tps) if isinstance(prompt_tps, (int, float)) else 0.0
     generation_tps = result.get("generation_tps")
     generation_tps_float = float(generation_tps) if isinstance(generation_tps, (int, float)) else 0.0
 
@@ -331,11 +425,14 @@ def execute(state: Dict[str, Any]) -> Dict[str, Any]:
                 "external_reasoner_error_type": result.get("error_type"),
                 "external_reasoner_error_message": result.get("error_message"),
                 "external_reasoner_latency_s": latency,
+                "external_reasoner_prompt_tps": prompt_tps_float,
                 "external_reasoner_generation_tps": generation_tps_float,
+                "external_reasoner_prompt_style": prompt_style,
+                "external_reasoner_prompt_bytes": prompt_bytes,
             },
             confidence=0.0,
             cost=max(latency, 0.1),
-            artifacts={"backend": result.get("backend")},
+            artifacts={"backend": result.get("backend"), "prompt_bytes": prompt_bytes},
             failure_mode=str(result.get("error_type") or "external_reasoner_error"),
             extras={
                 "ok": False,
@@ -362,7 +459,10 @@ def execute(state: Dict[str, Any]) -> Dict[str, Any]:
                 "external_reasoner_error_message": str(exc),
                 "external_reasoner_raw_output_excerpt": _strip_think_blocks(raw_output)[:_RAW_EXCERPT_LIMIT],
                 "external_reasoner_latency_s": latency,
+                "external_reasoner_prompt_tps": prompt_tps_float,
                 "external_reasoner_generation_tps": generation_tps_float,
+                "external_reasoner_prompt_style": prompt_style,
+                "external_reasoner_prompt_bytes": prompt_bytes,
             },
             confidence=0.0,
             cost=max(latency, 0.1),
@@ -372,6 +472,8 @@ def execute(state: Dict[str, Any]) -> Dict[str, Any]:
                 "grammar_used": bool(result.get("grammar_used")),
                 "json_schema_used": bool(result.get("json_schema_used")),
                 "schema_validated": False,
+                "prompt_tps": result.get("prompt_tps"),
+                "prompt_bytes": prompt_bytes,
             },
             failure_mode=exc.code,
             extras={"ok": False, "error_type": exc.code, "error_message": str(exc)},
@@ -394,7 +496,10 @@ def execute(state: Dict[str, Any]) -> Dict[str, Any]:
         "external_reasoner_recommended_intervention": parsed["recommended_intervention"],
         "external_reasoner_raw_output_excerpt": contract_json[:_RAW_EXCERPT_LIMIT],
         "external_reasoner_latency_s": latency,
+        "external_reasoner_prompt_tps": prompt_tps_float,
         "external_reasoner_generation_tps": generation_tps_float,
+        "external_reasoner_prompt_style": prompt_style,
+        "external_reasoner_prompt_bytes": prompt_bytes,
     }
     return _result(
         status="ok",
@@ -409,6 +514,7 @@ def execute(state: Dict[str, Any]) -> Dict[str, Any]:
             "grammar_used": bool(result.get("grammar_used")),
             "json_schema_used": bool(result.get("json_schema_used")),
             "schema_validated": True,
+            "prompt_bytes": prompt_bytes,
         },
         extras={
             "ok": True,
@@ -422,6 +528,7 @@ def execute(state: Dict[str, Any]) -> Dict[str, Any]:
             "confidence_proxy": parsed["confidence_proxy"],
             "raw_output_excerpt": contract_json[:_RAW_EXCERPT_LIMIT],
             "latency_s": latency,
+            "prompt_tps": prompt_tps_float,
             "generation_tps": generation_tps_float,
         },
     )

@@ -12,14 +12,19 @@ from scripts.benchmark_external_reasoner_gain import (
     run_campaign,
     run_episode,
 )
+from scripts.benchmark_external_reasoner_latency import LatencyVariant, run_latency_campaign
 
 
 class FakeExternalClient:
     def __init__(self):
         self.calls = 0
+        self.last_prompt = ""
+        self.last_kwargs = {}
 
     def generate(self, prompt, **kwargs):
         self.calls += 1
+        self.last_prompt = prompt
+        self.last_kwargs = dict(kwargs)
         payload = {
             "claim": "cooling improves the counterfactual transition",
             "reasoning_summary": "activate_cooling lowers global_temp_mean",
@@ -181,6 +186,34 @@ def test_gated_profile_calls_external_for_conflict_regime() -> None:
     assert row["external_accepted"] is True
 
 
+def test_latency_overrides_do_not_bypass_schema_or_guard() -> None:
+    client = FakeExternalClient()
+    row = run_episode(
+        profile="core_plus_external_reasoner_gated_v1",
+        regime="causal_counterfactual_conflict",
+        episode_index=0,
+        external_input=0.04,
+        external_client=client,
+        external_state_overrides={
+            "external_reasoner_max_tokens": 96,
+            "external_reasoner_prompt_style": "compact",
+            "external_reasoner_ctx_size": 1024,
+            "external_reasoner_batch_size": 128,
+            "external_reasoner_ubatch_size": 64,
+        },
+    )
+
+    assert client.last_kwargs["max_tokens"] == 96
+    assert client.last_kwargs["ctx_size"] == 1024
+    assert client.last_kwargs["batch_size"] == 128
+    assert client.last_kwargs["ubatch_size"] == 64
+    assert '"task":"choose_intervention_json"' in client.last_prompt
+    assert row["external_reasoner_schema_validated"] is True
+    assert row["guard_accepted"] is True
+    assert row["external_accepted"] is True
+    assert row["external_reasoner_prompt_style"] == "compact"
+
+
 def test_legacy_external_profiles_are_rejected() -> None:
     try:
         run_episode(
@@ -213,3 +246,24 @@ def test_campaign_writes_required_artifacts(tmp_path: Path) -> None:
     assert (out_dir / "external_reasoner_gain_report.md").exists()
     assert (out_dir / "external_reasoner_gating_report.md").exists()
     assert (out_dir / "external_reasoner_gating_verdict.json").exists()
+
+
+def test_latency_campaign_writes_required_artifacts(tmp_path: Path) -> None:
+    summary = run_latency_campaign(
+        campaign_id="latency-unit",
+        output_root=tmp_path,
+        episodes=1,
+        external_input=0.04,
+        backend=None,
+        allow_cpu_fallback=False,
+        external_client=FakeExternalClient(),
+        variants=[LatencyVariant("unit_tokens_96_compact", max_tokens=96, prompt_style="compact")],
+    )
+    out_dir = tmp_path / "latency-unit"
+    assert summary["regime"] == "causal_counterfactual_conflict"
+    assert summary["variant_summaries"][0]["schema_validated_rate"] == 1.0
+    assert summary["variant_summaries"][0]["guard_pass_rate"] == 1.0
+    assert (out_dir / "latency_variants.jsonl").exists()
+    assert (out_dir / "summary.json").exists()
+    assert (out_dir / "external_reasoner_latency_report.md").exists()
+    assert (out_dir / "external_reasoner_latency_verdict.json").exists()

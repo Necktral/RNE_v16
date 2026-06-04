@@ -318,6 +318,7 @@ def build_external_state(
     backend: str | None,
     allow_cpu_fallback: bool,
     external_client: Any | None,
+    external_state_overrides: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     state = {
         "observation": dict(observation_dict),
@@ -339,6 +340,8 @@ def build_external_state(
         state["external_reasoner_backend"] = backend
     if external_client is not None:
         state["_external_reasoner_client"] = external_client
+    if external_state_overrides:
+        state.update(dict(external_state_overrides))
     return state
 
 
@@ -354,6 +357,7 @@ def run_episode(
     external_client: Any | None = None,
     external_gate: ExternalReasonerGate | None = None,
     gate_history: Mapping[str, Any] | None = None,
+    external_state_overrides: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     if profile in BLOCKED_EXTERNAL_PROFILES:
         raise ValueError(
@@ -393,7 +397,10 @@ def run_episode(
     external_used = False
     external_ok = False
     external_latency_s = 0.0
+    external_prompt_tps = 0.0
     external_generation_tps = 0.0
+    external_prompt_bytes = 0
+    external_prompt_style = ""
     external_schema_validated = False
     external_confidence_proxy = 0.0
     external_claim = ""
@@ -452,13 +459,17 @@ def run_episode(
             backend=backend,
             allow_cpu_fallback=allow_cpu_fallback,
             external_client=external_client,
+            external_state_overrides=external_state_overrides,
         )
         external_result = ext_open_thinker.execute(external_state)
         state_delta = external_result.get("state_delta") or {}
         external_used = bool(state_delta.get("external_reasoner_used"))
         external_ok = bool(state_delta.get("external_reasoner_ok"))
         external_latency_s = _safe_float(state_delta.get("external_reasoner_latency_s"), 0.0)
+        external_prompt_tps = _safe_float(state_delta.get("external_reasoner_prompt_tps"), 0.0)
         external_generation_tps = _safe_float(state_delta.get("external_reasoner_generation_tps"), 0.0)
+        external_prompt_bytes = int(_safe_float(state_delta.get("external_reasoner_prompt_bytes"), 0.0))
+        external_prompt_style = str(state_delta.get("external_reasoner_prompt_style") or "")
         external_schema_validated = bool(state_delta.get("external_reasoner_schema_validated"))
         external_confidence_proxy = _safe_float(state_delta.get("external_reasoner_confidence_proxy"), 0.0)
         external_claim = str(state_delta.get("external_reasoner_claim") or "")
@@ -602,7 +613,10 @@ def run_episode(
         "external_reasoner_schema_validated": external_schema_validated,
         "external_reasoner_confidence_proxy": external_confidence_proxy,
         "external_reasoner_latency_s": external_latency_s,
+        "external_reasoner_prompt_tps": external_prompt_tps,
         "external_reasoner_generation_tps": external_generation_tps,
+        "external_reasoner_prompt_bytes": external_prompt_bytes,
+        "external_reasoner_prompt_style": external_prompt_style,
         "external_reasoner_contribution_proxy": contribution_proxy,
         "external_reasoner_net_ivc_delta": delta_ivc_r_vs_core,
         "external_reasoner_corrected_core_failure": corrected_core_failure,
@@ -643,7 +657,9 @@ def aggregate_rows(rows: List[Mapping[str, Any]]) -> Dict[str, Any]:
             "viability_margin",
             "success_rate",
             "external_reasoner_latency_s",
+            "external_reasoner_prompt_tps",
             "external_reasoner_generation_tps",
+            "external_reasoner_prompt_bytes",
             "external_reasoner_contribution_proxy",
             "external_reasoner_net_ivc_delta",
         }
@@ -1185,6 +1201,7 @@ def run_campaign(
     profiles: List[str] | None = None,
     regimes: List[str] | None = None,
     external_client: Any | None = None,
+    external_state_overrides: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     rows: List[Dict[str, Any]] = []
     selected_profiles = profiles or list(PROFILES)
@@ -1202,6 +1219,7 @@ def run_campaign(
                         allow_cpu_fallback=allow_cpu_fallback,
                         confidence_threshold=confidence_threshold,
                         external_client=external_client,
+                        external_state_overrides=external_state_overrides,
                     )
                 )
 

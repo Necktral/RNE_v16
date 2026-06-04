@@ -25,6 +25,12 @@ class LlamaCppRequest:
     top_p: float
     timeout_s: float
     ngl: int
+    ctx_size: int | None = None
+    batch_size: int | None = None
+    ubatch_size: int | None = None
+    threads: int | None = None
+    threads_batch: int | None = None
+    mlock: bool = False
 
 
 class LlamaCppClient:
@@ -59,6 +65,18 @@ class LlamaCppClient:
             "--reasoning-budget",
             str(int(self.config.reasoning_budget)),
         ]
+        if request.ctx_size:
+            command.extend(["--ctx-size", str(int(request.ctx_size))])
+        if request.batch_size:
+            command.extend(["--batch-size", str(int(request.batch_size))])
+        if request.ubatch_size:
+            command.extend(["--ubatch-size", str(int(request.ubatch_size))])
+        if request.threads:
+            command.extend(["--threads", str(int(request.threads))])
+        if request.threads_batch:
+            command.extend(["--threads-batch", str(int(request.threads_batch))])
+        if request.mlock:
+            command.append("--mlock")
         mode = (self.config.structured_output_mode or "off").strip().lower()
         if mode == "json_schema" and self.config.json_schema_path:
             command.extend(["--json-schema-file", self.config.json_schema_path])
@@ -75,6 +93,13 @@ class LlamaCppClient:
         temperature: float | None = None,
         top_p: float | None = None,
         timeout_s: float | None = None,
+        ngl: int | None = None,
+        ctx_size: int | None = None,
+        batch_size: int | None = None,
+        ubatch_size: int | None = None,
+        threads: int | None = None,
+        threads_batch: int | None = None,
+        mlock: bool | None = None,
         allow_cpu_fallback: bool = False,
     ) -> Dict[str, Any]:
         selected = (backend or self.config.backend or "cuda").strip().lower()
@@ -86,7 +111,13 @@ class LlamaCppClient:
                 temperature=float(temperature if temperature is not None else self.config.temperature),
                 top_p=float(top_p if top_p is not None else self.config.top_p),
                 timeout_s=float(timeout_s if timeout_s is not None else self.config.timeout_s),
-                ngl=int(self.config.ngl),
+                ngl=int(ngl if ngl is not None else self.config.ngl),
+                ctx_size=int(ctx_size) if ctx_size is not None else self.config.ctx_size,
+                batch_size=int(batch_size) if batch_size is not None else self.config.batch_size,
+                ubatch_size=int(ubatch_size) if ubatch_size is not None else self.config.ubatch_size,
+                threads=int(threads) if threads is not None else self.config.threads,
+                threads_batch=int(threads_batch) if threads_batch is not None else self.config.threads_batch,
+                mlock=bool(mlock) if mlock is not None else bool(self.config.mlock),
             )
         )
         if primary.get("ok") or selected == "cpu" or not allow_cpu_fallback:
@@ -101,6 +132,12 @@ class LlamaCppClient:
                 top_p=float(top_p if top_p is not None else self.config.top_p),
                 timeout_s=float(timeout_s if timeout_s is not None else self.config.timeout_s),
                 ngl=0,
+                ctx_size=int(ctx_size) if ctx_size is not None else self.config.ctx_size,
+                batch_size=int(batch_size) if batch_size is not None else self.config.batch_size,
+                ubatch_size=int(ubatch_size) if ubatch_size is not None else self.config.ubatch_size,
+                threads=int(threads) if threads is not None else self.config.threads,
+                threads_batch=int(threads_batch) if threads_batch is not None else self.config.threads_batch,
+                mlock=bool(mlock) if mlock is not None else bool(self.config.mlock),
             )
         )
         fallback["fallback_attempted"] = True

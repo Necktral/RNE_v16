@@ -8,8 +8,12 @@ from runtime.reasoning.families import ext_open_thinker
 class FakeClient:
     def __init__(self, payload):
         self.payload = payload
+        self.prompt = None
+        self.kwargs = None
 
     def generate(self, prompt, **kwargs):
+        self.prompt = prompt
+        self.kwargs = kwargs
         return self.payload
 
 
@@ -55,6 +59,58 @@ def test_adapter_accepts_valid_json_output() -> None:
     assert delta["external_reasoner_schema_validated"] is True
     assert delta["external_reasoner_recommended_intervention"] == "activate_cooling"
     assert delta["external_reasoner_generation_tps"] == 51.2
+
+
+def test_parser_accepts_short_valid_json() -> None:
+    payload = {
+        "claim": "cooler",
+        "reasoning_summary": "alt is cooler",
+        "candidate_hypotheses": ["cooling works"],
+        "causal_assumptions": ["temp should fall"],
+        "counterfactual_checks": ["alt lower"],
+        "confidence_proxy": 0.8,
+        "recommended_intervention": "activate_cooling",
+    }
+    parsed = ext_open_thinker.parse_external_reasoner_payload(
+        json.dumps(payload),
+        allowed_interventions=["activate_cooling", "deactivate_cooling"],
+    )
+    assert parsed["claim"] == "cooler"
+    assert parsed["recommended_intervention"] == "activate_cooling"
+
+
+def test_compact_prompt_is_explicit_and_shorter() -> None:
+    payload = {
+        "claim": "activation is cooler",
+        "reasoning_summary": "counterfactual transition is cooler",
+        "candidate_hypotheses": ["cooling reduces thermal load"],
+        "causal_assumptions": ["lower temperature is better"],
+        "counterfactual_checks": ["activation is cooler"],
+        "confidence_proxy": 0.9,
+        "recommended_intervention": "activate_cooling",
+    }
+    client = FakeClient(
+        {
+            "ok": True,
+            "backend": "cuda",
+            "output_text": json.dumps(payload),
+            "latency_s": 0.2,
+            "prompt_tps": 90.0,
+            "generation_tps": 50.0,
+        }
+    )
+    compact_state = _state(client)
+    compact_state["external_reasoner_prompt_style"] = "compact"
+
+    result = ext_open_thinker.execute(compact_state)
+    standard_prompt = ext_open_thinker._build_prompt(_state(FakeClient({})))
+
+    assert result["status"] == "ok"
+    assert client.prompt is not None
+    assert '"task":"choose_intervention_json"' in client.prompt
+    assert len(client.prompt) < len(standard_prompt)
+    assert result["state_delta"]["external_reasoner_prompt_style"] == "compact"
+    assert result["state_delta"]["external_reasoner_prompt_tps"] == 90.0
 
 
 def test_adapter_rejects_text_without_json() -> None:

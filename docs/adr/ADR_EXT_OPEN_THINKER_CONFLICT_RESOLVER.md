@@ -52,6 +52,57 @@ Repetibilidad:
 - latency_p95: `98.953 s`
 - corrected_core_failure_rate: `0.875`
 
+## Latency Optimization Checkpoint
+
+Estado: `latency_optimized_without_cognitive_loss`.
+
+Variante adoptada como baseline experimental gobernado:
+
+- `variant = tokens_256_standard`
+- `max_tokens = 256`
+- `prompt = standard`
+- `backend = cuda`
+- `ngl = 99`
+- `structured_output_mode = json_schema`
+- `reasoning = off`
+- `reasoning_budget = 0`
+- `profile = core_plus_external_reasoner_gated_v1`
+- `regime = causal_counterfactual_conflict`
+
+Antes/despues:
+
+| Metrica | Baseline repetibilidad | Checkpoint latencia |
+| --- | ---: | ---: |
+| latency_mean_s | 96.115 | 60.714 |
+| latency_p95_s | 98.953 | 76.731 |
+| generation_tps_mean | 44.138 | 49.275 |
+| cost_per_corrected_failure_s | 109.846 | 60.714 |
+| corrected_core_failure_rate | 0.875 | 1.000 |
+| ok_rate | n/a | 1.000 |
+| schema_rate | n/a | 1.000 |
+| guard_pass_rate | 0.875 | 1.000 |
+| ivc_r | 0.231401 | 0.275608 |
+| intervention_precision | 0.067784 | 0.077727 |
+| viability_margin | 0.029650 | 0.038400 |
+| success_rate | 0.875 | 1.000 |
+| closure_stable_rate | 0.875 | 1.000 |
+
+Variantes descartadas como defaults:
+
+- `tokens_192_standard`
+- `tokens_128_standard`
+- `tokens_96_standard`
+- `tokens_128_compact_ctx1024`
+- `tokens_96_compact_ctx1024`
+
+Motivo de descarte: rompen el contrato estructurado o fallan `external_reasoner_ok`, `schema_validated` o `guard_pass`. El guard impidio que esas salidas influyeran la intervencion.
+
+Este checkpoint no cambia la admision: `EXT_OPEN_THINKER` sigue siendo experimental condicionado, no nominal y solo admitido para `causal_counterfactual_conflict`.
+
+No entra al runtime nominal porque la evidencia sigue siendo de laboratorio, condicionada a un unico regimen y dependiente de un modelo externo costoso. La ruta nominal debe conservar comportamiento core/fallback sin llamadas externas.
+
+Siguiente optimizacion posible: `llama-server` o proceso residente para evitar carga por subprocess. No se adopta en esta fase.
+
 ## Regimen Validado
 
 Unico regimen validado:

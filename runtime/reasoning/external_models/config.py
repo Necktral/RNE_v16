@@ -27,6 +27,19 @@ def _as_float(value: str | None, default: float) -> float:
         return default
 
 
+def _as_optional_int(value: str | None) -> int | None:
+    try:
+        return int(value) if value is not None and value.strip() else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class ExternalReasonerConfig:
     """Parametros runtime para invocar ``llama-cli`` sin acoplar RNFE al modelo."""
@@ -46,6 +59,13 @@ class ExternalReasonerConfig:
     json_schema_path: str | None = str(DEFAULT_RESPONSE_SCHEMA_PATH)
     grammar_path: str | None = None
     reasoning_budget: int = 0
+    prompt_style: str = "standard"
+    ctx_size: int | None = None
+    batch_size: int | None = None
+    ubatch_size: int | None = None
+    threads: int | None = None
+    threads_batch: int | None = None
+    mlock: bool = False
 
     @classmethod
     def from_env(
@@ -92,6 +112,13 @@ class ExternalReasonerConfig:
             ),
             grammar_path=os.environ.get("RNFE_EXTERNAL_REASONER_GRAMMAR"),
             reasoning_budget=_as_int(os.environ.get("RNFE_EXTERNAL_REASONER_REASONING_BUDGET"), 0),
+            prompt_style=(os.environ.get("RNFE_EXTERNAL_REASONER_PROMPT_STYLE") or "standard").strip().lower(),
+            ctx_size=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_CTX_SIZE")),
+            batch_size=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_BATCH_SIZE")),
+            ubatch_size=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_UBATCH_SIZE")),
+            threads=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_THREADS")),
+            threads_batch=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_THREADS_BATCH")),
+            mlock=_as_bool(os.environ.get("RNFE_EXTERNAL_REASONER_MLOCK"), False),
         )
 
     def cli_path_for_backend(self, backend: str | None = None) -> str:

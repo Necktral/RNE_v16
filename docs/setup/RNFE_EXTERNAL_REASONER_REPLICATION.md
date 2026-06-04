@@ -55,6 +55,12 @@ export RNFE_MODELS_ROOT=/mnt/d/rnfe_models
 export RNFE_REASONING_GGUF=/mnt/d/rnfe_models/gguf/OpenThinker3-7B/OpenThinker3-7B-Q4_K_M.gguf
 export RNFE_LLAMA_CLI_CUDA=/mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin/llama-cli
 export RNFE_LLAMA_CLI_CPU=/mnt/d/rnfe_models/tools/llama.cpp/build-cpu/bin/llama-cli
+export RNFE_EXTERNAL_REASONER_BACKEND=cuda
+export RNFE_EXTERNAL_REASONER_NGL=99
+export RNFE_EXTERNAL_REASONER_MAX_TOKENS=256
+export RNFE_EXTERNAL_REASONER_PROMPT_STYLE=standard
+export RNFE_EXTERNAL_REASONER_STRUCTURED_OUTPUT_MODE=json_schema
+export RNFE_EXTERNAL_REASONER_REASONING_BUDGET=0
 
 export HF_HOME=/mnt/d/rnfe_models/cache/huggingface
 export HF_HUB_CACHE=/mnt/d/rnfe_models/cache/huggingface/hub
@@ -113,6 +119,7 @@ Usar esta ruta solo si no existe backup del GGUF.
 5. Si el hash difiere por version de modelo o herramienta, actualizar `docs/setup/external_reasoner_state_manifest.json` y repetir smoke/repetibilidad antes de admitir el nuevo artefacto.
 
 No versionar el modelo ni los pesos originales.
+Mantener el GGUF en `D:\rnfe_models` (`/mnt/d/rnfe_models` en WSL); no copiar pesos al repo ni a `/home`.
 
 ## 5. Compilar llama.cpp CUDA
 
@@ -152,7 +159,8 @@ cmake --build build-cuda --config Release -j
 Verificar:
 
 ```bash
-/mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin/llama-cli --help | grep -- --json-schema-file
+LD_LIBRARY_PATH="$CUDA_ROOT/lib:/usr/lib/wsl/lib:/mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin:$LD_LIBRARY_PATH" \
+  /mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin/llama-cli --help | grep -- --json-schema-file
 ```
 
 ## 6. Smoke Test
@@ -160,22 +168,24 @@ Verificar:
 Desde el repo RNFE, con env cargado:
 
 ```bash
-python scripts/benchmark_external_reasoner_gain.py \
-  --campaign-id smoke-replication \
+python scripts/benchmark_external_reasoner_latency.py \
+  --campaign-id smoke-latency-replication \
   --output-root /tmp/rnfe_external_reasoner_replication \
   --episodes 1 \
   --backend cuda \
-  --profiles core_plus_external_reasoner_gated_v1 \
-  --regimes causal_counterfactual_conflict
+  --variants tokens_256_standard
 ```
 
 Resultado minimo esperado:
 
 - `external_reasoner_ok_rate = 1.0`
 - `schema_validated_rate = 1.0`
+- `guard_pass_rate = 1.0`
+- `corrected_core_failure_rate = 1.0`
 - `invalid_intervention_accepted = 0`
 - salida estructurada validada por schema
 - fallback core intacto si gate/guard/schema fallan
+- latencia aproximada esperada en RTX 2070 Max-Q WSL2: `60-80 s` por llamada con `max_tokens=256`; puede variar por I/O de `/mnt/d`.
 
 ## 7. Tests Minimos Post-Clone
 
@@ -191,7 +201,7 @@ pytest tests/regression/test_external_reasoner_profiles.py \
 Resultado esperado del checkpoint:
 
 ```text
-46 passed
+52 passed
 ```
 
 ## 8. Verificacion De Replicacion
@@ -213,7 +223,28 @@ El script puede reportar advertencia por pesos historicos ya trackeados antes de
 - estado: `external_conflict_resolver_governed`
 - regimen validado: `causal_counterfactual_conflict`
 - dictamen experimental: `conflict_resolver_repetible`
-- `latency_mean_s = 96.115`
-- `latency_p95_s = 98.953`
-- `corrected_core_failure_rate = 0.875`
+- dictamen de latencia: `latency_optimized_without_cognitive_loss`
+- variante adoptada: `tokens_256_standard`
+- default experimental: `max_tokens=256`, `prompt_style=standard`
+- `latency_mean_s = 60.714`
+- `latency_p95_s = 76.731`
+- `generation_tps_mean = 49.275`
+- `cost_per_corrected_failure_s = 60.714`
+- `corrected_core_failure_rate = 1.000`
+- `ivc_r = 0.275608`
+- `intervention_precision = 0.077727`
+- `viability_margin = 0.038400`
+- `success_rate = 1.000`
+- `closure_stable_rate = 1.000`
 - runtime nominal: no activa `EXT_OPEN_THINKER`
+
+## 10. Evidencia De Latencia
+
+Artefactos ligeros versionables del checkpoint:
+
+- `data/benchmarks/external_reasoner_latency/latency-gated-v1-causal-4ep-abort-unsafe/summary.json`
+- `data/benchmarks/external_reasoner_latency/latency-gated-v1-causal-4ep-abort-unsafe/external_reasoner_latency_report.md`
+- `data/benchmarks/external_reasoner_latency/latency-gated-v1-causal-4ep-abort-unsafe/external_reasoner_latency_verdict.json`
+- `data/benchmarks/external_reasoner_latency/latency-gated-v1-causal-4ep-abort-unsafe/evidence_manifest.json`
+
+`latency_variants.jsonl` se conserva como evidencia ligera de esta campana; no contiene pesos ni outputs masivos. No versionar modelos, caches, venvs, builds de `llama.cpp`, DBs ni `data/artifacts/`.
