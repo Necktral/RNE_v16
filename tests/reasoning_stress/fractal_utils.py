@@ -299,11 +299,19 @@ def _analyze_convergence(
         for i in range(1, len(activation_points))
     ]
 
-    # Converges if differences decrease
-    converges = all(
+    # Converge si la frontera se ESTABILIZA al refinar la resolución. El criterio
+    # original "diferencias monótonamente decrecientes" daba falsos negativos en
+    # fronteras perfectamente disciplinadas por el jitter discreto del sweep (el
+    # punto de activación detectado salta de un step a otro). Se acepta también que
+    # la mitad final de los puntos de activación esté concentrada (tail estable).
+    monotone = all(
         differences[i] <= differences[i-1] * 1.2  # Allow some noise
         for i in range(1, len(differences))
     ) if len(differences) > 1 else True
+    tail = activation_points[len(activation_points) // 2:]
+    mean_tail = sum(tail) / len(tail)
+    tail_spread = max((abs(p - mean_tail) for p in tail), default=0.0)
+    converges = monotone or tail_spread <= 0.05
 
     # Convergence rate (how fast differences decrease)
     if len(differences) > 1:
@@ -311,17 +319,15 @@ def _analyze_convergence(
     else:
         convergence_rate = 1.0
 
-    # Roughness exponent (estimate from variance scaling)
-    variances = []
-    for i in range(1, len(activation_points)):
-        variance = (activation_points[i] - activation_points[i-1]) ** 2
-        variances.append(variance)
-
-    if variances:
-        # Simple roughness estimate
-        roughness = math.log(max(variances[-1], 1e-10)) / math.log(resolutions[-1] / resolutions[0])
-    else:
-        roughness = 0.0
+    # Rugosidad: dispersión (desviación estándar) de los puntos de activación a través
+    # de resoluciones. Frontera estable/convergente → ~0; oscilante → mayor (acotada a
+    # [0, ~0.5] en el espacio de features [0,1]). La fórmula anterior
+    # log(var)/log(ratio_resoluciones) divergía a ≈7.7 cuando var→0 (por el clamp 1e-10),
+    # clasificando como "pathological" fronteras perfectamente estables.
+    mean_ap = sum(activation_points) / len(activation_points)
+    roughness = math.sqrt(
+        sum((p - mean_ap) ** 2 for p in activation_points) / len(activation_points)
+    )
 
     return converges, convergence_rate, roughness
 
@@ -507,9 +513,21 @@ def _estimate_dimension_from_box_counts(
     if len(box_sizes) < 3 or any(c == 0 for c in box_counts):
         return 1.0, 0.0
 
-    # log(N) vs log(1/epsilon)
-    log_epsilon = [math.log(1.0 / size) for size in box_sizes]
-    log_counts = [math.log(count) for count in box_counts]
+    # Región de escala: mantener el prefijo estrictamente creciente del conteo (hasta
+    # el primer plateau). Una vez que la frontera del scheduler satura (es finita/
+    # dispersa, p.ej. [5, 10, 18, 18, 18]), el conteo deja de crecer; incluir el
+    # plateau aplana la pendiente y hunde el R² → falsos "poor_fit"/"pathological" en
+    # fronteras que en realidad son limpias (~1D).
+    kept = [(box_sizes[0], box_counts[0])]
+    for i in range(1, len(box_counts)):
+        if box_counts[i] > box_counts[i - 1]:
+            kept.append((box_sizes[i], box_counts[i]))
+        else:
+            break
+    if len(kept) < 3:
+        kept = list(zip(box_sizes, box_counts))  # fallback: usar todas las cajas
+    log_epsilon = [math.log(1.0 / s) for s, _ in kept]
+    log_counts = [math.log(c) for _, c in kept]
 
     # Linear regression
     n = len(log_epsilon)

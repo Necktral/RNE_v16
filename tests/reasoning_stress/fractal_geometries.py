@@ -189,6 +189,16 @@ def estimate_fractal_dimension_boxcount(points: np.ndarray,
     if box_sizes is None:
         box_sizes = [2**(-i) for i in range(2, 10)]
 
+    # Normalizar al cubo unitario [0,1]^d: el box-counting con box_sizes ∈ (0,1]
+    # solo es válido sobre coordenadas normalizadas. Sin esto, atractores con rango
+    # grande (p.ej. Lorenz, coords ±20) ponen cada punto en su propia caja para todo
+    # epsilon → conteo saturado constante → pendiente≈0 → FD≈0 (bug histórico).
+    pts = np.asarray(points, dtype=float)
+    mins = pts.min(axis=0)
+    maxs = pts.max(axis=0)
+    span = np.where(maxs > mins, maxs - mins, 1.0)
+    points = (pts - mins) / span
+
     counts = []
 
     for epsilon in box_sizes:
@@ -211,12 +221,29 @@ def estimate_fractal_dimension_boxcount(points: np.ndarray,
                 boxes.add((box_x, box_y, box_z))
             counts.append(len(boxes))
 
-    # Log-log regression
-    log_epsilon = [math.log(1.0 / eps) for eps in box_sizes]
-    log_counts = [math.log(c) for c in counts if c > 0]
-
-    if len(log_counts) < 3:
+    # Log-log regression sobre la REGIÓN DE ESCALA. La pendiente sólo estima la
+    # dimensión donde el conteo crece linealmente en log-log; las cajas saturadas
+    # (conteo ≈ nº de puntos) y las triviales (≤4) aplanan la pendiente y subestiman
+    # la dimensión. Se emparejan (log(1/eps), log(count)) y se filtra a la región
+    # válida (antes se filtraba sólo counts>0 sin alinear log_epsilon → desajuste).
+    n_points = len(points)
+    pairs = [
+        (math.log(1.0 / eps), math.log(c))
+        for eps, c in zip(box_sizes, counts)
+        if 4 < c < 0.9 * n_points
+    ]
+    if len(pairs) < 3:
+        # Fallback: cualquier caja con conteo positivo.
+        pairs = [
+            (math.log(1.0 / eps), math.log(c))
+            for eps, c in zip(box_sizes, counts)
+            if c > 0
+        ]
+    if len(pairs) < 3:
         return 1.0, 0.0
+
+    log_epsilon = [p[0] for p in pairs]
+    log_counts = [p[1] for p in pairs]
 
     # Linear regression
     n = len(log_epsilon)

@@ -9,8 +9,13 @@ from runtime.reality.transition_matrix import (
 
 class TestTransitionMatrixBenchmark:
     def test_generates_2x2_matrix(self):
-        """Genera matriz 2x2 con los dos escenarios actuales."""
+        """Genera matriz 2x2 con dos escenarios explícitos (N²=4 celdas).
+
+        Antes dependía del tamaño global del registro (eran 2 escenarios); al
+        añadirse un 3.º generaba 3x3=9. El test ahora fija sus propios escenarios.
+        """
         result = run_transition_matrix_benchmark(
+            scenarios=["thermal_homeostasis", "resource_management"],
             warmup_episodes=1,
             probe_episodes=1,
             closure_profile="adaptive_min",
