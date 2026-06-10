@@ -18,6 +18,49 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+_DOTENV_LOADED = False
+
+
+def _load_dotenv_once() -> None:
+    """Carga un ``.env`` del repo (si existe) para variables RNFE/AEON aún no definidas.
+
+    Sin dependencias externas. Las variables ya presentes en el entorno tienen
+    prioridad (sólo rellena las ausentes), de modo que el storage use PostgreSQL por
+    defecto al correr desde el repo sin sourcing manual, pero el entorno explícito
+    (p. ej. el aislamiento de tests) siga mandando.
+    """
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED:
+        return
+    _DOTENV_LOADED = True
+    candidates = []
+    try:
+        candidates.append(Path(__file__).resolve().parents[2] / ".env")
+    except Exception:
+        pass
+    candidates.append(Path.cwd() / ".env")
+    seen: set = set()
+    for env_path in candidates:
+        if env_path in seen:
+            continue
+        seen.add(env_path)
+        try:
+            if not env_path.is_file():
+                continue
+            for raw in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+            break
+        except Exception:
+            continue
+
+
 @dataclass(frozen=True, slots=True)
 class StorageConfig:
     mode: StorageMode
@@ -29,6 +72,7 @@ class StorageConfig:
 
     @classmethod
     def from_env(cls) -> "StorageConfig":
+        _load_dotenv_once()
         mode = os.environ.get("RNFE_STORAGE_MODE", "sqlite").strip().lower()
         if mode not in {"sqlite", "postgres", "hybrid"}:
             mode = "sqlite"

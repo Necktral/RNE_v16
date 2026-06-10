@@ -11,6 +11,14 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
+# Aislamiento de storage en tests: por defecto SQLite (hermético), salvo que se
+# soliciten explícitamente las pruebas PostgreSQL (RNFE_RUN_PG_TESTS=1). Evita que un
+# `.env` con RNFE_STORAGE_MODE=postgres haga que la suite escriba en la base PG real.
+if os.environ.get("RNFE_RUN_PG_TESTS") != "1":
+    os.environ["RNFE_STORAGE_MODE"] = "sqlite"
+    os.environ.pop("RNFE_POSTGRES_DSN", None)
+
+
 def _module_available(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
 
