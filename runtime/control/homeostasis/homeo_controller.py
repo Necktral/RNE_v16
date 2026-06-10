@@ -137,12 +137,17 @@ class HomeoController:
     def evaluate_state(self) -> HealthStatus:
         health = self.governor.assess_health()
         metrics = self.sensors.system_snapshot()
-        health.vram_usage = metrics.get("vram_usage", 0.0)
-        health.thermal_gradient = self.governor.calculate_thermal_gradient()
-        return health
+        # HealthStatus canónico es frozen → reconstruir con los datos del sensor.
+        from dataclasses import replace
+
+        return replace(
+            health,
+            vram_usage=metrics.get("vram_usage", 0.0),
+            thermal_gradient=self.governor.calculate_thermal_gradient(),
+        )
 
     def update_stress_index(self, h: HealthStatus) -> float:
-        f = [h.temperature*0.25, h.energy*0.2, h.memory*0.15, h.vram_usage*0.3, h.entropy*0.1]
+        f = [h.temperature*0.25, h.power_consumption*0.2, h.memory_load*0.15, h.vram_usage*0.3, h.entropy_rate*0.1]
         self.stress_index = min(1.0, sum(f))
         self.operational_capacity = 1.0 - (self.stress_index ** 1.8)
         return self.stress_index

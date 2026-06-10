@@ -1,3 +1,6 @@
+# [LEGACY/ROTO — AEON FENIX-Δ en cuarentena] Agente no funcional: importa
+# `.rssm_lite` (inexistente → ModuleNotFoundError). No usar. Ver
+# docs/analysis/LEGACY_QUARANTINE.md.
 import torch
 import torch.nn as nn
 from torch.distributions import Normal

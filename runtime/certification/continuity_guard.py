@@ -27,12 +27,22 @@ class ContinuityGuard:
         current_sequence = current_episode.get("result", {}).get("reasoning_sequence", [])
         sequence_score = self._sequence_score(previous_sequence, current_sequence)
 
-        previous_temp = previous_certificate.metadata.get("world_temperature")
-        current_temp = (
-            current_episode.get("result", {}).get("updated_world", {}).get("temperature")
+        # Variable principal del escenario (no hardcodea "temperature").
+        scenario_metadata = current_episode.get("scenario_metadata", {}) or {}
+        main_var = scenario_metadata.get("main_variable", "temperature")
+        current_value = (
+            current_episode.get("result", {}).get("updated_world", {}).get(main_var)
         )
-        temp_score = self._temperature_score(previous_temp, current_temp)
-        score = (0.6 * sequence_score) + (0.4 * temp_score)
+        prev_meta = previous_certificate.metadata
+        prev_main_var = prev_meta.get("world_main_variable", "temperature")
+        if prev_main_var == main_var:
+            previous_value = prev_meta.get(
+                "world_main_variable_value", prev_meta.get("world_temperature")
+            )
+        else:
+            previous_value = None  # transición cross-variable: no comparable
+        variable_score = self._variable_stability_score(previous_value, current_value)
+        score = (0.6 * sequence_score) + (0.4 * variable_score)
         return max(0.0, min(1.0, score))
 
     def has_alert(self, continuity_score: float) -> bool:
@@ -48,10 +58,11 @@ class ContinuityGuard:
         matches = sum(1 for i in range(min(len(prev), len(curr))) if prev[i] == curr[i])
         return matches / max(len(prev), len(curr))
 
-    def _temperature_score(self, previous_temp: Any, current_temp: Any) -> float:
-        if not isinstance(previous_temp, (int, float)) or not isinstance(
-            current_temp, (int, float)
+    def _variable_stability_score(self, previous_value: Any, current_value: Any) -> float:
+        """Estabilidad de la variable principal: 1 - |Δ| (variable-agnóstica)."""
+        if not isinstance(previous_value, (int, float)) or not isinstance(
+            current_value, (int, float)
         ):
             return 0.5
-        delta = abs(float(current_temp) - float(previous_temp))
+        delta = abs(float(current_value) - float(previous_value))
         return max(0.0, 1.0 - min(1.0, delta))

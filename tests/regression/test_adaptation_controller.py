@@ -1,6 +1,11 @@
 import asyncio
 from collections import deque
 
+import pytest
+
+# Soporte del orquestador legacy (cuarentena): adaptation_controller → core/infrastructure → pydantic.
+pytest.importorskip("pydantic")
+
 from runtime.control.adaptation_controller import AdaptationController
 from runtime.core.metrics import SelfAwarenessMetrics
 

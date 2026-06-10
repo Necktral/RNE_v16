@@ -24,16 +24,11 @@ class ThermalModelParams:
     ambient_temp: float = 25.0           # °C
     tdp: float = 115.0                   # Adaptado a RTX 2070 Q Max
 
-@dataclass
-class HealthStatus:
-    memory: float
-    energy: float
-    entropy: float
-    temperature: float
-    stability: float
-    cognitive_load: float
-    temp_forecast: float
-    thermal_gradient: float
+# [LEGACY cuarentena] HealthStatus unificado al canónico
+# (contracts/types/aeon_types, vía el shim src.aeon_types que usa shutdown_logic).
+# Antes había una definición local incompatible (energy/entropy/memory/stability)
+# que rompía governor→shutdown_logic con AttributeError. Ver A4 / LEGACY_QUARANTINE.md.
+from src.aeon_types import HealthStatus  # noqa: E402
 
 class ThermodynamicGovernor:
     def __init__(self, config):
@@ -108,14 +103,14 @@ class ThermodynamicGovernor:
         temp = self.update_thermal_state(power)
         forecast = self.predict_thermal_trajectory(5, power)
         return HealthStatus(
-            memory=self.memory_usage(),
-            energy=power / self.params.tdp,
-            entropy=self.entropy_level(),
+            memory_load=self.memory_usage(),
+            power_consumption=power / self.params.tdp,
+            entropy_rate=self.entropy_level(),
             temperature=temp / self.critical_temp,
-            stability=1.0,
+            stability_index=1.0,
             cognitive_load=0.0,
             temp_forecast=forecast / self.critical_temp,
-            thermal_gradient=self.calculate_thermal_gradient()
+            thermal_gradient=self.calculate_thermal_gradient(),
         )
 
     def energy_context(self, phase="default"):

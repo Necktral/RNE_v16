@@ -62,6 +62,7 @@ class CertificateBuilder:
 
         smg_snapshot = episode_result.get("smg_snapshot", {})
         world = episode.get("result", {}).get("updated_world", {})
+        main_var = scenario_metadata.get("main_variable", "temperature")
         lotf_formula = episode.get("context", {}).get("formula")
         certificate = self.storage.write_episode_certificate(
             episode_id=episode_id,
@@ -93,7 +94,9 @@ class CertificateBuilder:
                 "collapse_detected": collapse_detected,
                 "continuity_alert": continuity_alert,
                 "reasoning_sequence": episode.get("result", {}).get("reasoning_sequence", []),
-                "world_temperature": world.get("temperature"),
+                "world_temperature": world.get("temperature"),  # back-compat
+                "world_main_variable": main_var,
+                "world_main_variable_value": world.get(main_var),
                 "scenario_metadata": scenario_metadata,
                 "closure_profile": episode.get("closure_profile", "baseline_fixed"),
                 "transfer_assessment": transfer_assessment or {},

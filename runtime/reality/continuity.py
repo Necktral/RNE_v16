@@ -25,17 +25,49 @@ def _sequence_stability(prev: list[str], curr: list[str]) -> float:
     return matches / max_len
 
 
+def _optimization_direction(scenario_metadata: Dict[str, Any]) -> str:
+    """Dirección de optimización del escenario (best-effort vía el registro).
+
+    Default ``"minimize"`` → preserva el comportamiento térmico histórico
+    (la temperatura es lower-is-better). Para recursos resuelve ``"maximize"``.
+    Import perezoso y tolerante: nunca rompe ni acopla import-time.
+    """
+    name = scenario_metadata.get("scenario_name")
+    if name:
+        try:
+            from runtime.world.registry import get_scenario
+
+            sig = get_scenario(name).causal_signature
+            direction = getattr(sig, "optimization_direction", None)
+            if isinstance(direction, str) and direction:
+                return direction
+        except Exception:
+            pass
+    low = (name or "").lower()
+    if "resource" in low or "stock" in low:
+        return "maximize"
+    return "minimize"
+
+
 def _causal_consistency(episode: Dict[str, Any]) -> float:
+    """Coherencia causal genérica: compara factual vs contrafactual sobre la
+    variable principal del escenario (no hardcodea ``temperature``) según la
+    dirección de optimización. Térmico (``minimize``) se mantiene idéntico.
+    """
     result = episode.get("result", {})
     ctx = episode.get("context", {})
     factual = result.get("updated_world", {})
     counterfactual = ctx.get("counterfactual", {})
-    factual_temp = factual.get("temperature")
-    counterfactual_temp = counterfactual.get("temperature")
-    if isinstance(factual_temp, (int, float)) and isinstance(
-        counterfactual_temp, (int, float)
+    scenario_metadata = episode.get("scenario_metadata", {}) or {}
+    main_var = scenario_metadata.get("main_variable", "temperature")
+    factual_val = factual.get(main_var)
+    counterfactual_val = counterfactual.get(main_var)
+    if isinstance(factual_val, (int, float)) and isinstance(
+        counterfactual_val, (int, float)
     ):
-        return 1.0 if factual_temp <= counterfactual_temp else 0.0
+        if _optimization_direction(scenario_metadata) == "maximize":
+            return 1.0 if factual_val >= counterfactual_val else 0.0
+        return 1.0 if factual_val <= counterfactual_val else 0.0
     relation_kind = result.get("relation_kind")
     if relation_kind == "support":
         return 1.0

@@ -99,6 +99,8 @@ class HealthStatus:
     stability_index: float = 1.0
     operational_capacity: float = 1.0
     temp_forecast: float = 0.0
+    thermal_gradient: float = 0.0
+    cognitive_load: float = 0.0
     failure_probability: float = 0.0
     time_to_recovery: float = 0.0
     system_mode: SystemMode = SystemMode.NORMAL

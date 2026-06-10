@@ -1,3 +1,6 @@
+# [LEGACY/ROTO — AEON FENIX-Δ en cuarentena] Demo de entrenamiento no funcional
+# (DummyEnv stub incompatible). Solo vía aeon_main_loop. Ver
+# docs/analysis/LEGACY_QUARANTINE.md.
 import os
 import pandas as pd
 

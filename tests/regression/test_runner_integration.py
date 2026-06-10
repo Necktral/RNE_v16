@@ -1,6 +1,11 @@
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
+# Soporte del orquestador legacy (cuarentena): crisis_router → infrastructure → pydantic.
+pytest.importorskip("pydantic")
+
 from runtime.control.crisis_router import CrisisRouter
 from runtime.core.infrastructure import Event
 from runtime.core.orchestration import LifecycleState, OrchestratorLifecycle, RuntimeRunner

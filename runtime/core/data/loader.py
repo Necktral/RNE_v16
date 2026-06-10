@@ -1,3 +1,6 @@
+# [LEGACY/ROTO — AEON FENIX-Δ en cuarentena] Módulo no funcional: importa el
+# paquete inexistente `aeon_fenix_delta` (ImportError). No usar. Ver
+# docs/analysis/LEGACY_QUARANTINE.md.
 from aeon_fenix_delta.data.loader import get_loader, AEONDataset
 import torch
 
