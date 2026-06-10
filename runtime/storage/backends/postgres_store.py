@@ -826,7 +826,14 @@ class PostgresStorageBackend(StorageBackend):
                  transition_stability_score, metadata_jsonb, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (assessment_id) DO UPDATE SET
+                    run_id = EXCLUDED.run_id,
+                    episode_id = EXCLUDED.episode_id,
+                    source_scenario = EXCLUDED.source_scenario,
+                    target_scenario = EXCLUDED.target_scenario,
+                    compatibility_class = EXCLUDED.compatibility_class,
                     transfer_verdict = EXCLUDED.transfer_verdict,
+                    memory_purity_score = EXCLUDED.memory_purity_score,
+                    transition_stability_score = EXCLUDED.transition_stability_score,
                     metadata_jsonb = EXCLUDED.metadata_jsonb
                 """,
                 (

@@ -76,13 +76,26 @@ class EventLogSQLite:
             )
             conn.commit()
 
-    def get_events(self, limit=200, event_types=None):
+    def get_events(self, limit=200, event_types=None, run_id=None):
         query = f"SELECT {self._event_column}, payload, timestamp FROM events"
+        clauses = []
         params = []
         if event_types:
             placeholders = ",".join(["?"] * len(event_types))
-            query += f" WHERE {self._event_column} IN ({placeholders})"
+            clauses.append(f"{self._event_column} IN ({placeholders})")
             params.extend(event_types)
+        if run_id is not None:
+            # run_id se persiste dentro del payload JSON (ver
+            # SQLiteStorageBackend.append_event). Se filtra en SQL **antes** del LIMIT
+            # para no perder eventos del run cuando hay > limit eventos globales
+            # (paridad con Postgres, que filtra run_id en SQL).
+            clauses.append(
+                "COALESCE(json_extract(payload, '$.run_id'), "
+                "json_extract(payload, '$._run_id')) = ?"
+            )
+            params.append(run_id)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         with sqlite3.connect(self.db_path) as conn:

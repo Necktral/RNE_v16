@@ -342,7 +342,9 @@ class SQLiteStorageBackend(StorageBackend):
         event_types: Sequence[str] | None = None,
         run_id: str | None = None,
     ) -> list[StoredEvent]:
-        rows = self._ledger.get_events(limit=limit, event_types=list(event_types or []))
+        rows = self._ledger.get_events(
+            limit=limit, event_types=list(event_types or []), run_id=run_id
+        )
         events: list[StoredEvent] = []
         for row in rows:
             payload = row.get("payload")
