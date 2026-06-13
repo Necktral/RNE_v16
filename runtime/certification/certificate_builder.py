@@ -23,6 +23,8 @@ class CertificateBuilder:
         trace_integrity: bool,
         collapse_detected: bool,
         transfer_assessment: Dict[str, Any] | None = None,
+        risk_plus: Dict[str, Any] | None = None,
+        omega: Dict[str, Any] | None = None,
     ):
         episode = episode_result.get("episode", {})
         episode_id = episode.get("episode_id", "")
@@ -100,6 +102,8 @@ class CertificateBuilder:
                 "scenario_metadata": scenario_metadata,
                 "closure_profile": episode.get("closure_profile", "baseline_fixed"),
                 "transfer_assessment": transfer_assessment or {},
+                "risk_plus": risk_plus or {},
+                "omega": omega or {},
                 "belief_state": episode_result.get("belief_state"),
             },
         )

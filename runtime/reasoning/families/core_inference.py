@@ -306,6 +306,291 @@ def analogize(state: Mapping[str, Any]) -> Dict[str, Any]:
     return {"state_delta": {"ana_mapping": best}, "confidence": confidence}
 
 
+# ─────────────────────────────── IND: inducción ──────────────────────────────
+
+def induce(state: Mapping[str, Any]) -> Dict[str, Any]:
+    """IND: induce una regularidad general a partir de ejemplos + firma causal.
+
+    Reemplaza el stub idle. Generaliza sobre los episodios análogos recuperados
+    (``retrieved_memory``) la regla «bajo alarma A, intervención X → relación R
+    sobre la variable principal», con conteo de soporte y cota inferior de
+    confianza (Agresti-Coull, la misma que usa PROB). Si no hay ejemplos, induce
+    *a priori* desde el modelo de efectos declarado de la firma causal. Núcleo
+    determinista, sin dependencias externas.
+    """
+    memory = state.get("retrieved_memory") or state.get("memory_hits") or []
+    obs = _safe_dict(state.get("observation"))
+    alarm = bool(obs.get("alarm"))
+    mv = main_variable(state)
+    sig = resolve_signature(state)
+    direction = optimization_direction(state, sig)
+
+    # 1) Inducción empírica desde ejemplos (generalización por enumeración).
+    by_interv: Dict[str, Dict[str, int]] = {}
+    support = total = 0
+    for m in memory:
+        if not isinstance(m, dict):
+            continue
+        struct = _safe_dict(m.get("structure"))
+        rk = struct.get("relation_kind")
+        iv = struct.get("intervention") or struct.get("intervention_label")
+        if rk in ("support", "contradiction"):
+            total += 1
+            support += 1 if rk == "support" else 0
+            if iv:
+                slot = by_interv.setdefault(str(iv), {"support": 0, "total": 0})
+                slot["total"] += 1
+                slot["support"] += 1 if rk == "support" else 0
+
+    if total > 0:
+        p = support / total
+        lcb = _beta_lcb(p, total)
+        best_iv, best_rate, best_n = None, -1.0, 0
+        for iv, s in by_interv.items():
+            if s["total"] <= 0:
+                continue
+            rate = s["support"] / s["total"]
+            if rate > best_rate or (rate == best_rate and s["total"] > best_n):
+                best_iv, best_rate, best_n = iv, rate, s["total"]
+        rule = {
+            "source": "memory",
+            "antecedent": {"alarm": alarm, "main_variable": mv},
+            "consequent_relation": "support" if p >= 0.5 else "contradiction",
+            "support_rate": round(p, 4),
+            "support": support,
+            "total": total,
+            "confidence_lcb": round(lcb, 4),
+            "best_intervention": best_iv,
+            "best_intervention_support_rate": None if best_iv is None else round(best_rate, 4),
+        }
+        confidence = _clamp(0.40 + 0.50 * lcb)
+        law_fit = _clamp(lcb)
+    else:
+        # 2) Inducción a priori desde el modelo de efectos de la firma causal.
+        generalized: List[str] = []
+        if sig is not None:
+            for eff in getattr(sig, "intervention_effects", ()) or ():
+                moves = getattr(eff, "expected_direction", None)
+                good = (moves == "-") if direction == "minimize" else (moves == "+")
+                role = getattr(eff, "semantic_role", "")
+                if good or role == "corrective":
+                    name = getattr(eff, "intervention_name", "")
+                    if name:
+                        generalized.append(name)
+        rule = {
+            "source": "causal_signature",
+            "antecedent": {"alarm": alarm, "main_variable": mv},
+            "consequent_relation": "support",
+            "generalized_interventions": generalized,
+            "support": 0,
+            "total": 0,
+            "confidence_lcb": 0.0,
+            "best_intervention": generalized[0] if generalized else None,
+        }
+        confidence = _clamp(0.40 + 0.12 * len(generalized))
+        law_fit = _clamp(0.20 + 0.10 * len(generalized))
+
+    generalization = (
+        f"alarm={alarm} & interv='{rule.get('best_intervention')}' "
+        f"=> {rule['consequent_relation']}({mv}) [n={rule['total']}]"
+    )
+    return {
+        "state_delta": {
+            "ind_rule": rule,
+            "ind_generalization": generalization,
+            "ind_support": rule["total"],
+            "ind_confidence_lcb": rule["confidence_lcb"],
+            "ind_law_fit_signal": round(law_fit, 4),
+            "ind_best_intervention": rule.get("best_intervention"),
+        },
+        "confidence": confidence,
+    }
+
+
+# ──────────────────────── modelo de efectos declarado ────────────────────────
+
+def _effect_model(state: Mapping[str, Any]) -> Dict[str, float]:
+    """Δ esperado de la variable principal por intervención (firma causal)."""
+    sig = resolve_signature(state)
+    md = _safe_dict(state.get("scenario_metadata"))
+    model: Dict[str, float] = {}
+    if sig is not None:
+        for eff in getattr(sig, "intervention_effects", ()) or ():
+            name = getattr(eff, "intervention_name", "")
+            moves = getattr(eff, "expected_direction", None)
+            mag = abs(_num(getattr(eff, "expected_magnitude", 0.0), 0.0) or 0.0)
+            if name:
+                model[name] = mag if moves == "+" else (-mag if moves == "-" else 0.0)
+    for interv in md.get("interventions") or ():
+        model.setdefault(str(interv), 0.0)
+    return model
+
+
+def _goal_reached(x: float, threshold: Optional[float], direction: str) -> Optional[bool]:
+    if threshold is None:
+        return None
+    return x < threshold if direction == "minimize" else x > threshold
+
+
+# ─────────────────────────────── PLAN: planificación ─────────────────────────
+
+def plan_search(state: Mapping[str, Any], *, horizon: int = 3) -> Dict[str, Any]:
+    """PLAN: búsqueda hacia adelante sobre el modelo de efectos declarado.
+
+    Reemplaza el stub idle. Enumera secuencias de intervenciones hasta
+    ``horizon`` pasos proyectando la variable principal con los Δ esperados de
+    la firma causal (clamp [0,1]); objetivo = cruzar al lado seguro del umbral
+    de alarma según la dirección de optimización. Devuelve el plan más corto
+    que alcanza el objetivo (desempate por mejor valor terminal) o, si ninguno
+    llega, la mejor trayectoria alcanzable. Determinista, ≤ |I|^horizon nodos
+    (los escenarios declaran 2-4 intervenciones ⇒ coste trivial).
+    """
+    model = _effect_model(state)
+    mv = main_variable(state)
+    direction = optimization_direction(state, resolve_signature(state))
+    md = _safe_dict(state.get("scenario_metadata"))
+    threshold = _num(md.get("alarm_threshold"), None)
+    obs = _safe_dict(state.get("observation"))
+    x0 = _value(obs, mv)
+
+    if x0 is None or not model:
+        return {
+            "state_delta": {
+                "plan_built": False,
+                "plan": {"status": "no_model_or_observation", "steps": []},
+            },
+            "confidence": 0.2,
+        }
+
+    interventions = sorted(model)  # orden determinista
+    sign = -1.0 if direction == "minimize" else 1.0
+
+    def better(a: float, b: float) -> bool:
+        return (a < b) if direction == "minimize" else (a > b)
+
+    best_goal: Optional[Dict[str, Any]] = None  # plan más corto que llega
+    best_any: Optional[Dict[str, Any]] = None  # mejor terminal aunque no llegue
+    frontier: List[Dict[str, Any]] = [{"x": float(x0), "steps": [], "traj": [round(float(x0), 6)]}]
+    for depth in range(1, max(1, int(horizon)) + 1):
+        nxt: List[Dict[str, Any]] = []
+        for node in frontier:
+            for interv in interventions:
+                x = min(1.0, max(0.0, node["x"] + model[interv]))
+                cand = {
+                    "x": x,
+                    "steps": node["steps"] + [interv],
+                    "traj": node["traj"] + [round(x, 6)],
+                }
+                if best_any is None or better(x, best_any["x"]):
+                    best_any = cand
+                if _goal_reached(x, threshold, direction) and (
+                    best_goal is None
+                    or len(cand["steps"]) < len(best_goal["steps"])
+                    or (len(cand["steps"]) == len(best_goal["steps"]) and better(x, best_goal["x"]))
+                ):
+                    best_goal = cand
+                nxt.append(cand)
+        if best_goal is not None:
+            break  # BFS por profundidad ⇒ el primero hallado es el más corto
+        frontier = nxt
+
+    chosen = best_goal or best_any or {"x": float(x0), "steps": [], "traj": [round(float(x0), 6)]}
+    goal_reached = bool(best_goal is not None)
+    improvement = sign * (chosen["x"] - float(x0))
+    plan = {
+        "status": "goal_reached" if goal_reached else "best_effort",
+        "main_variable": mv,
+        "optimization_direction": direction,
+        "alarm_threshold": threshold,
+        "x0": round(float(x0), 6),
+        "steps": chosen["steps"],
+        "projected_trajectory": chosen["traj"],
+        "projected_terminal": round(chosen["x"], 6),
+        "horizon": int(horizon),
+        "first_action": chosen["steps"][0] if chosen["steps"] else None,
+    }
+    confidence = _clamp(
+        0.45 + (0.35 if goal_reached else 0.0) + 0.20 * _clamp(improvement * 5.0)
+    )
+    return {
+        "state_delta": {
+            "plan_built": True,
+            "plan": plan,
+            "plan_goal_reached": goal_reached,
+            "plan_first_action": plan["first_action"],
+        },
+        "confidence": confidence,
+    }
+
+
+# ─────────────────────────────── OPT: optimización ───────────────────────────
+
+def optimize_choice(state: Mapping[str, Any], *, horizon: int = 3, effort_cost: float = 0.05) -> Dict[str, Any]:
+    """OPT: argmin de un objetivo escalar sobre (intervención, nº de pasos).
+
+    Reemplaza el stub idle. Para cada intervención aplicada k=1..horizon veces
+    proyecta la variable principal y minimiza
+    ``objetivo = término_de_valor + effort_cost·k`` donde el término de valor
+    es x (minimize), 1−x (maximize) — menor es mejor en ambos casos. Devuelve
+    la elección óptima con la tabla de alternativas (explicable). Determinista.
+    """
+    model = _effect_model(state)
+    mv = main_variable(state)
+    direction = optimization_direction(state, resolve_signature(state))
+    obs = _safe_dict(state.get("observation"))
+    x0 = _value(obs, mv)
+
+    if x0 is None or not model:
+        return {
+            "state_delta": {
+                "opt_solved": False,
+                "opt_choice": {"status": "no_model_or_observation"},
+            },
+            "confidence": 0.2,
+        }
+
+    def value_term(x: float) -> float:
+        return x if direction == "minimize" else (1.0 - x)
+
+    alternatives: List[Dict[str, Any]] = []
+    for interv in sorted(model):
+        x = float(x0)
+        for k in range(1, max(1, int(horizon)) + 1):
+            x = min(1.0, max(0.0, x + model[interv]))
+            alternatives.append(
+                {
+                    "intervention": interv,
+                    "steps": k,
+                    "projected": round(x, 6),
+                    "objective": round(value_term(x) + effort_cost * k, 6),
+                }
+            )
+    best = min(alternatives, key=lambda a: (a["objective"], a["steps"], a["intervention"]))
+    baseline = value_term(float(x0))
+    gain = baseline - (best["objective"] - effort_cost * best["steps"])
+    choice = {
+        "status": "ok",
+        "main_variable": mv,
+        "optimization_direction": direction,
+        "x0": round(float(x0), 6),
+        "intervention": best["intervention"],
+        "steps": best["steps"],
+        "projected": best["projected"],
+        "objective": best["objective"],
+        "effort_cost": effort_cost,
+        "alternatives": alternatives,
+    }
+    confidence = _clamp(0.5 + 0.4 * _clamp(gain * 5.0))
+    return {
+        "state_delta": {
+            "opt_solved": True,
+            "opt_choice": choice,
+            "opt_intervention": best["intervention"],
+        },
+        "confidence": confidence,
+    }
+
+
 # ─────────────────────────────── PROB: calibración ───────────────────────────
 
 def _beta_lcb(p: float, n: int, z: float = 1.96) -> float:

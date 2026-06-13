@@ -95,6 +95,7 @@ class EpisodeResult:
 
         # Datos del runtime (estructura real)
         self.runtime_payload = None
+        self.persisted_certificate = None
 
         # Métricas derivadas
         self.certification_verdict = None
@@ -209,6 +210,62 @@ def adapt_runtime_result_to_benchmark(runtime_result: Dict[str, Any]) -> Dict[st
     }
 
     return adapted
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def extract_canon_signal_metrics(
+    runtime_result: Dict[str, Any],
+    certificate: Any = None,
+) -> Dict[str, Any]:
+    """Extrae las señales del canon R1–Ω (recompensa, Ω/IoC*, risk_plus).
+
+    El payload vivo solo trae el bloque de recompensa; los bloques omega/risk_plus
+    viven en la metadata del certificado persistido, que el caller relee de storage
+    y pasa como ``certificate``. Devuelve un dict plano JSON-safe: numéricos para
+    agregación, strings para categóricos. Tolerante a ausencia total (legacy).
+    """
+    signals: Dict[str, Any] = {}
+
+    reward_block = runtime_result.get('reasoning_reward') or {}
+    if isinstance(reward_block, dict) and reward_block:
+        signals['reasoning_reward'] = _safe_float(reward_block.get('reward'))
+        signals['reward_delta_ioc'] = _safe_float(reward_block.get('delta_ioc'))
+        signals['reward_delta_ioc_star'] = _safe_float(reward_block.get('delta_ioc_star'))
+        signals['reward_energy_term'] = _safe_float(reward_block.get('energy_term'))
+        signals['reward_bsafe_penalty'] = _safe_float(reward_block.get('bsafe_penalty'))
+        signals['reward_reasoning_cost'] = _safe_float(reward_block.get('reasoning_cost'))
+        signals['reward_cost_budget'] = _safe_float(reward_block.get('cost_budget'))
+        signals['reward_delta_used'] = reward_block.get('delta_used')
+
+    metadata = getattr(certificate, 'metadata', None) or {}
+    ioc_proxy = _safe_float(getattr(certificate, 'ioc_proxy', None))
+    if ioc_proxy is not None:
+        signals['ioc_proxy'] = ioc_proxy
+
+    omega_block = metadata.get('omega') or {}
+    if isinstance(omega_block, dict) and omega_block:
+        signals['omega'] = _safe_float(omega_block.get('omega'))
+        signals['ioc_star'] = _safe_float(omega_block.get('ioc_star'))
+        signals['omega_pairwise_mean'] = _safe_float(omega_block.get('pairwise_mean'))
+        signals['omega_cycle_error'] = _safe_float((omega_block.get('cycle') or {}).get('error'))
+        signals['omega_cross_context'] = 1.0 if omega_block.get('cross_context') else 0.0
+
+    risk_block = metadata.get('risk_plus') or {}
+    if isinstance(risk_block, dict) and risk_block:
+        signals['risk_delta_ioc'] = _safe_float(risk_block.get('delta_ioc'))
+        signals['risk_cvar_neg_delta_ioc'] = _safe_float(risk_block.get('cvar_neg_delta_ioc'))
+        signals['risk_p_delta_nonneg_lcb'] = _safe_float(risk_block.get('p_delta_nonneg_lcb'))
+        signals['risk_sie_verdict'] = risk_block.get('sie_verdict')
+
+    return signals
 
 
 class BenchmarkRunner:
@@ -378,6 +435,19 @@ class BenchmarkRunner:
             # Guardar payload completo
             result.runtime_payload = runtime_result
 
+            # Releer el certificado persistido (metadata omega/risk_plus no viaja
+            # en el payload vivo). El más reciente del run es el de este episodio.
+            persisted_certificate = None
+            try:
+                certs = storage.list_episode_certificates(
+                    run_id=runtime_result.get('run_id') or self._active_run_id,
+                    limit=1,
+                )
+                persisted_certificate = certs[0] if certs else None
+            except Exception:
+                persisted_certificate = None
+            result.persisted_certificate = persisted_certificate
+
             # Extraer métricas del runtime
             cert_verdict = adapted_result['certification_verdict']
             result.certification_verdict = cert_verdict
@@ -486,6 +556,14 @@ class BenchmarkRunner:
             result.metrics['family_mix_entropy'] = float(family_bundle.get('family_mix_entropy', 0.0))
             result.metrics['family_optional_count'] = int(family_bundle.get('family_optional_count', 0))
             result.metrics['family_optional_used_flag'] = 1.0 if family_bundle.get('family_optional_used_flag') else 0.0
+
+            # Grupo 7: Señales del canon R1–Ω (recompensa semi-Markov, Ω/IoC*, risk_plus)
+            result.metrics.update(
+                extract_canon_signal_metrics(
+                    result.runtime_payload,
+                    certificate=result.persisted_certificate,
+                )
+            )
 
         return result
 

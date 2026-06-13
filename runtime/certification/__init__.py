@@ -1,15 +1,39 @@
 """Certificación episódica y gates de promoción para RNFE."""
 
 from .certificate_builder import CertificateBuilder
+from .coherence_obstruction import (
+    CoherenceObstructionTracker,
+    cycle_error,
+    section_divergence,
+    section_from_certificate,
+    section_from_episode_result,
+)
 from .continuity_guard import ContinuityGuard
 from .ioc_proxy import IoCProxy
 from .promotion_gate import PromotionGate
+from .risk_engine import (
+    EpisodeRiskTracker,
+    agresti_coull_lcb,
+    compute_b_safe,
+    compute_cvar,
+    sie_rule,
+)
 
 __all__ = [
     "CertificateBuilder",
+    "CoherenceObstructionTracker",
     "ContinuityGuard",
+    "EpisodeRiskTracker",
+    "cycle_error",
+    "section_divergence",
+    "section_from_certificate",
+    "section_from_episode_result",
     "IoCProxy",
     "PromotionGate",
+    "agresti_coull_lcb",
+    "compute_b_safe",
+    "compute_cvar",
+    "sie_rule",
     "TransferAssessment",
     "TransferVerdict",
     "assess_transfer",

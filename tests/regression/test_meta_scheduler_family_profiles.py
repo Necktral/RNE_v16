@@ -104,4 +104,9 @@ def test_full_family_exploration_habilita_ind_si_hay_patron_sin_estructura() -> 
             "vram_headroom": 0.7,
         }
     )
-    assert "IND" in set(result["sequence"])
+    # IND queda ADMITIDA por el patrón sin estructura (entra en la propuesta);
+    # bajo presupuesto 10 no caben las 12 familias y el recorte validado protege
+    # el núcleo (sombra/deliberativas se descartan primero, DED nunca).
+    assert "IND" in set(result["proposed_sequence"])
+    executed = set(result["sequence"])
+    assert {"ABD", "ANA", "CAU", "CTF", "DED", "PROB"} <= executed

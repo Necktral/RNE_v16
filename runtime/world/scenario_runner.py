@@ -12,7 +12,9 @@ from uuid import uuid4
 from runtime.certification.promotion_gate import PromotionGate
 from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
+from runtime.organism.autoevolution import AutoEvolutionController
 from runtime.organism.constitution import OrganismConstitution
+from runtime.organism.lineage import LineageState
 from runtime.organism.state import OrganismState, IdentityState, transition_organism_state
 from runtime.organism.trajectory import OrganismTrajectory
 from runtime.organism.viability import ViabilityKernel
@@ -44,6 +46,8 @@ class ScenarioEpisodeRunner:
         scenario_kwargs: Dict[str, Any] | None = None,
         memory_filter_mode: str = "strict_same_scenario",
         closure_profile: str = "baseline_fixed",
+        organism_state: OrganismState | None = None,
+        lineage: LineageState | None = None,
     ):
         """Inicializa runner con escenario especificado.
 
@@ -56,6 +60,9 @@ class ScenarioEpisodeRunner:
                 ('strict_same_scenario' o 'cross_scenario_analogical').
                 El alias 'analogical' se normaliza automáticamente.
             closure_profile: Perfil de cierre a usar ('baseline_fixed' o 'adaptive_min').
+            organism_state: Estado inicial del organismo (para continuar una vida
+                a través de varios runners/regímenes, p. ej. el life-loop).
+            lineage: LineageState compartido para continuidad generacional.
         """
         self.storage = storage or get_storage()
         self.run_id = run_id or f"run-{uuid4()}"
@@ -102,7 +109,7 @@ class ScenarioEpisodeRunner:
         self._previous_belief: BeliefState | None = None
 
         # T5 SOVEREIGNTY: Initialize organism trajectory as primary runtime unit
-        self._organism_state = OrganismState(
+        self._organism_state = organism_state or OrganismState(
             state_id=f"state-0-{self.run_id}",
             timestamp=utc_now_iso(),
             active_regime="unknown",
@@ -118,6 +125,60 @@ class ScenarioEpisodeRunner:
         )
         self._constitution = OrganismConstitution()
         self._viability_kernel = ViabilityKernel(constitution=self._constitution)
+
+        # R2 — vida: linaje activo (μₜ) + lazo de autoevolución (ρₜ).
+        # Los mandos (knobs) son parámetros de comportamiento REALES del runner;
+        # el controlador solo actúa bajo degradación sostenida, así que los
+        # baselines sanos quedan numéricamente intactos.
+        self.memory_retrieval_limit = 3
+        if lineage is not None:
+            self._lineage = lineage
+        else:
+            self._lineage = LineageState(lineage_id=f"lineage-{self.run_id}")
+            self._lineage.record_genesis(self._constitution, timestamp=utc_now_iso())
+        self._autoevolution = AutoEvolutionController(
+            run_id=self.run_id,
+            storage=self.storage,
+            lineage=self._lineage,
+            knob_reader=lambda: {
+                "memory_retrieval_limit": self.memory_retrieval_limit,
+                "memory_filter_mode": self.memory_filter_mode,
+            },
+            knob_writer=self._apply_knob_changes,
+        )
+
+        # Multiplicación de ganancia (canon §8): selector de overlays guiado por
+        # la recompensa semi-Markov. Apagado por defecto (disciplina sombra);
+        # se activa con RNFE_REWARD_GUIDED_SELECTION=1.
+        from runtime.reasoning.scheduler_meta.reward_guided import (
+            RewardGuidedOverlaySelector,
+            is_reward_guided_enabled,
+        )
+
+        self._reward_guided: RewardGuidedOverlaySelector | None = (
+            RewardGuidedOverlaySelector(storage=self.storage)
+            if is_reward_guided_enabled()
+            else None
+        )
+
+    def _apply_knob_changes(self, changes: Dict[str, Any]) -> None:
+        """Aplica una modificación aceptada sobre los mandos reales del runner."""
+        if "memory_retrieval_limit" in changes:
+            self.memory_retrieval_limit = max(1, int(changes["memory_retrieval_limit"]))
+        if "memory_filter_mode" in changes:
+            mode = str(changes["memory_filter_mode"])
+            if mode in {"strict_same_scenario", "cross_scenario_analogical"}:
+                self.memory_filter_mode = mode
+
+    @property
+    def organism_state(self) -> OrganismState:
+        """Estado vivo del organismo (para continuarlo en otro runner/régimen)."""
+        return self._organism_state
+
+    @property
+    def lineage(self) -> LineageState:
+        """Linaje del organismo (continuidad generacional)."""
+        return self._lineage
 
     def _build_scenario_metadata(self) -> Dict[str, Any]:
         """Construye metadata formal del escenario activo.
@@ -205,7 +266,7 @@ class ScenarioEpisodeRunner:
                 "proposition": main_proposition,
                 "alarm": observation.alarm,
             },
-            limit=3,
+            limit=self.memory_retrieval_limit,
             scenario_name=scenario_metadata["scenario_name"],
             scenario_filter_mode=self.memory_filter_mode,
         )
@@ -265,24 +326,27 @@ class ScenarioEpisodeRunner:
         belief_input = asdict(self._previous_belief) if self._previous_belief else None
 
         # 9. Ejecutar scheduler de razonamiento
-        reasoning = self.scheduler.run(
-            build_reasoning_context(
-                episode_id=episode_id,
-                run_id=self.run_id,
-                observation=observation_dict,
-                intervention=intervention,
-                formula=formula,
-                memory_hits=memory_hits,
-                counterfactual=counterfactual_dict,
-                updated_world=updated_world,
-                relation_kind=relation_kind,
-                scenario=self.scenario.config.name,
-                scenario_metadata=scenario_metadata,
-                belief_state=belief_input,
-                closure_profile=self.closure_profile,
-                reasoning_mode=self.reasoning_mode,
-            )
+        reasoning_context = build_reasoning_context(
+            episode_id=episode_id,
+            run_id=self.run_id,
+            observation=observation_dict,
+            intervention=intervention,
+            formula=formula,
+            memory_hits=memory_hits,
+            counterfactual=counterfactual_dict,
+            updated_world=updated_world,
+            relation_kind=relation_kind,
+            scenario=self.scenario.config.name,
+            scenario_metadata=scenario_metadata,
+            belief_state=belief_input,
+            closure_profile=self.closure_profile,
+            reasoning_mode=self.reasoning_mode,
         )
+        overlay_directives: Dict[str, str] | None = None
+        if self._reward_guided is not None:
+            overlay_directives = self._reward_guided.directives(self.run_id)
+            reasoning_context["overlay_directives"] = overlay_directives
+        reasoning = self.scheduler.run(reasoning_context)
 
         # 10. Construir payload de episodio
         factual_delta = float(factual.state.get(self.scenario.config.main_variable, 0.0)) - float(
@@ -416,6 +480,77 @@ class ScenarioEpisodeRunner:
         certification = self.promotion_gate.process_episode(
             run_id=self.run_id,
             episode_result=episode_result,
+        )
+
+        # 13b. R2 — lazo de autoevolución (ρₜ): el organismo observa su propio
+        # certificado y decide si proponerse una modificación, monitorear una
+        # activa, o ejecutar rollback al último checkpoint sano.
+        evolution = self._autoevolution.observe_episode(
+            organism_state=self._organism_state,
+            episode_result=episode_result,
+            certificate_metadata=certification["certificate"].metadata,
+            certificate_verdict=certification["certificate"].verdict,
+        )
+        restored_state = evolution.pop("restored_state", None)
+        if restored_state is not None:
+            self._organism_state = restored_state
+        episode_result["autoevolution"] = evolution
+        episode_result["lineage"] = self._lineage.to_dict()
+
+        # 13c. R3 — recompensa semi-Markov del razonamiento: el escalar de control
+        # r = ΔIoC − λE·(coste/presupuesto) − λB·B_safe, reusando ΔIoC y B_safe del
+        # certificado (R1) y el coste del trace. Se adjunta, persiste y — con
+        # RNFE_REWARD_GUIDED_SELECTION=1 — GOBIERNA la ecología opcional del
+        # siguiente episodio (selector guiado-por-recompensa).
+        from runtime.reasoning.scheduler_meta.reward import (
+            compute_episode_reward,
+            reasoning_cost_from_trace,
+        )
+
+        cert_meta = certification["certificate"].metadata or {}
+        cert_risk_plus = cert_meta.get("risk_plus") or {}
+        reasoning_reward = compute_episode_reward(
+            delta_ioc=cert_risk_plus.get("delta_ioc"),
+            delta_ioc_star=(cert_meta.get("omega") or {}).get("delta_ioc_star"),
+            reasoning_cost=reasoning_cost_from_trace(reasoning.get("trace") or []),
+            cost_budget=reasoning.get("effective_max_steps"),
+            b_safe=cert_risk_plus.get("b_safe"),
+        )
+        episode_result["reasoning_reward"] = reasoning_reward
+        executed_overlays: list = []
+        if self._reward_guided is not None:
+            executed_overlays = self._reward_guided.overlays_from_sequence(
+                reasoning.get("sequence") or []
+            )
+            self._reward_guided.observe(
+                run_id=self.run_id,
+                reward_block=reasoning_reward,
+                executed_sequence=reasoning.get("sequence") or [],
+            )
+            episode_result["reward_guided"] = {
+                "directives": overlay_directives or {},
+                "executed_overlays": executed_overlays,
+                **self._reward_guided.summary(self.run_id),
+            }
+        self.storage.append_event(
+            event_type="reasoning.reward",
+            run_id=self.run_id,
+            source="meta_scheduler",
+            payload={
+                "episode_id": episode_id,
+                **reasoning_reward,
+                # Overlays activos del episodio: permiten re-sembrar la evidencia
+                # del selector guiado-por-recompensa entre runners del mismo run.
+                "optional_overlays_active": self._reward_guided.overlays_from_sequence(
+                    reasoning.get("sequence") or []
+                )
+                if self._reward_guided is not None
+                else [
+                    family.lower()
+                    for family in (reasoning.get("sequence") or [])
+                    if family.lower() not in {"abd", "ana", "cau", "ctf", "ded", "prob"}
+                ],
+            },
         )
 
         # 14. EML shadow (opcional)

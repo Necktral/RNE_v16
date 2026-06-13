@@ -30,6 +30,7 @@ from .regime_renormalization import (
     RenormalizationResult,
     RenormalizationUncertainty,
 )
+from .autoevolution import AutoEvolutionController
 from .failure_atlas import FailureAtlas, FailureClass, FailureSignature, detect_failure_atlas
 from .risk_process import (
     ConstitutionalRiskProcess,
@@ -42,6 +43,7 @@ from .risk_process import (
 from .viability_kernel import TrajectoryViabilityAssessment, TrajectoryViabilityKernel
 
 __all__ = [
+    "AutoEvolutionController",
     "BeliefHistory",
     "BeliefProjectionField",
     "ConstitutionalFlowEngine",

@@ -12,8 +12,10 @@ from runtime.reality.evaluator import evaluate_episode_closure
 from runtime.storage import StorageFacade
 
 from .certificate_builder import CertificateBuilder
+from .coherence_obstruction import CoherenceObstructionTracker
 from .continuity_guard import ContinuityGuard
 from .ioc_proxy import IoCProxy
+from .risk_engine import EpisodeRiskTracker, sample_b_safe_telemetry
 
 
 class PromotionGate:
@@ -22,6 +24,8 @@ class PromotionGate:
         self.builder = CertificateBuilder(storage=storage)
         self.continuity_guard = ContinuityGuard()
         self.ioc_proxy = IoCProxy()
+        self.risk_tracker = EpisodeRiskTracker(storage=storage)
+        self.omega_tracker = CoherenceObstructionTracker(storage=storage)
         self.memory_store = EpisodeMemoryStore(storage=storage)
         self.condenser = MFMCondenser()
         self.macro_promotion = MacroPromotion(storage=storage)
@@ -75,6 +79,26 @@ class PromotionGate:
             trace_integrity=closure["trace_integrity"],
             collapse_detected=collapse_detected,
             uncertainty=uncertainty,
+        )
+
+        # Ωₜ: obstrucción de coherencia multi-contexto + IoC* (modo sombra)
+        omega = self.omega_tracker.assess(
+            run_id=run_id,
+            episode_result=episode_result,
+            ioc_value=ioc_value,
+        )
+
+        # Riesgo de cola 𝔠ₜ⁺ (modo sombra: no altera el veredicto existente)
+        risk_plus = self.risk_tracker.assess(
+            run_id=run_id,
+            ioc_value=ioc_value,
+            hard_violation_count=int(
+                (episode_result.get("constitutional_validation") or {}).get(
+                    "hard_violation_count", 0
+                )
+                or 0
+            ),
+            b_safe=sample_b_safe_telemetry(),
         )
 
         # Transfer assessment
@@ -178,6 +202,8 @@ class PromotionGate:
             trace_integrity=closure["trace_integrity"],
             collapse_detected=collapse_detected,
             transfer_assessment=transfer_metadata,
+            risk_plus=risk_plus,
+            omega=omega,
         )
         if t5_result is not None and t5_mode == "on":
             max_t4_risk = max(

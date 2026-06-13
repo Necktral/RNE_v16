@@ -10,6 +10,9 @@ CORE_SEQUENCE: List[str] = ["abd", "ana", "cau", "ctf", "ded", "prob"]
 BACKBONE_FAMILIES: List[str] = list(CORE_SEQUENCE)
 AUGMENTER_FAMILIES: List[str] = ["heur", "dia_adv", "fal_guard"]
 CONDITIONAL_SHADOW_FAMILIES: List[str] = ["ind", "eml_sr"]
+# Deliberativas (R3b): planificación/optimización sobre el modelo de efectos
+# declarado de la firma causal. Solo entran vía perfiles que las incluyan.
+DELIBERATIVE_FAMILIES: List[str] = ["plan", "opt"]
 EXTERNAL_EXPERIMENTAL_FAMILIES: List[str] = ["ext_open_thinker"]
 OPTIONAL_FAMILIES: List[str] = list(AUGMENTER_FAMILIES) + list(CONDITIONAL_SHADOW_FAMILIES)
 TRACKED_OPTIONAL_FAMILIES: List[str] = list(OPTIONAL_FAMILIES) + list(EXTERNAL_EXPERIMENTAL_FAMILIES)
@@ -212,9 +215,37 @@ PROFILES: Dict[str, FamilyProfile] = {
     "full_family_exploration": FamilyProfile(
         name="full_family_exploration",
         core_sequence=list(CORE_SEQUENCE),
-        optional_families=["heur", "dia_adv", "fal_guard", "ind", "eml_sr"],
+        optional_families=["heur", "dia_adv", "fal_guard", "ind", "eml_sr", "plan", "opt"],
         adaptive=True,
         description="Exploración amplia con guardas y trazabilidad.",
+    ),
+    "core_plus_deliberative": FamilyProfile(
+        name="core_plus_deliberative",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=list(DELIBERATIVE_FAMILIES),
+        adaptive=False,
+        description="Core + planificación y optimización deliberativas (R3b).",
+    ),
+    "core_plus_ind": FamilyProfile(
+        name="core_plus_ind",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["ind"],
+        adaptive=False,
+        description="Core + inducción empírica (aislamiento por familia).",
+    ),
+    "core_plus_plan": FamilyProfile(
+        name="core_plus_plan",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["plan"],
+        adaptive=False,
+        description="Core + planificación deliberativa (aislamiento por familia).",
+    ),
+    "core_plus_opt": FamilyProfile(
+        name="core_plus_opt",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["opt"],
+        adaptive=False,
+        description="Core + optimización deliberativa (aislamiento por familia).",
     ),
 }
 

@@ -171,6 +171,8 @@ class MetaScheduler:
             }
         else:
             allow_experimental = is_eml_experimental_enabled()
+            raw_directives = state.get("overlay_directives")
+            overlay_directives = dict(raw_directives) if isinstance(raw_directives, dict) else None
             selected, scores, recommended, policy_meta = select_sequence(
                 features=features,
                 budget=budget,
@@ -179,6 +181,7 @@ class MetaScheduler:
                 profile_name=requested_profile,
                 regime_hint=regime_hint,
                 return_metadata=True,
+                overlay_directives=overlay_directives,
             )
 
         traces: List[ReasoningTraceStep] = []
@@ -188,6 +191,14 @@ class MetaScheduler:
         validated_sequence = list(policy_meta.get("validated_sequence") or [])
         mandatory_floor = list(policy_meta.get("mandatory_family_floor") or [])
         effective_max_steps = int(policy_meta.get("effective_max_steps") or budget["max_steps"])
+        # Ejecutar la secuencia VALIDADA: la corrección del validador es el
+        # contrato de cierre; ejecutar la propuesta sin corregir rompe el cierre
+        # que la certificación luego cobra (p.ej. un overlay expulsando a DED
+        # bajo presupuesto corto). Kill-switch forense: RNFE_EXECUTE_PROPOSED_SEQUENCE=1.
+        if validated_sequence and os.environ.get("RNFE_EXECUTE_PROPOSED_SEQUENCE") != "1":
+            validated_lower = [family.lower() for family in validated_sequence if family]
+            if validated_lower != list(selected):
+                selected = validated_lower
         for step_index, family in enumerate(selected):
             module = import_module(f"runtime.reasoning.families.{family}")
             state["_meta"] = {

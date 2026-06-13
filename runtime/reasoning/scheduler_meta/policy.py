@@ -10,6 +10,7 @@ from .family_profiles import (
     BACKBONE_FAMILIES,
     CONDITIONAL_SHADOW_FAMILIES,
     CORE_SEQUENCE,
+    DELIBERATIVE_FAMILIES,
     EXT_OPEN_THINKER_ADMISSION,
     resolve_family_profile,
 )
@@ -28,7 +29,7 @@ SAFE_FALLBACK_PROFILES: Dict[str, str] = {
     "heterogeneous_warning": "core_plus_guard",
     "viability_edge": "core_plus_guard",
 }
-OVERLAY_INSERTION_ORDER = ["heur", "ind", "dia_adv", "eml_sr", "ext_open_thinker", "fal_guard"]
+OVERLAY_INSERTION_ORDER = ["heur", "ind", "dia_adv", "plan", "opt", "eml_sr", "ext_open_thinker", "fal_guard"]
 
 
 def _clamp(value: Any, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -140,6 +141,16 @@ def _base_score_map(features: Dict[str, float]) -> Dict[str, float]:
             + (0.24 * _clamp(features.get("contradiction_signal", 0.0)))
             + (0.18 * _clamp(features.get("viability_edge_signal", 0.0)))
         ),
+        "plan": (
+            0.10
+            + (0.30 * _clamp(features.get("viability_edge_signal", 0.0)))
+            + (0.12 * _clamp(features.get("world_level_signal", 0.0)))
+        ),
+        "opt": (
+            0.10
+            + (0.28 * _clamp(features.get("causal_risk", 0.0)))
+            + (0.12 * _clamp(features.get("viability_edge_signal", 0.0)))
+        ),
     }
 
 
@@ -232,7 +243,42 @@ def _should_activate_optional(
                 or _clamp(features.get("law_fit_signal", 0.0)) >= 0.40
             )
         )
+    if family == "plan":
+        return (
+            regime_label == "viability_edge"
+            or _clamp(features.get("viability_edge_signal", 0.0)) >= 0.60
+        )
+    if family == "opt":
+        return (
+            _clamp(features.get("causal_risk", 0.0)) >= 0.50
+            or regime_label == "viability_edge"
+        )
     return False
+
+
+def _apply_overlay_directives(
+    optional_families: List[str],
+    overlay_directives: Dict[str, str] | None,
+    *,
+    allowed: List[str] | None = None,
+) -> List[str]:
+    """Aplica directivas on/off del selector guiado-por-recompensa.
+
+    Solo gobierna familias opcionales: ``off`` las retira, ``on`` las fuerza
+    si el perfil las permite (``allowed``). El núcleo nunca pasa por aquí.
+    """
+    if not overlay_directives:
+        return optional_families
+    normalized = {
+        str(family).strip().lower(): str(action).strip().lower()
+        for family, action in overlay_directives.items()
+    }
+    out = [family for family in optional_families if normalized.get(family) != "off"]
+    allowed_set = set(allowed if allowed is not None else optional_families)
+    for family, action in normalized.items():
+        if action == "on" and family in allowed_set and family not in out:
+            out.append(family)
+    return out
 
 
 def _sequence_for_non_adaptive_profile(
@@ -241,7 +287,14 @@ def _sequence_for_non_adaptive_profile(
     core_sequence: List[str],
     optional_families: List[str],
 ) -> List[str]:
-    if profile_name in {"core_plus_external_reasoner", "core_plus_external_reasoner_guarded"}:
+    if profile_name in {
+        "core_plus_external_reasoner",
+        "core_plus_external_reasoner_guarded",
+        "core_plus_deliberative",
+        "core_plus_ind",
+        "core_plus_plan",
+        "core_plus_opt",
+    }:
         sequence, _ = _compose_core_protected_sequence(
             overlays=optional_families,
             effective_max_steps=len(core_sequence) + len(optional_families),
@@ -295,6 +348,16 @@ def _should_activate_shadow(
         return allow_experimental and (
             _clamp(features.get("symbolic_regularity", 0.0)) >= 0.40
             or _clamp(features.get("law_fit_signal", 0.0)) >= 0.40
+        )
+    if family == "plan":
+        return (
+            regime_label == "viability_edge"
+            or _clamp(features.get("viability_edge_signal", 0.0)) >= 0.60
+        )
+    if family == "opt":
+        return (
+            _clamp(features.get("causal_risk", 0.0)) >= 0.50
+            or regime_label == "viability_edge"
         )
     return False
 
@@ -385,6 +448,10 @@ def _insert_overlay(sequence: List[str], family: str) -> List[str]:
         anchor = "ctf"
     elif family == "fal_guard":
         anchor = "ded"
+    elif family == "plan":
+        anchor = "ctf"
+    elif family == "opt":
+        anchor = "plan" if "plan" in seq else "ctf"
     else:
         anchor = "abd"
 
@@ -414,7 +481,12 @@ def _compose_core_protected_sequence(
 
     dropped_for_budget: List[str] = []
     if trim_to_budget and len(sequence) > effective_max_steps:
-        shadow_drop = [family for family in CONDITIONAL_SHADOW_FAMILIES if family in overlay_pool]
+        # Deliberativas se descartan primero junto a las shadow si no hay budget.
+        shadow_drop = [
+            family
+            for family in list(CONDITIONAL_SHADOW_FAMILIES) + list(DELIBERATIVE_FAMILIES)
+            if family in overlay_pool
+        ]
         conditional_drop = [
             family for family in overlay_pool
             if family in AUGMENTER_FAMILIES and family not in set(default_overlays)
@@ -493,6 +565,17 @@ def _validate_partial_order(
         if "ded" in index and index["fal_guard"] <= index["ded"]:
             return False
         if "prob" in index and index["fal_guard"] >= index["prob"]:
+            return False
+    if "plan" in index:
+        if "ctf" in index and index["plan"] <= index["ctf"]:
+            return False
+        if "prob" in index and index["plan"] >= index["prob"]:
+            return False
+    if "opt" in index:
+        opt_anchor = "plan" if "plan" in index else "ctf"
+        if opt_anchor in index and index["opt"] <= index[opt_anchor]:
+            return False
+        if "prob" in index and index["opt"] >= index["prob"]:
             return False
     return True
 
@@ -764,10 +847,16 @@ def _legacy_adaptive_sequence(
     allow_experimental: bool,
     scores: Dict[str, float],
     max_steps: int,
+    overlay_directives: Dict[str, str] | None = None,
 ) -> List[str]:
     max_steps = max(max_steps, len(core_sequence))
     core = list(core_sequence)
     optional_candidates = list(optional_families)
+    forced_on = {
+        str(family).strip().lower()
+        for family, action in (overlay_directives or {}).items()
+        if str(action).strip().lower() == "on"
+    }
     activated_optional: List[str] = []
     if profile_name == "full_family_exploration":
         activated_optional = sorted(
@@ -776,7 +865,7 @@ def _legacy_adaptive_sequence(
         )
     else:
         for family in optional_candidates:
-            if _should_activate_optional(
+            if family in forced_on or _should_activate_optional(
                 family=family,
                 features=features,
                 regime_label=regime_label,
@@ -815,6 +904,7 @@ def select_sequence(
     profile_name: str | None = None,
     regime_hint: str | None = None,
     return_metadata: bool = False,
+    overlay_directives: Dict[str, str] | None = None,
 ) -> Tuple[List[str], Dict[str, float], str] | Tuple[List[str], Dict[str, float], str, Dict[str, Any]]:
     active_mode = (mode or "fixed").strip().lower()
     profile = resolve_family_profile(profile_name, mode=active_mode)
@@ -839,11 +929,16 @@ def select_sequence(
     )
 
     if active_mode != "adaptive" and not profile.adaptive:
-        effective_max_steps = max(requested_max_steps, len(profile.core_sequence) + len(profile.optional_families))
+        effective_optional = _apply_overlay_directives(
+            [fam for fam in profile.optional_families if fam in allowed],
+            overlay_directives,
+            allowed=[fam for fam in profile.optional_families if fam in allowed],
+        )
+        effective_max_steps = max(requested_max_steps, len(profile.core_sequence) + len(effective_optional))
         sequence = _sequence_for_non_adaptive_profile(
             profile_name=profile.name,
             core_sequence=profile.core_sequence,
-            optional_families=[fam for fam in profile.optional_families if fam in allowed],
+            optional_families=effective_optional,
         )
         validation = validate_reasoning_sequence(
             proposed_sequence=sequence,
@@ -853,8 +948,8 @@ def select_sequence(
             cognitive_regime_label=regime_labels["cognitive_regime_label"],
             floor_regime_label=regime_labels["floor_regime_label"],
             mandatory_family_floor=mandatory_family_floor(regime_labels["floor_regime_label"]),
-            default_overlays=[fam for fam in profile.optional_families if fam in allowed],
-            admitted_overlays=[fam for fam in profile.optional_families if fam in allowed],
+            default_overlays=effective_optional,
+            admitted_overlays=effective_optional,
             scores=scores,
             allow_experimental=allow_experimental,
             features=features,
@@ -877,12 +972,17 @@ def select_sequence(
         sequence = _legacy_adaptive_sequence(
             profile_name=profile.name,
             core_sequence=profile.core_sequence,
-            optional_families=[family for family in profile.optional_families if family in allowed],
+            optional_families=_apply_overlay_directives(
+                [family for family in profile.optional_families if family in allowed],
+                overlay_directives,
+                allowed=[family for family in profile.optional_families if family in allowed],
+            ),
             features=features,
             regime_label=regime_labels["primary_regime_label"],
             allow_experimental=allow_experimental,
             scores=scores,
             max_steps=effective_max_steps,
+            overlay_directives=overlay_directives,
         )
         validation = validate_reasoning_sequence(
             proposed_sequence=sequence,

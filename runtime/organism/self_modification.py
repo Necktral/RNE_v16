@@ -166,6 +166,8 @@ class SelfModificationPipeline:
         proposal: ModificationProposal,
         current_state: OrganismState,
         apply_fn: Any | None = None,
+        n_historical: int = 0,
+        historical_success_rate: float | None = None,
     ) -> SandboxResult:
         """Simula la modificación en sandbox constitucional.
 
@@ -174,6 +176,10 @@ class SelfModificationPipeline:
             current_state: Estado actual del organismo.
             apply_fn: Función que aplica la modificación al estado
                       (opcional; si None, simula con estado actual).
+            n_historical: Episodios históricos observados (evidencia E del
+                posterior; sin evidencia el LCB nunca alcanza el umbral de
+                aceptación — el organismo debe ganarse el derecho a mutar).
+            historical_success_rate: Tasa de éxito histórica (certificación).
 
         Returns:
             SandboxResult con verificación constitucional y viabilidad.
@@ -196,6 +202,8 @@ class SelfModificationPipeline:
             state=simulated,
             constitutional_validation=const_check,
             viability_assessment=viab_check,
+            n_historical=n_historical,
+            historical_success_rate=historical_success_rate,
         )
 
         # Determine verdict
@@ -228,6 +236,8 @@ class SelfModificationPipeline:
         proposal: ModificationProposal,
         current_state: OrganismState,
         apply_fn: Any | None = None,
+        n_historical: int = 0,
+        historical_success_rate: float | None = None,
     ) -> ModificationDecision:
         """Pipeline completo: precheck → sandbox → decision.
 
@@ -235,6 +245,8 @@ class SelfModificationPipeline:
             proposal: Propuesta a evaluar.
             current_state: Estado actual.
             apply_fn: Función de aplicación.
+            n_historical: Evidencia histórica (episodios observados).
+            historical_success_rate: Tasa de éxito histórica.
 
         Returns:
             ModificationDecision.
@@ -266,6 +278,8 @@ class SelfModificationPipeline:
             proposal=proposal,
             current_state=current_state,
             apply_fn=apply_fn,
+            n_historical=n_historical,
+            historical_success_rate=historical_success_rate,
         )
 
         # Step 3: Build decision
