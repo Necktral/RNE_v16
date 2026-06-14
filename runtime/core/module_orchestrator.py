@@ -210,7 +210,7 @@ class Orchestrator:
             'posterior.inference.0': 'posterior.inference.2'
         }
         self.neurogenesis_manager = NeurogenesisManager(
-            model=self.combined_model, 
+            model=self.combined_model,
             layers_to_expand=layers_to_expand,
             dependent_layers=dependent_layers
         )
