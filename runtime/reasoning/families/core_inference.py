@@ -308,6 +308,40 @@ def analogize(state: Mapping[str, Any]) -> Dict[str, Any]:
 
 # ─────────────────────────────── IND: inducción ──────────────────────────────
 
+_TRANSFER_VERDICTS_OK = {"certified_transfer_safe", "certified_analogical_only"}
+
+
+def _best_inherited_rule(inherited_rules: Any) -> "tuple[str | None, float] | None":
+    """Mejor regla transferida usable: (best_intervention, confianza_atenuada).
+
+    Confianza = confidence_lcb · (1 − info_loss) · overall_score. Solo cuenta si
+    el veredicto de transferencia es ≥ analógico. Devuelve None si no hay ninguna.
+    """
+    if not isinstance(inherited_rules, (list, tuple)) or not inherited_rules:
+        return None
+    best: "tuple[str | None, float] | None" = None
+    for entry in inherited_rules:
+        if not isinstance(entry, Mapping):
+            continue
+        iv = entry.get("best_intervention")
+        if not iv:
+            continue
+        transfer = entry.get("transfer") if isinstance(entry.get("transfer"), Mapping) else {}
+        verdict = transfer.get("verdict") or entry.get("transfer_verdict")
+        if verdict is not None and verdict not in _TRANSFER_VERDICTS_OK:
+            continue
+        lcb = entry.get("confidence_lcb")
+        lcb = float(lcb) if isinstance(lcb, (int, float)) else 0.0
+        info_loss = transfer.get("info_loss", 0.0)
+        info_loss = float(info_loss) if isinstance(info_loss, (int, float)) else 0.0
+        overall = transfer.get("overall_score", 1.0)
+        overall = float(overall) if isinstance(overall, (int, float)) else 1.0
+        attenuated = lcb * max(0.0, 1.0 - info_loss) * max(0.0, min(1.0, overall))
+        if best is None or attenuated > best[1]:
+            best = (str(iv), attenuated)
+    return best
+
+
 def induce(state: Mapping[str, Any]) -> Dict[str, Any]:
     """IND: induce una regularidad general a partir de ejemplos + firma causal.
 
@@ -389,6 +423,24 @@ def induce(state: Mapping[str, Any]) -> Dict[str, Any]:
         }
         confidence = _clamp(0.40 + 0.12 * len(generalized))
         law_fit = _clamp(0.20 + 0.10 * len(generalized))
+
+        # 2b) Regla transferida por la ecología multi-organismo: sin memoria
+        # empírica propia, una regla certificada de un par (transportada por el
+        # morfismo causal) sirve de prior. Atenuada por (1−info_loss)·overall_score
+        # y solo si el veredicto de transferencia es ≥ analógico. No reescribe el
+        # comportamiento sin ecología (inherited_rules ausente ⇒ rama intacta).
+        inherited = _best_inherited_rule(state.get("inherited_rules"))
+        if inherited is not None:
+            iv, transferred_conf = inherited
+            if iv and transferred_conf > confidence:
+                rule["source"] = "transferred"
+                rule["best_intervention"] = iv
+                rule["transferred_confidence"] = round(transferred_conf, 4)
+                if iv not in generalized:
+                    generalized.insert(0, iv)
+                    rule["generalized_interventions"] = generalized
+                confidence = _clamp(transferred_conf)
+                law_fit = _clamp(max(law_fit, 0.30))
 
     generalization = (
         f"alarm={alarm} & interv='{rule.get('best_intervention')}' "

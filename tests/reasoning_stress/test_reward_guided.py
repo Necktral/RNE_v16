@@ -190,9 +190,70 @@ class TestRewardGuidedSelector:
             run_id="r", reward_block={"reward": -0.1}, executed_sequence=["ABD", "PLAN"]
         )
         block = selector.summary("r")
-        assert block["schema"] == "reward_guided.v1"
+        assert block["schema"] == "reward_guided.v2"
         assert block["n_observations"] == 1
         json.dumps(block)
+
+
+class TestRegimeStratification:
+    def _feed(self, selector, run_id, regime, family_reward, base_reward):
+        # 2 episodios con familia y 2 sin, en un régimen dado.
+        for _ in range(2):
+            selector.observe(
+                run_id=run_id,
+                reward_block={"reward": family_reward},
+                executed_sequence=["ABD", "PLAN"],
+                regime=regime,
+            )
+            selector.observe(
+                run_id=run_id, reward_block={"reward": base_reward},
+                executed_sequence=["ABD"], regime=regime,
+            )
+
+    def test_directives_differ_by_regime(self):
+        sel = RewardGuidedOverlaySelector(candidates=["plan"], epsilon=0.005, min_obs=2, max_active=2)
+        # PLAN paga en viability_edge (+0.1 vs 0.0) y resta en homogeneous_safe (−0.1 vs 0.0).
+        self._feed(sel, "r", "viability_edge", family_reward=0.1, base_reward=0.0)
+        self._feed(sel, "r", "homogeneous_safe", family_reward=-0.1, base_reward=0.0)
+        assert sel.directives("r", regime="viability_edge")["plan"] == "on"
+        assert sel.directives("r", regime="homogeneous_safe")["plan"] == "off"
+
+    def test_summary_reports_regimes_seen(self):
+        sel = RewardGuidedOverlaySelector(candidates=["plan"])
+        sel.observe(run_id="r", reward_block={"reward": 0.0},
+                    executed_sequence=["ABD"], regime="viability_edge")
+        block = sel.summary("r")
+        assert "viability_edge" in block["regimes_seen"]
+
+
+class TestMergeFrom:
+    def test_merge_copies_observations(self):
+        donor = RewardGuidedOverlaySelector(candidates=["plan"])
+        for _ in range(3):
+            donor.observe(run_id="d", reward_block={"reward": 0.1},
+                          executed_sequence=["ABD", "PLAN"], regime="viability_edge")
+        recipient = RewardGuidedOverlaySelector(candidates=["plan"])
+        merged = recipient.merge_from("r", donor.export_evidence("d"), eligible=True)
+        assert merged == 3
+        assert recipient.summary("r")["n_observations"] == 3
+
+    def test_ineligible_inheritance_blocks_merge(self):
+        donor = RewardGuidedOverlaySelector(candidates=["plan"])
+        donor.observe(run_id="d", reward_block={"reward": 0.1}, executed_sequence=["ABD", "PLAN"])
+        recipient = RewardGuidedOverlaySelector(candidates=["plan"])
+        assert recipient.merge_from("r", donor.export_evidence("d"), eligible=False) == 0
+
+    def test_adversarial_morphism_blocks_merge(self):
+        class _Adversarial:
+            morphism_class = "adversarial"
+
+        donor = RewardGuidedOverlaySelector(candidates=["plan"])
+        donor.observe(run_id="d", reward_block={"reward": 0.1}, executed_sequence=["ABD", "PLAN"])
+        recipient = RewardGuidedOverlaySelector(candidates=["plan"])
+        merged = recipient.merge_from(
+            "r", donor.export_evidence("d"), morphism=_Adversarial(), eligible=True
+        )
+        assert merged == 0
 
 
 class TestRewardGuidedLiveLoop:
@@ -213,7 +274,7 @@ class TestRewardGuidedLiveLoop:
         for _ in range(3):
             result = runner.run_episode()
         block = result["reward_guided"]
-        assert block["schema"] == "reward_guided.v1"
+        assert block["schema"] == "reward_guided.v2"
         assert block["n_observations"] >= 2
         assert isinstance(block["directives"], dict)
         # El núcleo nunca se toca: cierre certificable en todos los episodios.

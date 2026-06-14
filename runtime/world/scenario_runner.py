@@ -24,6 +24,11 @@ from runtime.reality.belief_state import BeliefState, build_belief_state
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
 from runtime.storage.records import utc_now_iso
+from runtime.world.intervention_override import (
+    OverrideDecision,
+    evaluate_override,
+    is_actuation_enabled,
+)
 from runtime.symbolic.eml import EMLRunner
 
 from .scenario import CognitiveScenario, ScenarioObservation
@@ -48,6 +53,7 @@ class ScenarioEpisodeRunner:
         closure_profile: str = "baseline_fixed",
         organism_state: OrganismState | None = None,
         lineage: LineageState | None = None,
+        reward_guided=None,
     ):
         """Inicializa runner con escenario especificado.
 
@@ -156,10 +162,57 @@ class ScenarioEpisodeRunner:
         )
 
         self._reward_guided: RewardGuidedOverlaySelector | None = (
-            RewardGuidedOverlaySelector(storage=self.storage)
-            if is_reward_guided_enabled()
-            else None
+            reward_guided
+            if reward_guided is not None
+            else (
+                RewardGuidedOverlaySelector(storage=self.storage)
+                if is_reward_guided_enabled()
+                else None
+            )
         )
+        # Reglas inducidas transferidas por una ecología multi-organismo
+        # (modo reasoning_policy_plus_rules). None en el camino de un solo organismo.
+        self._inherited_rules: list | None = None
+
+    def _maybe_override_intervention(
+        self,
+        *,
+        reasoning_state: Dict[str, Any],
+        greedy_intervention: str,
+        factual: Any,
+        external_input: float,
+    ) -> "tuple[OverrideDecision, Any]":
+        """Decide el override determinista guardado (sombra: OFF salvo flag).
+
+        Devuelve (decision, candidate_transition). La transición candidata se
+        simula fresca (el contrafactual naive del runner no es la alterna real).
+        """
+        if not is_actuation_enabled():
+            return OverrideDecision(fired=False, guard_reason="actuation_disabled"), None
+        mv = self.scenario.config.main_variable
+        try:
+            direction = str(self.scenario.causal_signature.optimization_direction)
+        except Exception:
+            direction = "minimize"
+        sim_cache: Dict[str, Any] = {}
+
+        def simulate_value(intervention: str) -> float:
+            transition = self.scenario.factual_transition(
+                intervention=intervention, external_input=external_input
+            )
+            sim_cache[intervention] = transition
+            return float(transition.state.get(mv, 0.0))
+
+        decision = evaluate_override(
+            reasoning_state=reasoning_state,
+            allowed_interventions=list(self.scenario.config.interventions),
+            greedy_intervention=greedy_intervention,
+            direction=direction,
+            factual_value=float(factual.state.get(mv, 0.0)),
+            simulate_value=simulate_value,
+        )
+        candidate = sim_cache.get(decision.to_intervention) if decision.fired else None
+        return decision, candidate
 
     def _apply_knob_changes(self, changes: Dict[str, Any]) -> None:
         """Aplica una modificación aceptada sobre los mandos reales del runner."""
@@ -344,9 +397,64 @@ class ScenarioEpisodeRunner:
         )
         overlay_directives: Dict[str, str] | None = None
         if self._reward_guided is not None:
-            overlay_directives = self._reward_guided.directives(self.run_id)
+            overlay_directives = self._reward_guided.directives(
+                self.run_id, regime=self._trajectory_regime_label
+            )
             reasoning_context["overlay_directives"] = overlay_directives
+        # Reglas transferidas por la ecología (modo reasoning_policy_plus_rules):
+        # IND las consulta en su rama a-priori. Sin ecología quedan en None.
+        if self._inherited_rules:
+            reasoning_context["inherited_rules"] = self._inherited_rules
         reasoning = self.scheduler.run(reasoning_context)
+
+        # 9b. Override determinista guardado (actuación del razonamiento). Gated por
+        # RNFE_REASONING_ACTUATES=1 (sombra OFF ⇒ camino nominal byte-idéntico). En
+        # conflicto causal-contrafactual, si una familia recomienda la alterna y la
+        # guarda certifica que es mejor (el contrafactual ya está simulado), se adopta.
+        intervention_override, candidate_transition = self._maybe_override_intervention(
+            reasoning_state=reasoning.get("state") or {},
+            greedy_intervention=intervention,
+            factual=factual,
+            external_input=external_input,
+        )
+        if intervention_override.fired and candidate_transition is not None:
+            # Conmutar: la alterna recomendada (simulada fresca) pasa a ser la
+            # factual; el resultado greedy queda como contrafactual.
+            counterfactual = factual
+            counter_intervention = intervention
+            factual = candidate_transition
+            intervention = intervention_override.to_intervention
+            relation_kind = self.scenario.evaluate_relation_kind(
+                factual=factual, counterfactual=counterfactual
+            )
+            intervention_proposition = self.scenario.get_intervention_proposition(intervention)
+            sign_intervention = self.smg.create_sign(
+                proposition=intervention_proposition,
+                observation_id=observation_ref.observation_id,
+                metadata={"intervention": intervention, "via": "override"},
+            )
+            relation = self.smg.link_signs(
+                source_sign_id=sign_main.sign_id,
+                target_sign_id=sign_intervention.sign_id,
+                kind=relation_kind,
+                metadata={
+                    f"factual_{self.scenario.config.main_variable}": factual.state.get(
+                        self.scenario.config.main_variable
+                    ),
+                    f"counterfactual_{self.scenario.config.main_variable}": counterfactual.state.get(
+                        self.scenario.config.main_variable
+                    ),
+                    "intervention_override": True,
+                },
+            )
+            counterfactual_dict = self.scenario.to_transition_dict(counterfactual)
+            updated_world = self.scenario.to_transition_dict(factual)
+            self.storage.append_event(
+                event_type="reasoning.intervention_override",
+                run_id=self.run_id,
+                source="scenario_episode_runner",
+                payload={"episode_id": episode_id, **intervention_override.to_dict()},
+            )
 
         # 10. Construir payload de episodio
         factual_delta = float(factual.state.get(self.scenario.config.main_variable, 0.0)) - float(
@@ -418,6 +526,7 @@ class ScenarioEpisodeRunner:
             "reasoning": reasoning,
             "artifact": asdict(artifact),
             "run_id": self.run_id,
+            "intervention_override": intervention_override.to_dict(),
         }
 
         # 12b. Build and persist belief state
@@ -517,20 +626,22 @@ class ScenarioEpisodeRunner:
             b_safe=cert_risk_plus.get("b_safe"),
         )
         episode_result["reasoning_reward"] = reasoning_reward
-        executed_overlays: list = []
+        executed_overlays = [
+            family.lower()
+            for family in (reasoning.get("sequence") or [])
+            if family.lower() not in {"abd", "ana", "cau", "ctf", "ded", "prob"}
+        ]
         if self._reward_guided is not None:
-            executed_overlays = self._reward_guided.overlays_from_sequence(
-                reasoning.get("sequence") or []
-            )
             self._reward_guided.observe(
                 run_id=self.run_id,
                 reward_block=reasoning_reward,
                 executed_sequence=reasoning.get("sequence") or [],
+                regime=regime,
             )
             episode_result["reward_guided"] = {
                 "directives": overlay_directives or {},
                 "executed_overlays": executed_overlays,
-                **self._reward_guided.summary(self.run_id),
+                **self._reward_guided.summary(self.run_id, regime=regime),
             }
         self.storage.append_event(
             event_type="reasoning.reward",
@@ -538,18 +649,11 @@ class ScenarioEpisodeRunner:
             source="meta_scheduler",
             payload={
                 "episode_id": episode_id,
+                # Overlays activos + régimen: permiten re-sembrar y estratificar la
+                # evidencia del selector guiado-por-recompensa entre runners.
+                "optional_overlays_active": executed_overlays,
+                "regime_label": regime,
                 **reasoning_reward,
-                # Overlays activos del episodio: permiten re-sembrar la evidencia
-                # del selector guiado-por-recompensa entre runners del mismo run.
-                "optional_overlays_active": self._reward_guided.overlays_from_sequence(
-                    reasoning.get("sequence") or []
-                )
-                if self._reward_guided is not None
-                else [
-                    family.lower()
-                    for family in (reasoning.get("sequence") or [])
-                    if family.lower() not in {"abd", "ana", "cau", "ctf", "ded", "prob"}
-                ],
             },
         )
 

@@ -134,6 +134,11 @@ def test_adaptive_family_ecology_activa_opcionales_en_viability_edge(tmp_path: P
         reasoning_mode="adaptive",
         family_profile="adaptive_family_ecology",
         regime_label="viability_edge",
+        # Presupuesto holgado: con la palanca 1 (ejecución de la secuencia
+        # validada) los opcionales solo se EJECUTAN si caben sin desplazar al
+        # núcleo. Con presupuesto ajustado el recorte los quitaría — eso es el
+        # comportamiento correcto, no un fallo; aquí medimos la activación real.
+        reasoning_max_steps=10,
     )
 
     runner.run_benchmark(cfg)
@@ -280,7 +285,9 @@ def test_adaptive_family_ecology_v2_preserva_floor_y_recupera_regimenes_criticos
         summary_v2 = runner.run_benchmark(cfg_v2)
         rows_v2 = _read_jsonl(dir_v2 / "episodes.jsonl")
 
-        assert summary_v1["success_rate"] == 0.0
+        # Con la palanca 1 (ejecución de la secuencia VALIDADA) el perfil legacy v1
+        # ya no rompe el cierre bajo presupuesto ajustado: también cierra. Lo que
+        # distingue a v2 es la garantía de floor/no-desplazamiento, no que v1 falle.
         assert summary_v2["success_rate"] > 0.0
         assert summary_v2["optional_family_usage_rate"] > 0.0
         assert summary_v2["backbone_floor_satisfied_rate"] == 1.0

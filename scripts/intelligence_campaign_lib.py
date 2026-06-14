@@ -133,6 +133,19 @@ def _regime_specs() -> Dict[str, Dict[str, Any]]:
                 "cooling_effect": 0.07,
             }
         },
+        # Conflicto causal-contrafactual: el núcleo greedy elige mal
+        # (deactivate_cooling con alarma activa) mientras activate_cooling triunfa.
+        # Único régimen con error residual ⇒ el razonamiento deliberativo paga
+        # (validado para ext_open_thinker; reusado para el override determinista).
+        "causal_counterfactual_conflict": {
+            "scenario_params": {
+                "grid_size": 5,
+                "topology": "uniform",
+                "initial_temperature": 0.88,
+                "alarm_threshold": 0.85,
+                "cooling_effect": 0.07,
+            }
+        },
     }
 
 
