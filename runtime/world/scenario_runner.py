@@ -28,6 +28,7 @@ from runtime.world.intervention_override import (
     OverrideDecision,
     evaluate_override,
     is_actuation_enabled,
+    outcome_effectiveness,
 )
 from runtime.symbolic.eml import EMLRunner
 
@@ -618,12 +619,24 @@ class ScenarioEpisodeRunner:
 
         cert_meta = certification["certificate"].metadata or {}
         cert_risk_plus = cert_meta.get("risk_plus") or {}
+        # Efectividad del mundo: margen de seguridad del resultado factual
+        # (committed, post-override) en la dirección de optimización. Cierra la
+        # ceguera de ΔIoC*; pesa solo con RNFE_REWARD_LAMBDA_EFFECTIVENESS>0.
+        try:
+            effectiveness = outcome_effectiveness(
+                value=float(factual.state.get(self.scenario.config.main_variable, 0.0)),
+                alarm_threshold=float(self.scenario.config.alarm_threshold),
+                alarm_semantics=str(self.scenario.causal_signature.alarm_semantics),
+            )
+        except Exception:
+            effectiveness = None
         reasoning_reward = compute_episode_reward(
             delta_ioc=cert_risk_plus.get("delta_ioc"),
             delta_ioc_star=(cert_meta.get("omega") or {}).get("delta_ioc_star"),
             reasoning_cost=reasoning_cost_from_trace(reasoning.get("trace") or []),
             cost_budget=reasoning.get("effective_max_steps"),
             b_safe=cert_risk_plus.get("b_safe"),
+            effectiveness=effectiveness,
         )
         episode_result["reasoning_reward"] = reasoning_reward
         executed_overlays = [

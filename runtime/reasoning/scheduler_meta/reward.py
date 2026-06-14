@@ -68,14 +68,27 @@ def compute_episode_reward(
     lambda_energy: Optional[float] = None,
     lambda_bsafe: Optional[float] = None,
     delta_ioc_star: Optional[float] = None,
+    effectiveness: Optional[float] = None,
+    lambda_effectiveness: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """r = ΔIoC* − λ_E·(coste/presupuesto) − λ_B·penalización_B_safe (D_t=0 en R3).
+    """r = ΔIoC* − λ_E·(coste/presupuesto) − λ_B·B_safe + λ_V·efectividad (D_t=0).
 
-    El canon define la recompensa sobre ΔIoC*; si la obstrucción Ωₜ está
-    disponible se usa ``delta_ioc_star``, con fallback al ΔIoC clásico.
+    El canon define la recompensa sobre ΔIoC* (coherencia/cierre). Pero la
+    campaña de conflicto reveló que ΔIoC* es CIEGO a la efectividad del mundo:
+    una familia que resuelve el conflicto (IVC-R ×9.3) tiene Δr<0 porque solo
+    suma coste sin cambiar el cierre. El término de efectividad ``λ_V·efectividad``
+    cierra esa ceguera: ``efectividad`` ∈ [−1,1] es el margen de seguridad del
+    resultado factual en la dirección de optimización (positivo = la acción logró
+    el objetivo). Desactivado por defecto (λ_V=0 ⇒ recompensa byte-idéntica);
+    opt-in vía ``RNFE_REWARD_LAMBDA_EFFECTIVENESS``.
     """
     lam_e = _env_float("RNFE_REWARD_LAMBDA_ENERGY", 0.10) if lambda_energy is None else lambda_energy
     lam_b = _env_float("RNFE_REWARD_LAMBDA_BSAFE", 0.50) if lambda_bsafe is None else lambda_bsafe
+    lam_v = (
+        _env_float("RNFE_REWARD_LAMBDA_EFFECTIVENESS", 0.0)
+        if lambda_effectiveness is None
+        else lambda_effectiveness
+    )
 
     if isinstance(delta_ioc_star, (int, float)):
         d, delta_used = float(delta_ioc_star), "delta_ioc_star"
@@ -86,19 +99,24 @@ def compute_episode_reward(
     budget = max(1.0, float(cost_budget or 1.0))
     energy_term = lam_e * min(1.0, max(0.0, float(reasoning_cost)) / budget)
     bsafe_penalty = _b_safe_penalty(b_safe, lam_b)
-    reward = d - energy_term - bsafe_penalty
+    eff = 0.0 if not isinstance(effectiveness, (int, float)) else max(-1.0, min(1.0, float(effectiveness)))
+    effectiveness_term = lam_v * eff
+    reward = d - energy_term - bsafe_penalty + effectiveness_term
     return {
-        "schema": "reasoning_reward.v1",
+        "schema": "reasoning_reward.v2",
         "reward": round(reward, 6),
         "delta_ioc": None if delta_ioc is None else round(float(delta_ioc), 6),
         "delta_ioc_star": None if delta_ioc_star is None else round(float(delta_ioc_star), 6),
         "delta_used": delta_used,
         "energy_term": round(energy_term, 6),
         "bsafe_penalty": round(bsafe_penalty, 6),
+        "effectiveness": None if effectiveness is None else round(eff, 6),
+        "effectiveness_term": round(effectiveness_term, 6),
         "reasoning_cost": round(float(reasoning_cost), 4),
         "cost_budget": round(budget, 4),
         "lambda_energy": lam_e,
         "lambda_bsafe": lam_b,
+        "lambda_effectiveness": lam_v,
         "dissipation_term": 0.0,  # D_t (RQA/telemetría) — R4
     }
 

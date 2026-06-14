@@ -167,6 +167,49 @@ class TestLiveConflictResolution:
         temp = result["episode"]["result"]["updated_world"]["global_temp_mean"]
         assert temp < CONFLICT["alarm_threshold"]
 
+class TestEffectivenessReward:
+    def test_effectiveness_term_off_by_default(self, tmp_path, monkeypatch):
+        from runtime.reasoning.scheduler_meta.reward import compute_episode_reward
+
+        block = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=6.0, cost_budget=10.0, effectiveness=0.5
+        )
+        assert block["lambda_effectiveness"] == 0.0
+        assert block["effectiveness_term"] == 0.0  # sombra: no afecta r
+
+    def test_effectiveness_term_rewards_world_success(self):
+        from runtime.reasoning.scheduler_meta.reward import compute_episode_reward
+
+        fail = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=6.0, cost_budget=10.0,
+            effectiveness=-0.03, lambda_effectiveness=0.5,
+        )
+        win = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=6.0, cost_budget=10.0,
+            effectiveness=0.04, lambda_effectiveness=0.5,
+        )
+        # La acción efectiva (mundo seguro) recibe más recompensa que la fallida.
+        assert win["reward"] > fail["reward"]
+        assert win["effectiveness_term"] > 0 and fail["effectiveness_term"] < 0
+
+    def test_outcome_effectiveness_signs(self):
+        from runtime.world.intervention_override import outcome_effectiveness
+
+        # threshold_above (térmico): seguro cuando value < umbral.
+        assert outcome_effectiveness(value=0.81, alarm_threshold=0.85, alarm_semantics="threshold_above") > 0
+        assert outcome_effectiveness(value=0.88, alarm_threshold=0.85, alarm_semantics="threshold_above") < 0
+        # threshold_below (recurso): seguro cuando value > umbral.
+        assert outcome_effectiveness(value=0.30, alarm_threshold=0.20, alarm_semantics="threshold_below") > 0
+
+    def test_conflict_resolution_flips_reward_sign(self, tmp_path, monkeypatch):
+        # Con efectividad activa, resolver el conflicto (override) da r mayor que el greedy.
+        monkeypatch.setenv("RNFE_REWARD_LAMBDA_EFFECTIVENESS", "0.5")
+        (tmp_path / "a").mkdir(exist_ok=True)
+        (tmp_path / "b").mkdir(exist_ok=True)
+        r_core = _run(tmp_path / "a", profile="core_only", actuate=True, monkeypatch=monkeypatch)
+        r_opt = _run(tmp_path / "b", profile="core_plus_opt", actuate=True, monkeypatch=monkeypatch)
+        assert r_opt["reasoning_reward"]["reward"] > r_core["reasoning_reward"]["reward"]
+
     def test_override_emits_audit_event(self, tmp_path, monkeypatch):
         storage = _storage(tmp_path)
         monkeypatch.setenv("RNFE_REASONING_MODE", "adaptive")

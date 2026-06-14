@@ -164,7 +164,7 @@ class TestRunnerIntegration:
             result = runner.run_episode()
 
         r = result["reasoning_reward"]
-        assert r["schema"] == "reasoning_reward.v1"
+        assert r["schema"] == "reasoning_reward.v2"
         assert isinstance(r["reward"], float)
         assert r["dissipation_term"] == 0.0  # D_t aún en R4
         json.dumps(r)

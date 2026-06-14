@@ -96,6 +96,25 @@ def family_recommendations(
     return out
 
 
+def outcome_effectiveness(
+    *,
+    value: float,
+    alarm_threshold: float,
+    alarm_semantics: str,
+) -> float:
+    """Margen de seguridad del resultado factual respecto al umbral de alarma.
+
+    Positivo ⇒ la acción dejó el mundo en el lado seguro (objetivo logrado);
+    negativo ⇒ en alarma. Centrado en el umbral, en las unidades de la variable
+    principal (típicamente [0,1]). Es la señal de EFECTIVIDAD que la recompensa
+    canon (ciega al mundo) necesitaba.
+    """
+    if alarm_semantics == "threshold_below":
+        return float(value) - float(alarm_threshold)
+    # threshold_above (p.ej. térmico): seguro cuando value < umbral.
+    return float(alarm_threshold) - float(value)
+
+
 def _safety_margin(*, value: float, direction: str) -> float:
     """Margen en la dirección de optimización (mayor = mejor)."""
     # minimize ⇒ menor valor es mejor ⇒ margen = −valor; maximize ⇒ margen = valor.

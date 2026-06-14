@@ -72,6 +72,10 @@ class EcologyMember:
     lineage: LineageState
     selector: RewardGuidedOverlaySelector
     knobs: Dict[str, Any]
+    # Perfil de familias del organismo. Por defecto la exploración total, que
+    # admite TODAS las opcionales (incl. plan/opt) — el selector guiado-por-
+    # recompensa decide cuáles usar. Permite diversidad de población.
+    profile: str = "full_family_exploration"
     organism_state: Optional[OrganismState] = None
     inherited_rules: List[Dict[str, Any]] = field(default_factory=list)
     fitness: float = float("-inf")
@@ -173,16 +177,25 @@ class OrganismEcology:
         if self.transfer_mode == TransferMode.REASONING_POLICY_PLUS_RULES and member.inherited_rules:
             runner._inherited_rules = list(member.inherited_rules)
 
-        prev = os.environ.get("RNFE_REASONING_MAX_STEPS")
+        prev_steps = os.environ.get("RNFE_REASONING_MAX_STEPS")
+        prev_profile = os.environ.get("RNFE_REASONING_FAMILY_PROFILE")
+        prev_mode = os.environ.get("RNFE_REASONING_MODE")
         os.environ["RNFE_REASONING_MAX_STEPS"] = str(self.reasoning_max_steps)
+        os.environ["RNFE_REASONING_FAMILY_PROFILE"] = member.profile
+        os.environ["RNFE_REASONING_MODE"] = "adaptive"
         try:
             for _ in range(episodes):
                 runner.run_episode(external_input=0.04)
         finally:
-            if prev is None:
-                os.environ.pop("RNFE_REASONING_MAX_STEPS", None)
-            else:
-                os.environ["RNFE_REASONING_MAX_STEPS"] = prev
+            for key, prev in (
+                ("RNFE_REASONING_MAX_STEPS", prev_steps),
+                ("RNFE_REASONING_FAMILY_PROFILE", prev_profile),
+                ("RNFE_REASONING_MODE", prev_mode),
+            ):
+                if prev is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = prev
         # Continuidad de vida: el siguiente generación parte del estado vivo.
         member.organism_state = runner.organism_state
 
@@ -324,6 +337,7 @@ class OrganismEcology:
             lineage=child_lineage,
             selector=child_selector,
             knobs=child_knobs,
+            profile=parent.profile,
             inherited_rules=inherited_rules,
             generation_born=self.generation,
         )
@@ -497,6 +511,7 @@ def build_member(
     scenario_kwargs: Optional[Dict[str, Any]] = None,
     storage,
     knobs: Optional[Dict[str, Any]] = None,
+    profile: str = "full_family_exploration",
 ) -> EcologyMember:
     """Crea un miembro de génesis con su propio linaje y selector."""
     lineage = LineageState(lineage_id=f"lineage-{member_id}")
@@ -508,4 +523,5 @@ def build_member(
         lineage=lineage,
         selector=RewardGuidedOverlaySelector(storage=storage),
         knobs=dict(knobs or {"memory_retrieval_limit": 3, "memory_filter_mode": "strict_same_scenario"}),
+        profile=profile,
     )
