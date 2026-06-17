@@ -1,0 +1,432 @@
+{
+  "cure": {
+    "experiment": "cure",
+    "design": {
+      "grid": [
+        0.0,
+        0.5,
+        1.0,
+        2.0,
+        5.0,
+        20.0,
+        50.0
+      ],
+      "seeds": 400,
+      "episodes": 30,
+      "region": "conflict"
+    },
+    "collapsed": [
+      {
+        "lambda": 0.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        }
+      },
+      {
+        "lambda": 0.5,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        }
+      },
+      {
+        "lambda": 1.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        }
+      },
+      {
+        "lambda": 2.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.000833,
+          "ci_lower": 0.000167,
+          "ci_upper": 0.001667,
+          "std": 0.008791
+        }
+      },
+      {
+        "lambda": 5.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.2025,
+          "ci_lower": 0.165,
+          "ci_upper": 0.245,
+          "std": 0.402366
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.219167,
+          "ci_lower": 0.179833,
+          "ci_upper": 0.258167,
+          "std": 0.400389
+        }
+      },
+      {
+        "lambda": 20.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      },
+      {
+        "lambda": 50.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      }
+    ],
+    "decomposed_J": [
+      {
+        "lambda": 0.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.005,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0125,
+          "std": 0.070622
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.006167,
+          "ci_lower": 0.000667,
+          "ci_upper": 0.013833,
+          "std": 0.071393
+        }
+      },
+      {
+        "lambda": 0.5,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.4125,
+          "ci_lower": 0.365,
+          "ci_upper": 0.46,
+          "std": 0.492901
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.428833,
+          "ci_lower": 0.379667,
+          "ci_upper": 0.475833,
+          "std": 0.484021
+        }
+      },
+      {
+        "lambda": 1.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.9675,
+          "ci_lower": 0.95,
+          "ci_upper": 0.9825,
+          "std": 0.177546
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.965333,
+          "ci_lower": 0.947167,
+          "ci_upper": 0.981667,
+          "std": 0.176473
+        }
+      },
+      {
+        "lambda": 2.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      },
+      {
+        "lambda": 5.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      },
+      {
+        "lambda": 20.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      },
+      {
+        "lambda": 50.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      }
+    ],
+    "collapsed_retention_by_lambda": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.2025,
+      1.0,
+      1.0
+    ],
+    "J_retention_by_lambda": [
+      0.005,
+      0.4125,
+      0.9675,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "threshold_collapsed": 20.0,
+    "threshold_J": 1.0,
+    "threshold_ratio_collapsed_over_J": 20.0,
+    "verdicts": {
+      "G1_J_recovers_at_small_lambda": true,
+      "G1_collapsed_threshold_much_higher": true
+    }
+  },
+  "specificity": {
+    "experiment": "specificity",
+    "design": {
+      "lam_nu": 1.0,
+      "seeds": 400,
+      "episodes": 30,
+      "regions": [
+        "conflict",
+        "band_out",
+        "band_in"
+      ]
+    },
+    "by_region": {
+      "conflict": {
+        "lambda": 1.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.97,
+          "ci_lower": 0.9525,
+          "ci_upper": 0.985,
+          "std": 0.170801
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.964667,
+          "ci_lower": 0.947333,
+          "ci_upper": 0.981,
+          "std": 0.179657
+        }
+      },
+      "band_out": {
+        "lambda": 1.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.9675,
+          "ci_lower": 0.95,
+          "ci_upper": 0.985,
+          "std": 0.177546
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.964833,
+          "ci_lower": 0.947167,
+          "ci_upper": 0.981,
+          "std": 0.179038
+        }
+      },
+      "band_in": {
+        "lambda": 1.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.015,
+          "ci_lower": 0.005,
+          "ci_upper": 0.0275,
+          "std": 0.121705
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.017333,
+          "ci_lower": 0.006833,
+          "ci_upper": 0.030167,
+          "std": 0.125721
+        }
+      }
+    },
+    "activation_by_region": {
+      "conflict": 0.9647,
+      "band_out": 0.9648,
+      "band_in": 0.0173
+    },
+    "verdicts": {
+      "G2_active_in_gap": true,
+      "G2_inactive_in_band": true
+    }
+  },
+  "ablation": {
+    "experiment": "ablation",
+    "design": {
+      "lam_nu": 2.0,
+      "seeds": 400,
+      "episodes": 30,
+      "region": "conflict"
+    },
+    "variants": {
+      "J_full": {
+        "lambda": 2.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      },
+      "J_sin_nu": {
+        "lambda": 2.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 0.0175,
+          "ci_lower": 0.005,
+          "ci_upper": 0.03,
+          "std": 0.131289
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 0.024167,
+          "ci_lower": 0.010833,
+          "ci_upper": 0.038,
+          "std": 0.143102
+        }
+      },
+      "J_sin_sigma": {
+        "lambda": 2.0,
+        "retention_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 400,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      }
+    },
+    "retention_by_variant": {
+      "J_full": 1.0,
+      "J_sin_nu": 0.0175,
+      "J_sin_sigma": 1.0
+    },
+    "verdicts": {
+      "G3_nu_necessary": true,
+      "G3_sigma_not_necessary": true
+    }
+  }
+}
