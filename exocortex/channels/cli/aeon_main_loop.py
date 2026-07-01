@@ -6,7 +6,7 @@ import signal
 import torch
 import psutil
 import platform
-from src.core.module_orchestrator import Orchestrator
+from runtime.core.module_orchestrator import Orchestrator
 from torch.utils.tensorboard import SummaryWriter  # <-- Añadido para TensorBoard
 
 # Configurar logging básico

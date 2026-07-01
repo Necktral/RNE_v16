@@ -40,9 +40,9 @@ from ..control.crisis_router import CrisisRouter
 from .homeo_controller import HomeoController
 from ..telemetry.collector import TelemetryCollector
 from ..telemetry.snapshot_service import SnapshotService
-from src.core.epistemic_drift_predictor import EpistemicDriftPredictor
-from src.evolution.meta_optimizer import QuantumExponentialOptimizer, QuantumExponentialConfig
-from src.core.event_bus import event_bus  # EventBus centralizado para integración AGI
+from runtime.core.epistemic_drift_predictor import EpistemicDriftPredictor
+from runtime.evolution.meta_optimizer import QuantumExponentialOptimizer, QuantumExponentialConfig
+from runtime.core.event_bus import event_bus  # EventBus centralizado para integración AGI
 
 # Wrapper para los modelos
 class CombinedModel(nn.Module):
@@ -166,7 +166,7 @@ class Orchestrator:
 
 
         # --- INTEGRACIÓN DATA NORMALIZER ---
-        from src.data.data_normalizer import DataNormalizer
+        from runtime.core.data.data_normalizer import DataNormalizer
         # Simula datos de entrada (en producción, cargarías tu dataset real)
         raw_data = torch.randn(12000, 64)
         normalizer = DataNormalizer()
@@ -174,7 +174,7 @@ class Orchestrator:
         normalizer.save_stats("config/data_stats.json")
         norm_data = normalizer.transform(raw_data)
         # --- INTEGRACIÓN val_loader_config.py ---
-        from src.data.val_loader_config import create_train_val_loaders
+        from runtime.core.data.val_loader_config import create_train_val_loaders
         # Asume que norm_data ya está normalizado y disponible
         self.train_loader, self.val_loader = create_train_val_loaders(
             norm_data,
@@ -238,11 +238,11 @@ class Orchestrator:
         self.tensorboard_writer = tensorboard_writer
 
         # --- INTEGRACIÓN eval_loop.py ---
-        from src.core.eval_loop import eval_loop
+        from runtime.core.eval_loop import eval_loop
         self.eval_loop = eval_loop  # Asigna la función para uso en validación
 
         # --- INTEGRACIÓN ReduceLROnPlateau scheduler ---
-        from src.core.scheduler import LRSchedulerFactory
+        from runtime.core.scheduler import LRSchedulerFactory
         self.scheduler = LRSchedulerFactory.create(
             self.optimizer,
             mode='min',
@@ -252,12 +252,12 @@ class Orchestrator:
         )
 
         # --- INTEGRACIÓN logging_utils.py ---
-        from src.utils.logging_utils import get_logger, log_metrics
+        from runtime.utils.logging_utils import get_logger, log_metrics
         self.logger = get_logger("aeon.orchestrator", level=logging.INFO)
         # Reemplaza logger por self.logger en todo el Orchestrador para logs estructurados
 
         # --- INTEGRACIÓN sparsity_logger.py (opcional, post Katana) ---
-        from src.core.sparsity_logger import log_sparsity
+        from runtime.core.sparsity_logger import log_sparsity
         self.log_sparsity = log_sparsity
         # Para loguear sparsity tras cada ciclo, puedes llamar:
         # self.log_sparsity(self.combined_model, logger=self.logger, step=cycle)

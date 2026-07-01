@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, Optional, Tuple, List
 from collections import deque
 from abc import ABC, abstractmethod
-from src.core.event_bus import event_bus  # Integración EventBus centralizado
+from runtime.core.event_bus import event_bus  # Integración EventBus centralizado
 
 # ────────────────────────────  CONFIGURACIONES AVANZADAS  ────────────────────────────
 @dataclass

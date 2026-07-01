@@ -8,7 +8,7 @@ import os
 
 # Importa el EventBus global de AEON FENIX-Δ
 try:
-    from src.core.event_bus import event_bus
+    from runtime.core.event_bus import event_bus
 except ImportError:
     event_bus = None  # Para pruebas sin AEON
 

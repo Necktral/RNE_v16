@@ -6,12 +6,12 @@ from enum import Enum, auto
 from collections import deque
 from threading import Lock
 from dataclasses import asdict
-from src.homeostasis.shutdown_logic import PhasedShutdown, CrisisLevel
-from src.persistence import StatePreserver
-from src.episteme.episteme_meter import EpistemeMeter
-from src.aeon_types import HealthStatus
-from src.utils.resilience import ResilienceMechanism
-from src.homeostasis.thermodynamic_governor import ThermodynamicGovernor
+from runtime.control.homeostasis.shutdown_logic import PhasedShutdown, CrisisLevel
+from runtime.memory.persistence import StatePreserver
+from runtime.telemetry.episteme.episteme_meter import EpistemeMeter
+from contracts.types.aeon_types import HealthStatus
+from runtime.utils.resilience import ResilienceMechanism
+from runtime.control.homeostasis.thermodynamic_governor import ThermodynamicGovernor
 
 logger = logging.getLogger("LifeMonitor")
 logger.setLevel(logging.INFO)

@@ -1,4 +1,9 @@
-"""Bridge de compatibilidad para paquete `hnet`."""
+"""Puente de vendor hacia `engines/hnet` — NO BORRAR.
+
+A diferencia de los shims de forwarding eliminados en la reorg 2026-07-01,
+este paquete extiende `__path__` para que el nombre top-level `hnet` (que el
+código del engine espera) resuelva a `engines/hnet`.
+"""
 
 from pathlib import Path
 

@@ -19,8 +19,8 @@ from torch.utils.tensorboard import SummaryWriter
 # Ensure project root is in sys.path for src imports
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
-from src.evolution.meta_optimizer import QuantumExponentialOptimizer, QuantumExponentialConfig
-from src.core.epistemic_drift_predictor import EpistemicDriftPredictor
+from runtime.evolution.meta_optimizer import QuantumExponentialOptimizer, QuantumExponentialConfig
+from runtime.core.epistemic_drift_predictor import EpistemicDriftPredictor
 
 # ============================== 1. Seeds y utilidades =========================
 def set_seeds(seed: int = 42):
@@ -44,10 +44,10 @@ def _try_import(path, name):
         return None
 
 # ───── Módulos núcleo reales (si existen) ─────────────────────────────────────
-BaseModel      = _try_import("src.core.model",          "BaseModel")
-EpistemeMeter  = _try_import("src.episteme.episteme_meter",       "EpistemeMeter")
-HookManager    = _try_import("src.core.hook_manager",          "HookManager")
-AutoMutator    = _try_import("src.evolution.auto_mutator",       "AutoMutator")
+BaseModel      = _try_import("runtime.core.model",          "BaseModel")
+EpistemeMeter  = _try_import("runtime.telemetry.episteme.episteme_meter",       "EpistemeMeter")
+HookManager    = _try_import("runtime.core.hook_manager",          "HookManager")
+AutoMutator    = _try_import("runtime.evolution.auto_mutator",       "AutoMutator")
 
 # ───── Fallback mocks ─────────────────────────────────────────────────────────
 class _LogShim:                       # sustituto de get_logger

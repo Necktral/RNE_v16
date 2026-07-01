@@ -40,7 +40,7 @@ class TrainingLoop:
         orch.logger.info("[DEBUG] training_loop.run iniciado")
         challenger = None
         if hasattr(orch, "modules") and orch.modules:
-            from src.cognition.cognitive_self_challenge import CognitiveSelfChallenge
+            from runtime.reasoning.cognitive_self_challenge import CognitiveSelfChallenge
 
             challenger = CognitiveSelfChallenge(orch.modules)
 

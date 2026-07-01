@@ -1,4 +1,9 @@
-"""Bridge de compatibilidad para paquete `mamba_ssm`."""
+"""Puente de vendor hacia `engines/mamba_vendor/mamba_ssm` — NO BORRAR.
+
+A diferencia de los shims de forwarding eliminados en la reorg 2026-07-01,
+este paquete extiende `__path__` para que el nombre top-level `mamba_ssm`
+(que el paquete vendorizado importa internamente en absoluto) siga resolviendo.
+"""
 
 from pathlib import Path
 

@@ -12,7 +12,7 @@ Tras la unificación (A4) hay un único `HealthStatus` canónico
 
 import dataclasses
 
-from src.aeon_types import HealthStatus
+from contracts.types.aeon_types import HealthStatus
 
 
 def test_canonical_has_fields_shutdown_logic_reads():

@@ -5,9 +5,9 @@ import numpy as np
 from typing import Dict, Any, Optional, Callable, List
 from enum import Enum
 from dataclasses import dataclass, asdict, field
-from src.aeon_types import HealthStatus
-from src.persistence import StatePreserver
-from src.homeostasis.thermodynamic_governor import ThermodynamicGovernor
+from contracts.types.aeon_types import HealthStatus
+from runtime.memory.persistence import StatePreserver
+from runtime.control.homeostasis.thermodynamic_governor import ThermodynamicGovernor
 
 logger = logging.getLogger("ShutdownLogic")
 logger.setLevel(logging.INFO)

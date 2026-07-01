@@ -10,9 +10,9 @@ import sys
 # Permite ejecutar el script directamente desde la raíz del proyecto
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../')))
 
-from src.core.event_bus import event_bus  # Integración EventBus centralizado
-from src.core.epistemic_drift_predictor import EpistemicDriftPredictor  # Habilita predictor de deriva
-from src.cognition.metacognition_tracker import MetacognitionTracker
+from runtime.core.event_bus import event_bus  # Integración EventBus centralizado
+from runtime.core.epistemic_drift_predictor import EpistemicDriftPredictor  # Habilita predictor de deriva
+from runtime.reasoning.metacognition_tracker import MetacognitionTracker
 
 class CognitiveSelfChallengeAGI:
     def __init__(self, modules, monitor, quantum_states, challenge_interval=5000, drift_predictor=None, metacognition_tracker=None):
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     if USE_REAL_ENV:
         print("\n[PRUEBA] Usando entorno REAL de AEON FENIX-Δ\n" + "-"*60)
         try:
-            from src.evolution.meta_optimizer import PhysicsAwareMonitor, QuantumState, QuantumExponentialOptimizer, QuantumExponentialConfig
+            from runtime.evolution.meta_optimizer import PhysicsAwareMonitor, QuantumState, QuantumExponentialOptimizer, QuantumExponentialConfig
 
             # Instancia el optimizador cuántico real con configuración por defecto
             optimizer = QuantumExponentialOptimizer(QuantumExponentialConfig())
@@ -178,8 +178,8 @@ if __name__ == '__main__':
         if 'event_bus' not in globals() or event_bus is None:
             event_bus = DummyEventBus()
             import types
-            sys.modules['src.core.event_bus'] = types.ModuleType('event_bus_mod')
-            sys.modules['src.core.event_bus'].event_bus = event_bus
+            sys.modules['runtime.core.event_bus'] = types.ModuleType('event_bus_mod')
+            sys.modules['runtime.core.event_bus'].event_bus = event_bus
 
         class DummyModule:
             def __init__(self):

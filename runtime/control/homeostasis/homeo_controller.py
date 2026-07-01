@@ -7,10 +7,10 @@ import threading
 from typing import Dict, Any, Callable, List
 from dataclasses import dataclass, asdict
 
-from src.homeostasis.thermodynamic_governor import ThermodynamicGovernor
-from src.homeostasis.energy_sensors import EnergySensors
-from src.aeon_types import HealthStatus
-from src.persistence import StatePreserver
+from runtime.control.homeostasis.thermodynamic_governor import ThermodynamicGovernor
+from runtime.control.homeostasis.energy_sensors import EnergySensors
+from contracts.types.aeon_types import HealthStatus
+from runtime.memory.persistence import StatePreserver
 
 logger = logging.getLogger("Homeostasis::Controller")
 logger.setLevel(logging.INFO)

@@ -8,11 +8,11 @@ from collections import deque
 from omegaconf import DictConfig
 from typing import Optional, Deque, Tuple, Dict, Any
 from torch.distributions import Normal
-from src.core.event_bus import event_bus  # Integración EventBus centralizado
+from runtime.core.event_bus import event_bus  # Integración EventBus centralizado
 
 # Importación segura de EpistemeSnapshot
 try:
-    from src.core.episteme import EpistemeSnapshot
+    from runtime.core.episteme import EpistemeSnapshot
 except ImportError:
     class EpistemeSnapshot:
         def __init__(self, **kwargs):

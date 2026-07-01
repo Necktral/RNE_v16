@@ -1,6 +1,6 @@
 # [LEGACY cuarentena] HealthStatus unificado al canónico (contracts/types/aeon_types,
 # vía el shim src.aeon_types). Antes definía un tipo mínimo propio (temp/vram/entropy).
-from src.aeon_types import HealthStatus
+from contracts.types.aeon_types import HealthStatus
 
 
 class HomeoController:

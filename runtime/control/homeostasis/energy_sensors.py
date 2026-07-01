@@ -7,7 +7,7 @@ import platform
 import json
 from typing import Dict, Any
 from pathlib import Path
-from src.aeon_types import *
+from contracts.types.aeon_types import *
 
 try:
     import pynvml

@@ -13,7 +13,7 @@ try:
 except Exception:  # pragma: no cover
     _GPU_HANDLE = None
 
-from src.core.event_bus import event_bus  # Integración EventBus centralizado
+from runtime.core.event_bus import event_bus  # Integración EventBus centralizado
 
 # ────────────────────────────────────────────────── CONSTANTS ──────────────────────────────────────────────────
 QUANTUM_TEMP = 0.1  # Temperatura cuántica base

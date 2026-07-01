@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, Callable, List, Tuple
 import torch.nn as nn
 import torch
-from src.core.event_bus import event_bus  # Integración EventBus centralizado
+from runtime.core.event_bus import event_bus  # Integración EventBus centralizado
 
 # Si no existe un logger global, define uno mínimo
 try:

@@ -6,7 +6,7 @@ import streamlit as st
 from streamlit_extras.badges import badge
 from streamlit_extras.metric_cards import style_metric_cards
 from streamlit_extras.stylable_container import stylable_container
-from src.core.event_log_sqlite import EventLogSQLite
+from runtime.core.event_log_sqlite import EventLogSQLite
 
 CRITICAL_EVENTS = [
     'crisis', 'homeostasis_violation', 'quantum_mutation_triggered',

@@ -7,7 +7,7 @@ from collections import deque
 from scipy.integrate import solve_ivp
 from dataclasses import dataclass
 import logging
-from src.aeon_types import *
+from contracts.types.aeon_types import *
 
 try:
     import pynvml
@@ -28,7 +28,7 @@ class ThermalModelParams:
 # (contracts/types/aeon_types, vía el shim src.aeon_types que usa shutdown_logic).
 # Antes había una definición local incompatible (energy/entropy/memory/stability)
 # que rompía governor→shutdown_logic con AttributeError. Ver A4 / LEGACY_QUARANTINE.md.
-from src.aeon_types import HealthStatus  # noqa: E402
+from contracts.types.aeon_types import HealthStatus  # noqa: E402
 
 class ThermodynamicGovernor:
     def __init__(self, config):
