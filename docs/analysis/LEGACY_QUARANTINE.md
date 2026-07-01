@@ -34,10 +34,14 @@ alcanzable desde el **CLI histórico** `exocortex/channels/cli/aeon_main_loop.py
 - `runtime/core/loss.py` (backprop roto, ver abajo), `runtime/core/loss_elite.py`
 - `runtime/core/model.py` (`CombinedModel`, `BaseModel` mock)
 
-### Roto / muerto
-- `runtime/core/data/loader.py` — importa `aeon_fenix_delta` inexistente (ImportError).
-- `runtime/core/training/trainer_fenix.py` — `DummyEnv` stub incompatible.
-- `runtime/agents/fenix_agent.py` — importa `.rssm_lite` inexistente (ModuleNotFoundError).
+### Roto / muerto — **eliminado en la reorg 2026-07-01** (recuperable vía git history)
+- `runtime/core/data/loader.py` — importaba `aeon_fenix_delta` inexistente (ImportError). **Borrado.**
+- `runtime/core/training/trainer_fenix.py` — `DummyEnv` stub incompatible. **Borrado.**
+- `runtime/agents/fenix_agent.py` — importaba `.rssm_lite` inexistente (ModuleNotFoundError). **Borrado.**
+- `runtime/core/model.py` — `CombinedModel`/`BaseModel` mock, 0 importadores estáticos. **Borrado.**
+- `runtime/core/utils.py` — solo `load_config()` (OmegaConf), 0 importadores. **Borrado.**
+- `lab/validation/fase0_cert.py` + stub raíz `fase0_cert.py` — invocaban `run_aeon.py` inexistente. **Borrados.**
+- `src/aeon_fenix/` — forwarders/stubs solo usados por `trainer_fenix.py`. **Borrado con la capa de shims.**
 
 ### Subsistemas legacy
 - `runtime/evolution/` (neurogénesis/poda/NAS — algoritmos reales pero acoplados al
@@ -49,8 +53,10 @@ alcanzable desde el **CLI histórico** `exocortex/channels/cli/aeon_main_loop.py
 
 > Nota: `runtime/core/` es **mixto**. Permanecen *vivas y en su sitio* las utilidades
 > reutilizadas por el organismo: `event_bus.py`, `event_log_sqlite.py`, `metrics.py`,
-> `episteme.py`, `epistemic_drift_predictor.py`, `orchestration/lifecycle.py`,
+> `epistemic_drift_predictor.py`, `orchestration/lifecycle.py`,
 > `rssm_lite2.py`, `data/data_normalizer.py`, `scheduler.py`, `sparsity_logger.py`.
+> (`episteme.py` resultó legacy-only por grafo de imports — su único importador es
+> `loss.py` — y se movió a `runtime/legacy/` en la reorg 2026-07-01.)
 
 ## Tipos duplicados → resueltos por la cuarentena
 - **HealthStatus**: unificado a un canónico (ver A4 / `contracts/types/aeon_types.py`).
@@ -70,6 +76,9 @@ la colección), igual que el patrón `requires_torch/postgres` del `conftest.py`
 **importación del módulo** (colección), antes de que un marcador pueda saltarlo.
 
 ## Reversibilidad
-Nada se borró. Para "des-cuarentenar" basta revertir las cabeceras y, si se quisiera,
-restaurar los imports *eager* en `runtime/control/__init__.py`. Una eventual relocación
-física a `runtime/legacy/` queda como follow-up opcional.
+Actualización 2026-07-01 (reorg estructural): los módulos de la sección "Roto / muerto"
+se **eliminaron** del árbol (recuperables vía git history); el clúster del orquestador se
+**relocalizó físicamente** a `runtime/legacy/` (ver README de ese directorio); la capa de
+shims (`src/` + paquetes raíz de forwarding) se **colapsó** a imports directos
+`runtime.*`/`contracts.*`. Para "des-cuarentenar" el orquestador basta mover los módulos
+de vuelta y revertir los imports del CLI histórico.
