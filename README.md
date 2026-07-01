@@ -32,7 +32,7 @@ de razón gobernada y herencia certificada (definición normativa: ver canon).
 ```bash
 # Entorno (Python 3.12)
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.reasoning-core-causal.txt pytest
+.venv/bin/pip install -r requirements.reasoning-core-causal.txt pytest 'psycopg[binary]'
 
 # Tests
 .venv/bin/python -m pytest tests/ -q
