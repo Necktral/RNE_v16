@@ -42,7 +42,7 @@ def test_governor_kwargs_construct_and_replace():
 
 def test_core_homeo_controller_uses_canonical():
     """runtime/core/homeo_controller ya no define un HealthStatus propio."""
-    from runtime.core.homeo_controller import HealthStatus as CoreHS, HomeoController
+    from runtime.legacy.homeo_controller import HealthStatus as CoreHS, HomeoController
 
     assert CoreHS is HealthStatus
     controller = HomeoController(

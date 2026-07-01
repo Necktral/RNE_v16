@@ -12,7 +12,7 @@ from runtime.core.event_bus import event_bus  # Integración EventBus centraliza
 
 # Importación segura de EpistemeSnapshot
 try:
-    from runtime.core.episteme import EpistemeSnapshot
+    from runtime.legacy.episteme import EpistemeSnapshot
 except ImportError:
     class EpistemeSnapshot:
         def __init__(self, **kwargs):

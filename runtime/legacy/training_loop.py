@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from runtime.core.infrastructure import Event
+from runtime.core.events import Event
 from runtime.core.metrics import CRITICAL_TEMP, MAX_VRAM_GB
 
 

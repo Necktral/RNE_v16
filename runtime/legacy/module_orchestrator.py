@@ -26,12 +26,13 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 
 
-from .infrastructure import Event, EventBus, WorkerPool, ConfigLoader
+from runtime.core.events import Event
+from .infrastructure import EventBus, WorkerPool, ConfigLoader
 from .probabilistic_models import GenerativeModel, ApproximatePosterior
-from .metrics import SelfAwarenessMetrics, MAX_VRAM_GB, THERMAL_THRESHOLD, MAX_ENTROPY, CRITICAL_TEMP
+from runtime.core.metrics import SelfAwarenessMetrics, MAX_VRAM_GB, THERMAL_THRESHOLD, MAX_ENTROPY, CRITICAL_TEMP
 from .train import QuantumDistributedTrainer
-from .orchestration import OrchestratorLifecycle, RuntimeRunner
-from .training.training_loop import TrainingLoop
+from runtime.core.orchestration import OrchestratorLifecycle, RuntimeRunner
+from .training_loop import TrainingLoop
 from ..evolution.neurogenesis import NeurogenesisManager
 from ..evolution.katana_pruner import KatanaPruner
 from ..evolution.auto_mutator import AutoMutator

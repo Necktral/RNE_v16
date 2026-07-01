@@ -3,11 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-# Soporte del orquestador legacy (cuarentena): crisis_router → infrastructure → pydantic.
-pytest.importorskip("pydantic")
+# Nota reorg 2026-07-01: ya no requiere pydantic — `Event` vive en
+# runtime/core/events.py (stdlib) y crisis_router no toca la cadena legacy.
 
 from runtime.control.crisis_router import CrisisRouter
-from runtime.core.infrastructure import Event
+from runtime.core.events import Event
 from runtime.core.orchestration import LifecycleState, OrchestratorLifecycle, RuntimeRunner
 
 

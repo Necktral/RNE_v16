@@ -27,12 +27,16 @@ alcanzable desde el **CLI histórico** `exocortex/channels/cli/aeon_main_loop.py
 ## Inventario de módulos en cuarentena (marcados con cabecera `[LEGACY …]`)
 
 ### Orquestador / entrenamiento (prototipo, alcanzable solo vía `aeon_main_loop`)
-- `runtime/core/module_orchestrator.py` (`Orchestrator`, `CombinedModel` inline)
-- `runtime/core/training/training_loop.py`
-- `runtime/core/train.py` (`QuantumDistributedTrainer` — ni cuántico ni distribuido)
-- `runtime/core/probabilistic_models.py`, `runtime/core/planner.py`
-- `runtime/core/loss.py` (backprop roto, ver abajo), `runtime/core/loss_elite.py`
-- `runtime/core/model.py` (`CombinedModel`, `BaseModel` mock)
+Relocalizado físicamente a **`runtime/legacy/`** en la reorg 2026-07-01:
+- `runtime/legacy/module_orchestrator.py` (`Orchestrator`, `CombinedModel` inline)
+- `runtime/legacy/training_loop.py`
+- `runtime/legacy/train.py` (`QuantumDistributedTrainer` — ni cuántico ni distribuido)
+- `runtime/legacy/probabilistic_models.py`, `runtime/legacy/planner.py`
+- `runtime/legacy/loss.py` (backprop roto, ver abajo), `runtime/legacy/loss_elite.py`
+- `runtime/legacy/infrastructure.py` (EventBus async/WorkerPool/ConfigLoader; el
+  dataclass `Event` se extrajo a `runtime/core/events.py` porque lo usa código vivo —
+  con ello `crisis_router` y sus tests quedaron pydantic-free)
+- `runtime/legacy/episteme.py` (EpistemeMeter torch), `runtime/legacy/homeo_controller.py`
 
 ### Roto / muerto — **eliminado en la reorg 2026-07-01** (recuperable vía git history)
 - `runtime/core/data/loader.py` — importaba `aeon_fenix_delta` inexistente (ImportError). **Borrado.**
