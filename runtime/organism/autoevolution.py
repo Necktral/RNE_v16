@@ -42,6 +42,16 @@ def _enabled_by_env() -> bool:
     return os.environ.get("RNFE_AUTOEVOLUTION", "1").strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _risk_enforcement_enabled() -> bool:
+    """R1 — ¿el freno de riesgo de cola S-I-E pasa de sombra a enforcement?
+
+    Con ``RNFE_RISK_ENFORCEMENT=1`` el veredicto S-I-E BUFFER *por riesgo* (CVaR_α[−ΔIoC]>τ
+    o Pr(ΔIoC≥0)_LCB<umbral) BLOQUEA la auto-modificación ρₜ, no solo la violación
+    hard/barrera. Apagado por defecto ⇒ conducta byte-idéntica (solo sombra).
+    """
+    return os.environ.get("RNFE_RISK_ENFORCEMENT", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 class AutoEvolutionController:
     """Lazo ρₜ: observa cada episodio certificado y decide evolución/rollback."""
 
@@ -227,11 +237,26 @@ class AutoEvolutionController:
 
         # 5) Gate de seguridad S-I-E (R1): Xₜ ∉ safe ⇒ no se muta.
         b_safe = risk_plus.get("b_safe") or {}
-        if int(risk_plus.get("hard_violation_count", 0) or 0) > 0 or b_safe.get("violated"):
+        hard_unsafe = int(risk_plus.get("hard_violation_count", 0) or 0) > 0 or bool(b_safe.get("violated"))
+        # R1 enforcement (opt-in): el freno de riesgo de cola pasa de sombra a bloquear.
+        # Solo cuando hay evidencia suficiente (cvar computado ⇒ n≥min_history): un BUFFER
+        # por historial insuficiente NO bloquea (evita falsos positivos), como exige el gate.
+        tail_risk_block = (
+            _risk_enforcement_enabled()
+            and risk_plus.get("sie_verdict") == "BUFFER"
+            and risk_plus.get("cvar_neg_delta_ioc") is not None
+        )
+        if hard_unsafe or tail_risk_block:
+            reason = (
+                "fuera de región segura (S-I-E RECHAZAR)"
+                if hard_unsafe
+                else f"riesgo de cola no acotado (S-I-E BUFFER enforced): {risk_plus.get('sie_reason')}"
+            )
             summary = {
                 "action": "blocked",
-                "reason": "fuera de región segura (S-I-E RECHAZAR)",
+                "reason": reason,
                 "sie_verdict": risk_plus.get("sie_verdict"),
+                "risk_enforced": bool(tail_risk_block and not hard_unsafe),
             }
             self._emit("autoevolution.blocked", summary)
             self._cooldown_left = self.cooldown

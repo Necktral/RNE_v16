@@ -184,6 +184,79 @@ class TestTriggerAndApply:
         assert out["action"] == "disabled"
 
 
+class TestR1RiskEnforcement:
+    """R1 — freno de riesgo de cola S-I-E: de sombra a enforcement (gate falsable).
+
+    Bloquea lo inseguro (CVaR>τ con evidencia) SIN falsos positivos (no bloquea por
+    historial insuficiente). Default OFF ⇒ conducta byte-idéntica (solo sombra).
+    """
+
+    def _drive_to_gate(self, ctrl, risk_plus):
+        out = None
+        for i in range(2):  # patience=2 ⇒ el 2º episodio degradado llega al gate S-I-E
+            out = ctrl.observe_episode(
+                organism_state=_state(margin=0.30, episode=i),
+                episode_result=_episode_result(margin=0.30, retrieved=3),
+                certificate_metadata={"risk_plus": risk_plus},
+            )
+        return out
+
+    def test_tail_risk_buffer_does_not_block_in_shadow(self, monkeypatch):
+        monkeypatch.delenv("RNFE_RISK_ENFORCEMENT", raising=False)  # default OFF
+        knobs = _Knobs()
+        ctrl = _with_evidence(_controller(knobs))
+        out = self._drive_to_gate(
+            ctrl,
+            {"sie_verdict": "BUFFER", "cvar_neg_delta_ioc": 0.5,
+             "sie_reason": "CVaR=0.5 > 0.1", "hard_violation_count": 0},
+        )
+        assert out["action"] == "applied"  # sombra: el freno de cola NO muerde
+
+    def test_tail_risk_buffer_blocks_under_enforcement(self, monkeypatch):
+        monkeypatch.setenv("RNFE_RISK_ENFORCEMENT", "1")
+        knobs = _Knobs()
+        ctrl = _with_evidence(_controller(knobs))
+        out = self._drive_to_gate(
+            ctrl,
+            {"sie_verdict": "BUFFER", "cvar_neg_delta_ioc": 0.5,
+             "sie_reason": "CVaR=0.5 > 0.1", "hard_violation_count": 0},
+        )
+        assert out["action"] == "blocked"
+        assert out["risk_enforced"] is True
+        assert knobs.values["memory_retrieval_limit"] == 3  # no se mutó
+        assert ctrl.lineage.generation == 0
+
+    def test_insufficient_history_buffer_is_not_false_positive(self, monkeypatch):
+        # BUFFER por historial insuficiente (cvar None) NO debe bloquear (falso positivo).
+        monkeypatch.setenv("RNFE_RISK_ENFORCEMENT", "1")
+        knobs = _Knobs()
+        ctrl = _with_evidence(_controller(knobs))
+        out = self._drive_to_gate(
+            ctrl,
+            {"sie_verdict": "BUFFER", "cvar_neg_delta_ioc": None,
+             "sie_reason": "historial insuficiente (2 < 4)", "hard_violation_count": 0},
+        )
+        assert out["action"] == "applied"
+
+    def test_accept_verdict_never_blocks(self, monkeypatch):
+        monkeypatch.setenv("RNFE_RISK_ENFORCEMENT", "1")
+        knobs = _Knobs()
+        ctrl = _with_evidence(_controller(knobs))
+        out = self._drive_to_gate(
+            ctrl,
+            {"sie_verdict": "ACEPTAR", "cvar_neg_delta_ioc": 0.05, "hard_violation_count": 0},
+        )
+        assert out["action"] == "applied"
+
+    def test_hard_violation_blocks_regardless_of_flag(self, monkeypatch):
+        monkeypatch.delenv("RNFE_RISK_ENFORCEMENT", raising=False)
+        knobs = _Knobs()
+        ctrl = _controller(knobs)
+        out = self._drive_to_gate(ctrl, {"hard_violation_count": 1})
+        assert out["action"] == "blocked"
+        assert out.get("risk_enforced") is False  # bloqueo hard, no enforcement de cola
+
+
 class TestPostMonitor:
     def _apply(self, knobs, ctrl):
         _with_evidence(ctrl)
