@@ -1,0 +1,2 @@
+"""Canales externos de interacción."""
+

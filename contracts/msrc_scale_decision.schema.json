@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MSRC Scale Decision",
+  "type": "object",
+  "required": [
+    "run_id",
+    "episode_id",
+    "step_index",
+    "current_scale_id",
+    "selected_scale_id",
+    "action",
+    "estimate",
+    "timestamp"
+  ],
+  "properties": {
+    "run_id": {"type": "string"},
+    "episode_id": {"type": "string"},
+    "step_index": {"type": "integer", "minimum": 0},
+    "current_scale_id": {"type": "string"},
+    "selected_scale_id": {"type": "string"},
+    "timestamp": {"type": "string"},
+    "action": {
+      "type": "object",
+      "required": ["action_type", "reason"],
+      "properties": {
+        "action_type": {
+          "type": "string",
+          "enum": [
+            "keep_scale",
+            "upgrade_scale",
+            "downgrade_scale",
+            "fork_probe",
+            "commit_probe_result",
+            "discard_probe_result",
+            "lock_scale_for_n_steps"
+          ]
+        },
+        "target_scale_id": {"type": ["string", "null"]},
+        "reason": {"type": "string"},
+        "expected_gain": {"type": "number"},
+        "expected_cost_penalty": {"type": "number"},
+        "lock_steps": {"type": "integer", "minimum": 0},
+        "metadata": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "estimate": {
+      "type": "object",
+      "required": [
+        "required_resolution_score",
+        "heterogeneity_score",
+        "epistemic_insufficiency_score",
+        "risk_score",
+        "operational_pressure_score",
+        "vram_headroom",
+        "vram_pressure",
+        "vram_fragmentation_risk",
+        "vram_opportunity_score",
+        "recommended_scale_candidates"
+      ],
+      "properties": {
+        "required_resolution_score": {"type": "number"},
+        "heterogeneity_score": {"type": "number"},
+        "epistemic_insufficiency_score": {"type": "number"},
+        "risk_score": {"type": "number"},
+        "operational_pressure_score": {"type": "number"},
+        "vram_headroom": {"type": "number"},
+        "vram_pressure": {"type": "number"},
+        "vram_fragmentation_risk": {"type": "number"},
+        "vram_opportunity_score": {"type": "number"},
+        "recommended_scale_candidates": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "signals": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "metadata": {"type": "object"}
+  },
+  "additionalProperties": true
+}

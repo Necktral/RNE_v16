@@ -1,0 +1,17 @@
+{
+  "admission_status": "experimental_admitted_conditionally",
+  "artifact_set": "conflict-repeatability-gated-v1-4x4",
+  "decision_adr": "docs/adr/ADR_EXT_OPEN_THINKER_CONFLICT_RESOLVER.md",
+  "dictamen": "conflict_resolver_repetible",
+  "family": "ext_open_thinker",
+  "nominal_status": "conditional_lab",
+  "references": {
+    "report": "data/benchmarks/external_reasoner_gain/conflict-repeatability-gated-v1-4x4/external_reasoner_conflict_repeatability_report.md",
+    "summary": "data/benchmarks/external_reasoner_gain/conflict-repeatability-gated-v1-4x4/summary.json",
+    "verdict": "data/benchmarks/external_reasoner_gain/conflict-repeatability-gated-v1-4x4/external_reasoner_conflict_repeatability_verdict.json"
+  },
+  "validated_profile": "core_plus_external_reasoner_gated_v1",
+  "validated_regimes": [
+    "causal_counterfactual_conflict"
+  ]
+}

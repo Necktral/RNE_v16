@@ -1,0 +1,43 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*:Zone.Identifier
+.env
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.cache/
+infra/docker/.env
+
+# RNFE external models / local heavyweight artifacts
+/mnt/
+/rnfe_models/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.ckpt
+
+# HF / torch / model caches
+.cache/huggingface/
+.cache/torch/
+huggingface/
+hf_cache/
+torch_cache/
+
+# llama.cpp local builds if vendored accidentally
+tools/llama.cpp/build*/
+build-cuda/
+build-cpu/
+
+# Runtime-generated artifacts and local DBs — never commit
+aeon_event_log.db
+*.db
+*.sqlite
+*.sqlite3
+rnfe_artifacts/
+data/artifacts/
+data/tmp/

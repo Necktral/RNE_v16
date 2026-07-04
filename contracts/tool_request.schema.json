@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tool_request",
+  "type": "object",
+  "required": ["request_id", "tool", "input"],
+  "properties": {
+    "request_id": { "type": "string" },
+    "tool": { "type": "string" },
+    "input": { "type": "object" },
+    "timestamp": { "type": "string" }
+  },
+  "additionalProperties": true
+}
+

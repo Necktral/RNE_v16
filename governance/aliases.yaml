@@ -1,0 +1,29 @@
+aliases:
+  doc: canon + governance/adr + archive/deprecated/docs
+  hnet: engines/hnet
+  configs: engines/hnet/configs
+  mamba_ssm: engines/mamba_vendor/mamba_ssm
+  csrc: engines/mamba_vendor/csrc
+  rocm_patch: engines/mamba_vendor/patches
+  core: runtime/core
+  homeostasis: runtime/control/homeostasis
+  evolution: runtime/evolution
+  cognition: runtime/reasoning
+  episteme: runtime/telemetry/episteme
+  persistence: runtime/memory/persistence
+  data: runtime/core/data
+  agents: runtime/agents
+  training: runtime/core/training
+  scripts: exocortex/tools + lab/validation
+  evals: tests/regression
+  src2: archive/legacy_src2
+  08-08-25: archive/legacy_08-08-25
+  checkpoints: archive/deprecated/checkpoints
+  utils: runtime/utils + runtime/telemetry/logging
+  aeon_types.py: contracts/types/aeon_types.py
+  aeon_main_loop.py: exocortex/channels/cli/aeon_main_loop.py
+  generate.py: exocortex/tools/generate_hnet.py
+  fase0_cert.py: lab/validation/fase0_cert.py
+  ORCHESTRATOR_REFACTOR_CHECKLIST.md: governance/backlog/ORCHESTRATOR_REFACTOR_CHECKLIST.md
+  CONVERSATION_LOG.md: governance/history/CONVERSATION_LOG.md
+

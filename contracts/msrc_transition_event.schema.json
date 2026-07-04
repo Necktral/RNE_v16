@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MSRC Transition Event",
+  "type": "object",
+  "required": [
+    "run_id",
+    "episode_id",
+    "action_type",
+    "source_scale_id",
+    "target_scale_id",
+    "reason",
+    "estimated_time_cost",
+    "estimated_artifact_cost",
+    "real_time_cost",
+    "real_artifact_cost",
+    "ioc_delta",
+    "viability_delta",
+    "rollback_applied",
+    "timestamp"
+  ],
+  "properties": {
+    "run_id": {"type": "string"},
+    "episode_id": {"type": "string"},
+    "action_type": {
+      "type": "string",
+      "enum": [
+        "keep_scale",
+        "upgrade_scale",
+        "downgrade_scale",
+        "fork_probe",
+        "commit_probe_result",
+        "discard_probe_result",
+        "lock_scale_for_n_steps"
+      ]
+    },
+    "source_scale_id": {"type": "string"},
+    "target_scale_id": {"type": "string"},
+    "reason": {"type": "string"},
+    "estimated_time_cost": {"type": "number"},
+    "estimated_artifact_cost": {"type": "number"},
+    "real_time_cost": {"type": "number"},
+    "real_artifact_cost": {"type": "number"},
+    "ioc_delta": {"type": "number"},
+    "viability_delta": {"type": "number"},
+    "rollback_applied": {"type": "boolean"},
+    "timestamp": {"type": "string"},
+    "metadata": {"type": "object"}
+  },
+  "additionalProperties": true
+}

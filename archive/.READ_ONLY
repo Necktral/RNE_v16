@@ -1,0 +1,4 @@
+archive is quarantine.
+do not import from runtime or exocortex.
+do not mutate without explicit promote/rewrite decision.
+

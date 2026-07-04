@@ -1,0 +1,296 @@
+% ============================================================
+\section{Reindexación de HNet y formalización jerárquica H-Net (dynamic chunking)}
+% ============================================================
+
+% En esta sección:
+% - Renombramos la red homeostática de RNFE para evitar colisión con el H-Net jerárquico del paper.
+% - Introducimos el operador H-Net de chunking dinámico como módulo de Forma y front–end del núcleo secuencial F_\theta.
+% - Integramos sus pérdidas (ratio loss) y jerarquía multi–escala en PAI, Edge, F–M–S y MRO.
+
+% ------------------------------------------------------------
+\subsection{Renombrado de la red homeostática RNFE}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Red de control homeostático \texorpdfstring{$\Hctrl$}{H\_ctrl}]
+En las versiones previas de RNFE se utilizaba la notación $\Hnet$ para la red homeostática que observa la telemetría física y estructural
+\[
+\mathcal{T}_t = \big(\VRAM_t,\ \TEMP_t,\ \LAT_t,\ \spec{\J_t},\ \widehat{\FD}_t,\ \IoC_t,\ \dots\big)
+\]
+y decide acciones de control (modos de razonamiento activos, rutas, budgets de energía, granularidad, etc.).
+
+A partir de esta versión, renombramos ese módulo a
+\[
+\Hctrl : \mathcal{T}_t \mapsto a^{\text{ctrl}}_t,
+\]
+donde $a^{\text{ctrl}}_t$ parametriza decisiones de control homeostático (por ejemplo, límites de profundidad, activación de agentes, restricción de imaginación, tolerancias de Edge). Esta red sigue implementando el esquema de MPC robusto y las restricciones $\safe$ descritas en secciones anteriores, pero nunca más se denota como H-Net.
+\end{definitionenv}
+
+\begin{remark}[Convención de notación]
+Dondequiera que en versiones anteriores aparezca $\Hnet$ como red homeostática, debe entenderse ahora $\Hctrl$. La notación \emph{H-Net} (sin subíndice) se reserva estrictamente para la red jerárquica con chunking dinámico que definimos a continuación.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Arquitectura jerárquica H-Net con chunking dinámico}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Representaciones jerárquicas por etapas]
+Sea una secuencia de entrada de longitud $L_0$,
+\[
+x^{(0)}_{1:L_0} = \big(x^{(0)}_1,\dots,x^{(0)}_{L_0}\big),
+\quad x^{(0)}_t \in \R^{d_0},
+\]
+por ejemplo bytes embebidos u observaciones de mundo a resolución fina. H-Net construye una familia jerárquica de secuencias
+\[
+x^{(s)}_{1:L_s} = \big(x^{(s)}_1,\dots,x^{(s)}_{L_s}\big),
+\quad x^{(s)}_t \in \R^{d_s},
+\quad s=0,1,\dots,S,
+\]
+donde $L_{s+1} < L_s$ para $s<S$, y $S$ es el número de niveles jerárquicos.
+\end{definitionenv}
+
+\begin{definitionenv}[Router y puntuaciones de frontera]
+En cada nivel $s\in\{0,\dots,S-1\}$, se define un \emph{router} parametrizado por $\phi^{(s)}$ que, para $t=2,\dots,L_s$, produce una puntuación de frontera
+\[
+p^{(s)}_t
+=
+\sigma\!\big( r^{(s)}(x^{(s)}_t,x^{(s)}_{t-1};\phi^{(s)}) \big)
+\in (0,1),
+\]
+donde $\sigma$ es una función sigmoide y $r^{(s)}$ puede depender de, por ejemplo, la similitud coseno entre $x^{(s)}_t$ y $x^{(s)}_{t-1}$:
+\[
+r^{(s)}(x^{(s)}_t,x^{(s)}_{t-1})
+=
+\beta^{(s)}\,\cos\big(x^{(s)}_t,x^{(s)}_{t-1}\big)+b^{(s)}.
+\]
+Definimos indicadores de frontera ``duros'' $b^{(s)}_t\in\{0,1\}$ mediante una relajación tipo straight–through estimator (STE):
+\[
+b^{(s)}_t
+=
+\mathbf{1}\big[p^{(s)}_t \ge \tau^{(s)}\big],
+\quad t=2,\dots,L_s,
+\]
+donde $\tau^{(s)}\in(0,1)$ es un umbral aprendido o fijado, y en backprop se usa $\partial b^{(s)}_t / \partial p^{(s)}_t \approx 1$ en la vecindad de $\tau^{(s)}$.
+\end{definitionenv}
+
+\begin{definitionenv}[Downsampling por chunking dinámico]
+Sea
+\[
+\mathcal{B}^{(s)} = \big\{t\in\{1,\dots,L_s\} : b^{(s)}_t = 1\big\}\cup\{1\},
+\]
+el conjunto de índices marcados como frontera (siempre incluimos $t=1$). Ordenando
+\[
+\mathcal{B}^{(s)} = \{t^{(s)}_1 < t^{(s)}_2 < \dots < t^{(s)}_{L_{s+1}}\},
+\]
+definimos la secuencia comprimida
+\[
+x^{(s+1)}_k := x^{(s)}_{t^{(s)}_k},
+\quad k=1,\dots,L_{s+1}.
+\]
+El \emph{ratio de compresión} efectivo en el nivel $s$ es
+\[
+r^{(s)} := \frac{L_{s+1}}{L_s} \in (0,1].
+\]
+\end{definitionenv}
+
+\begin{definitionenv}[Upsampling y suavizado]
+Para reconstruir una secuencia a resolución $L_s$ a partir de $x^{(s+1)}_{1:L_{s+1}}$, definimos un mapeo
+\[
+\mathrm{Up}^{(s)} : \R^{L_{s+1}\times d_{s+1}} \to \R^{L_s\times d_{s+1}},
+\]
+que asigna a cada posición $t$ el embedding del chunk vigente. Sea
+\[
+\kappa^{(s)}(t) := \max\{k : t^{(s)}_k \le t\},
+\]
+entonces
+\[
+\tilde x^{(s+1)}_t := x^{(s+1)}_{\kappa^{(s)}(t)},\quad t=1,\dots,L_s.
+\]
+Para evitar discontinuidades, introducimos un suavizado exponencial:
+\[
+\bar x^{(s+1)}_t
+=
+P^{(s)}_t\,\tilde x^{(s+1)}_t
++
+\big(1-P^{(s)}_t\big)\bar x^{(s+1)}_{t-1},
+\quad t\ge 2,
+\]
+con $\bar x^{(s+1)}_1 = \tilde x^{(s+1)}_1$ y pesos $P^{(s)}_t\in[0,1]$ derivados de $p^{(s)}_t$ o de una función de confianza en la frontera.
+\end{definitionenv}
+
+\begin{definitionenv}[Arquitectura jerárquica H-Net]
+Definimos la red jerárquica H-Net (dynamic chunking) como el operador
+\[
+\Hnet_{\phi} : \R^{L_0\times d_0} \to \R^{L_S\times d_S},
+\]
+compuesto por:
+\begin{itemize}
+  \item Encoders $E^{(s)}$ (por ejemplo, bloques Mamba o transformadores) que producen $x^{(s)}$ a partir de $x^{(s-1)}$ y, cuando corresponde, de $\bar x^{(s)}$ reinyectado,
+  \item Routers y módulos de chunking dinámico $(p^{(s)}_t,b^{(s)}_t)$ y downsampling $x^{(s)} \mapsto x^{(s+1)}$,
+  \item Un \emph{main network} $M$ que opera en la secuencia de nivel más alto $x^{(S)}$ (por ejemplo, un modelo grande autoregresivo o DEQ secuencial),
+  \item Decoders $D^{(s)}$ y upsamplers $\mathrm{Up}^{(s)}$ que proyectan información de vuelta a niveles de resolución inferiores cuando sea necesario.
+\end{itemize}
+Parametrizamos todo este stack por $\phi$, separándolo de los parámetros $\thetaPar$ del núcleo RNFE restante.
+\end{definitionenv}
+
+% ------------------------------------------------------------
+\subsection{Pérdida de ratio y coste jerárquico}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Pérdida de ratio por nivel]
+Sea $\rho^{(s)}\in(0,1]$ el ratio objetivo para el nivel $s$, interpretado como fracción deseada de posiciones conservadas. Definimos la \emph{ratio loss} por nivel:
+\[
+\Lratio^{(s)}
+:=
+\big( r^{(s)} - \rho^{(s)} \big)^2,
+\qquad
+r^{(s)} = \frac{L_{s+1}}{L_s}.
+\]
+El coste jerárquico total se define como
+\[
+\Lratio = \sum_{s=0}^{S-1} \lambda^{(s)}_{\text{ratio}}\, \Lratio^{(s)},
+\]
+con pesos $\lambda^{(s)}_{\text{ratio}}\ge 0$ que reflejan la tolerancia a compresión en cada escala.
+\end{definitionenv}
+
+\begin{remark}[Interpretación física y fractal]
+$\Lratio$ captura un compromiso entre:
+(i) reducir el número de vectores activos (menos FLOPs, menor $\Wdis$),
+(ii) preservar suficiente resolución semántica para que \IoC y las métricas de semiótica (SMG) no colapsen.
+Desde la perspectiva fractal, los ratios $r^{(s)}$ controlan un espectro multi–escala análogo a una cascada de IFS, donde los niveles profundos corresponden a estructuras de mayor escala (menor resolución temporal/espacial, mayor agregación semántica).
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{H-Net como módulo de Forma y front–end del núcleo secuencial}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Módulo de Forma basado en H-Net]
+Sea $y_t$ la observación del mundo en el episodio $t$ (texto, series temporales, etc.), y $E_{\text{in}}$ un embedding inicial (por ejemplo, mapeo de bytes a $\R^{d_0}$). Definimos:
+\[
+x^{(0)}_{1:L_0} := E_{\text{in}}(y_t),
+\quad
+z^{\text{F}}_{1:L_S} := \Hnet_{\phi}\big(x^{(0)}_{1:L_0}\big).
+\]
+El estado de \emph{Forma} en el episodio $t$ queda entonces
+\[
+F_t := \big(z^{\text{F}}_{1:L_S},\, \{r^{(s)}\}_{s=0}^{S-1},\, \{p^{(s)}_t\}\big),
+\]
+que resume no sólo los embeddings jerárquicos, sino también la estructura de chunking dinámico (fronteras y ratios) relevante para Edge y \Hctrl.
+\end{definitionenv}
+
+\begin{definitionenv}[Composición con el núcleo secuencial \texorpdfstring{$F_\theta$}{F\_theta}]
+Sea $F^{\text{core}}_\theta$ el núcleo secuencial/de equilibrio (DEQ/mamba/transformer) definido en el resto de RNFE, que opera sobre secuencias ya normalizadas:
+\[
+h_{1:L_S} = F^{\text{core}}_\theta\big(z^{\text{F}}_{1:L_S}\big).
+\]
+Definimos el operador compuesto
+\[
+\widehat{F}_{\Theta}
+:=
+F^{\text{core}}_\theta \circ \Hnet_{\phi},
+\quad
+\Theta := (\thetaPar,\phi),
+\]
+de forma que el núcleo RNFE “efectivo” actúa directamente sobre entradas crudas:
+\[
+h_{1:L_S}
+=
+\widehat{F}_{\Theta}\big(x^{(0)}_{1:L_0}\big).
+\]
+\end{definitionenv}
+
+\begin{remark}
+En esta formulación, $\Hnet_{\phi}$ es parte estructural del ADN: no es un preprocesamiento externo, sino un sub–módulo explícito del núcleo, cuyos parámetros $\phi$ se optimizan conjuntamente con $\thetaPar$ bajo PAI, Edge, S–I–E y las nuevas pérdidas jerárquicas.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Integración en el Principio de Acción Informacional (PAI)}
+% ------------------------------------------------------------
+
+Sea $\mathcal{A}[\thetaPar(\cdot)]$ el funcional de acción informacional previamente definido, con términos de variación de información, complejidad estructural y coste meta–físico. Extendemos ahora $\thetaPar$ a $\Theta=(\thetaPar,\phi)$ e incorporamos el coste jerárquico:
+
+\begin{definitionenv}[Acción informacional con coste jerárquico]
+Definimos el nuevo funcional
+\[
+\mathcal{A}_{\text{H-Net}}[\Theta(\cdot)]
+=
+\int_0^T
+\Big[
+-\dot I\big(\Theta,t\big)
++
+\lambda_{\text{MDL}}\,\Cstruct\big(\Theta,t\big)
++
+\lambda_{\text{meta}}(t)\,\Cmeta\big(\Theta,t\big)
++
+\lambda_{\text{ratio}}\, \Lratio\big(\Theta,t\big)
+\Big] dt.
+\]
+Las ecuaciones de Euler–Lagrange se modifican en consecuencia, acoplando los gradientes de $\phi$ (H-Net jerárquico) con los de $\thetaPar$ (núcleo secuencial y resto de módulos RNFE).
+\end{definitionenv}
+
+\begin{remark}[Enchufe con Edge y \texorpdfstring{$\Hctrl$}{H\_ctrl}]
+Los ratios $r^{(s)}$ y la telemetría de chunking (densidad de fronteras, varianza de $p^{(s)}_t$, etc.) se incorporan en la telemetría $\mathcal{T}_t$ que observa \Hctrl y en la métrica fractal (\FD, \RR, \DET) usada por Edge. De este modo, decisiones de compresión excesiva o errática se reflejan como aumentos en $\mathcal{B}_{\text{safe}}$ o degradaciones en \IoC, forzando a \Hctrl a actuar (por ejemplo, relajando compresión, reduciendo profundidad del main network o cambiando de modo de razonamiento).
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Integración con F–M–S y semiótica (SMG)}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Pipeline F–M–S con H-Net]
+El cierre Forma–Mundo–Significado se reescribe, para cada episodio $t$, como:
+\[
+y_t \xrightarrow{E_{\text{in}}}
+x^{(0)}_{1:L_0}
+\xrightarrow{\Hnet_{\phi}}
+z^{\text{F}}_{1:L_S}
+\xrightarrow{\text{F$\to$M}}
+M_t
+\xrightarrow{\text{M$\to$S}}
+S_t,
+\]
+donde:
+\begin{itemize}
+  \item $F_t$ está dado por los estados jerárquicos $z^{\text{F}}$ y las estructuras de chunking,
+  \item $M_t$ es el estado de modelo del mundo (\CGWM) actuando sobre $z^{\text{F}}$ (variables latentes, relaciones causales, contrafactuales),
+  \item $S_t$ es la configuración del grafo semiótico \SMG construido a partir de $M_t$ y de los embeddings en $z^{\text{F}}$ (nodos de concepto, metas, compromisos, etc.).
+\end{itemize}
+\end{definitionenv}
+
+\begin{remark}[Impacto en las métricas de cierre]
+La métrica de cierre $\IoC$ se ve ahora afectada por:
+(i) la calidad de las representaciones jerárquicas $z^{\text{F}}$,
+(ii) la consistencia de chunking (fronteras alineadas con cambios semánticos),
+(iii) la integración de $z^{\text{F}}$ en \CGWM y \SMG.
+Errores sistemáticos en las fronteras (por ejemplo, cortar unidades semánticas “a la mitad”) se traducen en penalizaciones en \GC, \CPS, \kgeo/\ktop y, por tanto, en la acción informacional y las decisiones S–I–E.
+\end{remark}
+
+% ------------------------------------------------------------
+\subsection{Coherencia fractal y modos de razonamiento con H-Net}
+% ------------------------------------------------------------
+
+\begin{definitionenv}[Espectro fractal jerárquico inducido por H-Net]
+Asociamos a cada nivel $s$ los siguientes invariantes:
+\[
+\mathcal{F}^{(s)}_t
+:=
+\big(
+L_s,\ r^{(s)}_t,\ \widehat{\FD}^{(s)}_t,\ \RR^{(s)}_t,\ \DET^{(s)}_t
+\big),
+\]
+donde $\widehat{\FD}^{(s)}_t$ es la dimensión fractal estimada en el nivel $s$ y $(\RR^{(s)}_t,\DET^{(s)}_t)$ provienen de análisis de recurrencia sobre las trayectorias en dicho nivel. El conjunto
+\[
+\big\{\mathcal{F}^{(s)}_t\big\}_{s=0}^{S}
+\]
+define un espectro multi–escala que relaciona granularidad temporal/espacial, complejidad fractal y estabilidad en cada escala.
+\end{definitionenv}
+
+\begin{definitionenv}[Asignación de modos de razonamiento a niveles]
+Sea $\mathcal{R}$ el conjunto de modos de razonamiento (DED, IND, ABD, CAU, CTF, ANA, CSTR/OPT, PLAN, RAZ, EVO, etc.). Definimos una asignación
+\[
+\chi : \mathcal{R} \to \{0,1,\dots,S\},
+\]
+que indica en qué nivel jerárquico opera principalmente cada modo (por ejemplo, DED/IND en niveles bajos, CAU/CTF/PLAN en niveles intermedios y RAZ/EVO en niveles altos). El scheduler de modos, junto con \Hctrl, decide en tiempo de ejecución qué subconjunto de niveles y modos activar dada la telemetría $\mathcal{F}^{(s)}_t$ y $\mathcal{T}_t$.
+\end{definitionenv}
+
+\begin{remark}[Correspondencia fractal entre niveles y modos]
+La existencia de mapas de correspondencia bi–Lipschitz entre atractores de distintos modos, tal como se formalizó en la sección de correspondencia fractal entre modos, se apoya ahora en la arquitectura concreta de H-Net: las transiciones entre niveles (down/upsampling) y las interacciones entre $F^{\text{core}}_\theta$ y $\Hnet_{\phi}$ proporcionan la estructura de “escalas” sobre la cual esos mapas se construyen.
+\end{remark}

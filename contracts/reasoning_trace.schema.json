@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reasoning_trace",
+  "type": "object",
+  "required": ["trace_id", "step_index", "family", "status", "timestamp"],
+  "properties": {
+    "trace_id": { "type": "string" },
+    "run_id": { "type": ["string", "null"] },
+    "step_index": { "type": "integer", "minimum": 0 },
+    "family": { "type": "string" },
+    "status": { "type": "string" },
+    "detail": { "type": "object" },
+    "timestamp": { "type": "string" }
+  },
+  "additionalProperties": true
+}

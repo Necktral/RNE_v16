@@ -1,0 +1,3 @@
+*.pt -text -diff
+*.pth -text -diff
+*.bin -text -diff

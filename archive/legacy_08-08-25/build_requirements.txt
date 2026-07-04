@@ -1,0 +1,6 @@
+# build_requirements.txt
+wheel
+ninja
+packaging
+# Dependencias adicionales que podrían ser necesarias
+setuptools

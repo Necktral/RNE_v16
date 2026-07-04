@@ -1,0 +1,236 @@
+% ============================================================
+% RNFE-f2.1 — Addendum de Robustificación
+% ============================================================
+
+\section{Addendum f2.1: Robustificación integral}
+
+\subsection{Objetivo}
+Aumentar la \emph{robustez medible} del ser RNFE bajo:
+(i) inestabilidad numérica y geométrica,
+(ii) perturbaciones y OOD,
+(iii) shocks de recursos (VRAM/latencia/temperatura),
+(iv) cambios de régimen (no-estacionariedad),
+(v) dominios con colas pesadas (finanzas/redes económicas).
+
+Se introducen: barreras unificadas \(\mathcal{B}_{\text{safe}}\), Edge~2.1, S--I--E 2.0 con riesgo CVaR, MPC robusto (HNet 2.1), validación causal invariante, agregación multi-agente robusta y \emph{certificados de episodio} reforzados.
+
+% ------------------------------------------------------------
+\subsection{Barrera unificada de seguridad \texorpdfstring{$\mathcal{B}_{\text{safe}}$}{B\_safe}}
+
+Sea \(\mathbf{u}(t) = [\mathrm{VRAM}_t,\, \mathrm{TEMP}_t,\, \spec{\J_t},\, \widehat{\FD}_t]^\top\) y los límites 
+\(\mathbf{u}^{\max} = [B_{\max},\, T_{\max},\, 1-\varepsilon,\, \FD^\star]^\top\).
+Definimos la barrera suave:
+
+\begin{equation}
+\phi_{\mathrm{bar}}(x;\delta) = 
+\begin{cases}
+-\log\!\big(\delta + (1-x)\big), & x<1 \\
++\infty, & x \ge 1
+\end{cases}
+\!,\quad \delta \in (0,10^{-3}],
+\end{equation}
+
+\begin{equation}
+\mathcal{B}_{\text{safe}}(\thetaPar,t) 
+= \sum_{i}
+\alpha_i\,
+\phi_{\mathrm{bar}}\!\left(
+\frac{u_i(t)}{u_i^{\max}};\,\delta_i
+\right),
+\quad
+\alpha_i > 0.
+\end{equation}
+
+Se agrega a la pérdida total:
+\(\Ltot \leftarrow \Ltot + \lambda_{\text{safe}}\,\mathcal{B}_{\text{safe}}\).
+
+\textbf{Efecto:} proyección suave a \(\safe\) y penalización creciente al aproximar límites físicos/geométricos.
+
+% ------------------------------------------------------------
+\subsection{Edge 2.1: Recurrencia, espectro y fractalidad multi-escala}
+
+Además de \(\spec{\J},\,\widehat{\FD}\) y \(L_D\), se introduce RQA (Recurrence Quantification Analysis) sobre trayectorias \(\{\bm{h}_t\}_{t=1}^T\):
+
+\begin{align}
+R_{ij} &= \mathbb{I}\!\big[ \|\bm{h}_i - \bm{h}_j\|_\infty \le \varepsilon_R \big],\\
+\mathrm{RR} &= \frac{1}{T^2}\sum_{i,j} R_{ij}, \quad
+\mathrm{DET} = \frac{\sum_{l \ge l_{\min}} l\,P(l)}{\sum_l l\,P(l)},
+\end{align}
+
+con \(P(l)\) distribución de longitudes de diagonales en el diagrama de recurrencia.
+Definimos rangos deseables \([\mathrm{RR}_{\min},\mathrm{RR}_{\max}]\), 
+\([\mathrm{DET}_{\min},\mathrm{DET}_{\max}]\).
+
+Penalización adicional de borde:
+\begin{equation}
+\mathcal{L}_{\mathrm{edge2.1}} =
+-\alpha_\rho \log(1-\spec{\J})
++ \alpha_{\FD}\,\phi(\widehat{\FD} - \FD^\star)
++ \alpha_{\mathrm{RR}}\,\phi_{\mathrm{band}}(\mathrm{RR})
++ \alpha_{\mathrm{DET}}\,\phi_{\mathrm{band}}(\mathrm{DET}),
+\end{equation}
+donde \(\phi_{\mathrm{band}}(x)=\max\{0, x-\mathrm{ub}\} + \max\{0, \mathrm{lb}-x\}\).
+
+\textbf{Efecto:} detección temprana de cambio de atractor, caos intermitente y pérdida de determinismo.
+
+% ------------------------------------------------------------
+\subsection{S--I--E~2.0 con riesgo \texorpdfstring{$\mathrm{CVaR}$}{CVaR} y garantía de no-regresión}
+
+Para un candidato \(\thetaPar^{\mathrm{cand}}\) obtenido por mutación/ingesta, definimos el \emph{mejoramiento estocástico} de cierre:
+
+\begin{align}
+\Delta \IoC &= \IoC(\thetaPar^{\mathrm{cand}}) - \IoC(\thetaPar^{\mathrm{old}}), \\
+\mathrm{CVaR}_\alpha[-\Delta \IoC] 
+&= \min_{\tau}\left\{\tau + \frac{1}{1-\alpha}\,\E\big[( -\Delta \IoC - \tau )_+\big]\right\}.
+\end{align}
+
+\textbf{Regla de herencia S--I--E 2.0:}
+\[
+\begin{cases}
+\thetaPar^{\mathrm{cand}}\notin\safe &\Rightarrow \textbf{RECHAZAR} \\
+\Pr(\Delta\IoC \ge 0)\ge 1-\delta \;\wedge\; \mathrm{CVaR}_\alpha[-\Delta \IoC] \le \tau &\Rightarrow \textbf{ACEPTAR} \\
+\text{en otro caso} &\Rightarrow \textbf{BUFFER}
+\end{cases}
+\]
+
+\textbf{Efecto:} no basta mejorar en promedio; se controla el \emph{riesgo de caída severa} en el cierre.
+
+% ------------------------------------------------------------
+\subsection{HNet~2.1: MPC robusto de recursos/complexidad}
+
+Sea el estado de telemetría \(\mathcal{T}_t\) y un presupuesto \(\mathbf{b}_t = [m_t,\,c_t,\,k_t]^\top\) (memoria, cómputo, complejidad).
+Horizonte \(H\) y conjunto de incertidumbre \(\mathcal{U}\) (p.ej., picos de VRAM, latencias, temperatura).
+
+\begin{equation}
+\min_{\mathbf{u}_{0:H}} \max_{\xi \in \mathcal{U}}
+\sum_{h=0}^H 
+\Big[
+c_{\text{meta}}(\mathcal{T}_{t+h},\xi)
++ c_{\text{edge}}(\thetaPar_{t+h},\xi)
+- \lambda_{\Io}\,\IoC(\thetaPar_{t+h})
+\Big]
+\end{equation}
+sujeto a dinámica aproximada, \(\thetaPar_{t+h}\in\safe\), y 
+\(\mathbf{b}_{t+h}\in\mathcal{B}_{\mathrm{hard}}\).
+
+\textbf{Fallback con histéresis:} si \(\mathcal{B}_{\text{safe}}\) supera umbral durante \(N_{\mathrm{hold}}\), forzar \emph{modo seguro}: identidad/clip, reducción de rutas/top‑k y pausa de expansión.
+
+% ------------------------------------------------------------
+\subsection{C--GWM robusto: causalidad invariante por entornos}
+
+Sea \(\{e\in\mathcal{E}\}\) un conjunto de entornos (regímenes). 
+Aprender \(f\) tal que relaciones causales relevantes cumplan \emph{invariancia por entornos}:
+
+\begin{equation}
+\min_{f\in\mathcal{F}} 
+\sum_{e\in\mathcal{E}} \mathcal{L}(f; e)
+\quad \text{s.a.} \quad
+\forall S \in \mathcal{S}_{\mathrm{inv}}:
+\ \ \partial_{\theta} \E[Y\mid X_S, e] \ \text{no depende de } e.
+\end{equation}
+
+\textbf{ACE estable:} penalizar \(\Var_e[\mathrm{ACE}_e]\) y usar 
+ancoras/penalizaciones para instrumentos débiles.
+
+% ------------------------------------------------------------
+\subsection{\SMG/\LOTF: invariantes topológicos y geométricos}
+
+Mantener integridad semántica y formal:
+\begin{equation}
+\ktop = 1 - \frac{\#\text{violaciones topológicas}}{\#\text{pruebas}},\quad
+\kgeo = 1 - \frac{\|f_{\thetaPar} - f_{\thetaPar+\delta}\|_{\mathrm{val}}}{\|f_{\thetaPar}\|_{\mathrm{val}}+\epsilon}.
+\end{equation}
+
+\textbf{Regla:} S--I--E 2.0 no promueve candidatos con \(\Delta \ktop \ll 0\) o \(\Delta \kgeo \ll 0\), aunque \(\Delta\IoC>0\), salvo en \emph{modo laboratorio} con \(\mathrm{CVaR}\) controlado.
+
+% ------------------------------------------------------------
+\subsection{Agregación multi–agente robusta}
+
+Pool log-opinión con pesos de confianza \(w_a\) (actualizados por desempeño y coherencia):
+
+\begin{equation}
+p_{\mathrm{pool}}(y\mid x) \propto \prod_{a} p_a(y\mid x)^{w_a},\qquad
+w_a \leftarrow \mathrm{clip}\big(w_a \exp[-\eta\,\ell_a],\,w_{\min}, w_{\max}\big),
+\end{equation}
+
+y regularizador de \(\mathrm{KL}\) inter-agente:
+\(\sum_{a\neq b} \beta\,\mathrm{KL}(p_a \Vert p_b)\) con límite superior 
+para evitar colusión/colapso.
+
+% ------------------------------------------------------------
+\subsection{Dominio económico: restricciones estructurales y riesgo de cola}
+
+\textbf{Restricciones (ejemplos genéricos):}
+\begin{align}
+\text{conservación de flujo: } & A x \le b, \\
+\text{exposición agregada: } & \|E x\|_\infty \le \bar e, \\
+\text{liquidez mínima: } & L(x) \ge \ell_{\min}.
+\end{align}
+
+\textbf{Riesgo colas pesadas (pérdida \(L\)):}
+\begin{equation}
+\mathrm{CVaR}_\alpha(L) 
+= \min_{\tau}\left\{\tau + \frac{1}{1-\alpha}\,\E[(L-\tau)_+]\right\}.
+\end{equation}
+Agregar \(\lambda_{\mathrm{CVaR}} \mathrm{CVaR}_\alpha(L)\) a la métrica de \emph{fitness} cuando el objetivo es robusto a \emph{tail risk}.
+
+% ------------------------------------------------------------
+\subsection{Olvido catastrófico acotado e invariancia causal}
+
+Regularizador EWC causal:
+\begin{equation}
+\mathcal{R}_{\mathrm{EWC}} 
+= \frac{1}{2}\sum_i \lambda_i\,F_i\,(\theta_i - \theta_i^\star)^2,
+\end{equation}
+donde \(F_i\) pondera parámetros asociados a relaciones causales invariantes. 
+S--I--E 2.0 prioriza candidatos con \(\Delta \mathcal{R}_{\mathrm{EWC}} \le 0\).
+
+% ------------------------------------------------------------
+\subsection{Certificados de episodio reforzados}
+
+Cada episodio incluye el cuádruple:
+\[
+\mathfrak{C}_t 
+= \big(
+\underbrace{\IoC_t}_{\text{cierre}},
+\underbrace{\mathcal{B}_{\text{safe},t}}_{\text{seguridad}},
+\underbrace{\mathcal{R}_{\mathrm{edge2.1},t}}_{\text{estabilidad}},
+\underbrace{\mathrm{CVaR}_{\alpha,t}[-\Delta\IoC]}_{\text{riesgo}}
+\big).
+\]
+Criterio de aceptación de episodio a \OMG:
+\(\mathfrak{C}_t\) dentro de umbrales; si no, \emph{modo laboratorio}/\emph{rollback}.
+
+% ------------------------------------------------------------
+\subsection{Observabilidad y pruebas metamórficas}
+
+Definir conjunto \(\mathcal{P}\) de propiedades invariantes (metamórficas) por dominio:
+\(\forall P\in\mathcal{P}\), test rápido \(T_P\) previo a herencia. 
+Ej.: en mercados, \emph{no crear beneficio arbitrario} bajo permutaciones neutrales de escala/tiempo que no cambien contenido causal.
+
+% ------------------------------------------------------------
+\subsection{Degradación segura y kill-switch cognitivo}
+
+\textbf{Kill-switch} cognitivo: si \(\mathcal{B}_{\text{safe}}\) o
+\(\mathrm{CVaR}_\alpha[-\Delta\IoC]\) exceden límites durante \(N_{\mathrm{hold}}\),
+forzar \emph{HALT}: 
+(i) congelar expansión (A11), 
+(ii) desactivar ADC-PRIME destructivo, 
+(iii) reducir complejidad \(\to\) identidad/clip, 
+(iv) checkpoint y \emph{cooldown}.
+Luego reintento con \(\Hnet\) en \emph{modo recuperación}.
+
+% ------------------------------------------------------------
+\subsection*{Resumen técnico f2.1}
+Se añaden: 
+barrera \(\mathcal{B}_{\text{safe}}\), 
+Edge~2.1 (RQA),
+S--I--E 2.0 con \(\mathrm{CVaR}\),
+MPC robusto (HNet~2.1),
+causalidad invariante multi-entorno,
+agregación multi-agente robusta,
+restricciones/colas para dominio económico,
+EWC causal,
+certificados \(\mathfrak{C}_t\),
+pruebas metamórficas y \emph{kill-switch}.
+Esto transforma f2.0 en un núcleo \emph{mediblemente robusto} listo para shocks, OOD y límites físicos.

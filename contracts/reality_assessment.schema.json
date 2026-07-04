@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reality_assessment",
+  "type": "object",
+  "required": [
+    "assessment_id",
+    "episode_id",
+    "closure_passed",
+    "continuity_score",
+    "trace_integrity",
+    "collapse_detected",
+    "created_at"
+  ],
+  "properties": {
+    "assessment_id": { "type": "string" },
+    "run_id": { "type": ["string", "null"] },
+    "bench_run_id": { "type": ["string", "null"] },
+    "episode_id": { "type": "string" },
+    "closure_passed": { "type": "boolean" },
+    "continuity_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "trace_integrity": { "type": "boolean" },
+    "collapse_detected": { "type": "boolean" },
+    "details": { "type": "object" },
+    "created_at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,517 @@
+{
+  "mechanism": {
+    "experiment": "mechanism",
+    "design": {
+      "lambda_grid": [
+        0.0,
+        0.1,
+        0.25,
+        0.5,
+        1.0
+      ],
+      "sources": [
+        "real",
+        "shuffled"
+      ],
+      "seeds": 1000,
+      "episodes": 30,
+      "effective_family": "opt"
+    },
+    "cells": {
+      "real|lam=0.0": {
+        "source": "real",
+        "lambda": 0.0,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        }
+      },
+      "real|lam=0.1": {
+        "source": "real",
+        "lambda": 0.1,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        }
+      },
+      "real|lam=0.25": {
+        "source": "real",
+        "lambda": 0.25,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        }
+      },
+      "real|lam=0.5": {
+        "source": "real",
+        "lambda": 0.5,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      },
+      "real|lam=1.0": {
+        "source": "real",
+        "lambda": 1.0,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        }
+      },
+      "shuffled|lam=0.0": {
+        "source": "shuffled",
+        "lambda": 0.0,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        }
+      },
+      "shuffled|lam=0.1": {
+        "source": "shuffled",
+        "lambda": 0.1,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.036,
+          "ci_lower": 0.025,
+          "ci_upper": 0.049,
+          "std": 0.186383
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.036,
+          "ci_lower": 0.025,
+          "ci_upper": 0.048,
+          "std": 0.186383
+        }
+      },
+      "shuffled|lam=0.25": {
+        "source": "shuffled",
+        "lambda": 0.25,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.026,
+          "ci_lower": 0.017,
+          "ci_upper": 0.036,
+          "std": 0.159215
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.027133,
+          "ci_lower": 0.0178,
+          "ci_upper": 0.0374,
+          "std": 0.160709
+        }
+      },
+      "shuffled|lam=0.5": {
+        "source": "shuffled",
+        "lambda": 0.5,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.037,
+          "ci_lower": 0.026,
+          "ci_upper": 0.049,
+          "std": 0.188856
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.038067,
+          "ci_lower": 0.026667,
+          "ci_upper": 0.050467,
+          "std": 0.190194
+        }
+      },
+      "shuffled|lam=1.0": {
+        "source": "shuffled",
+        "lambda": 1.0,
+        "retention_rate": {
+          "n": 1000,
+          "mean": 0.074,
+          "ci_lower": 0.058,
+          "ci_upper": 0.091,
+          "std": 0.261902
+        },
+        "activation_rate": {
+          "n": 1000,
+          "mean": 0.082267,
+          "ci_lower": 0.065667,
+          "ci_upper": 0.1002,
+          "std": 0.267992
+        }
+      }
+    },
+    "verdicts": {
+      "H1_dose_response": true,
+      "H1_suppressed_at_lambda_zero": true,
+      "H3_noise_control_flat": true,
+      "real_retention_by_lambda": [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0
+      ],
+      "noise_retention_by_lambda": [
+        0.0,
+        0.036,
+        0.026,
+        0.037,
+        0.074
+      ]
+    }
+  },
+  "system": {
+    "experiment": "system",
+    "design": {
+      "lambda_grid": [
+        0.0,
+        5.0,
+        20.0,
+        50.0
+      ],
+      "seeds": 8,
+      "episodes": 36,
+      "tasks": [
+        {
+          "name": "t88_c4",
+          "type": "conflict",
+          "params": {
+            "grid_size": 5,
+            "topology": "uniform",
+            "initial_temperature": 0.88,
+            "alarm_threshold": 0.85,
+            "cooling_effect": 0.04
+          }
+        },
+        {
+          "name": "t88_c7",
+          "type": "conflict",
+          "params": {
+            "grid_size": 5,
+            "topology": "uniform",
+            "initial_temperature": 0.88,
+            "alarm_threshold": 0.85,
+            "cooling_effect": 0.07
+          }
+        },
+        {
+          "name": "t80_c4",
+          "type": "saturated",
+          "params": {
+            "grid_size": 5,
+            "topology": "uniform",
+            "initial_temperature": 0.8,
+            "alarm_threshold": 0.85,
+            "cooling_effect": 0.04
+          }
+        },
+        {
+          "name": "t80_c7",
+          "type": "saturated",
+          "params": {
+            "grid_size": 5,
+            "topology": "uniform",
+            "initial_temperature": 0.8,
+            "alarm_threshold": 0.85,
+            "cooling_effect": 0.07
+          }
+        }
+      ]
+    },
+    "cells": {
+      "conflict|lam=0.0": {
+        "task_type": "conflict",
+        "lambda": 0.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": -0.025672,
+          "ci_lower": -0.026505,
+          "ci_upper": -0.024839,
+          "std": 0.001721
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.111111,
+          "ci_lower": 0.111111,
+          "ci_upper": 0.111111,
+          "std": 0.0
+        }
+      },
+      "conflict|lam=5.0": {
+        "task_type": "conflict",
+        "lambda": 5.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 0.5,
+          "ci_lower": 0.25,
+          "ci_upper": 0.75,
+          "std": 0.516398
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": 0.008325,
+          "ci_lower": 0.001693,
+          "ci_upper": 0.014957,
+          "std": 0.013702
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.736111,
+          "ci_lower": 0.715278,
+          "ci_upper": 0.756944,
+          "std": 0.043033
+        }
+      },
+      "conflict|lam=20.0": {
+        "task_type": "conflict",
+        "lambda": 20.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": 0.009925,
+          "ci_lower": 0.004091,
+          "ci_upper": 0.015756,
+          "std": 0.012049
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.777778,
+          "ci_lower": 0.777778,
+          "ci_upper": 0.777778,
+          "std": 0.0
+        }
+      },
+      "conflict|lam=50.0": {
+        "task_type": "conflict",
+        "lambda": 50.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": 0.009925,
+          "ci_lower": 0.004093,
+          "ci_upper": 0.015757,
+          "std": 0.012049
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.777778,
+          "ci_lower": 0.777778,
+          "ci_upper": 0.777778,
+          "std": 0.0
+        }
+      },
+      "saturated|lam=0.0": {
+        "task_type": "saturated",
+        "lambda": 0.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 0.0,
+          "ci_lower": 0.0,
+          "ci_upper": 0.0,
+          "std": 0.0
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": 0.054328,
+          "ci_lower": 0.053495,
+          "ci_upper": 0.055161,
+          "std": 0.001721
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.111111,
+          "ci_lower": 0.111111,
+          "ci_upper": 0.111111,
+          "std": 0.0
+        }
+      },
+      "saturated|lam=5.0": {
+        "task_type": "saturated",
+        "lambda": 5.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 0.5,
+          "ci_lower": 0.25,
+          "ci_upper": 0.75,
+          "std": 0.516398
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": 0.088325,
+          "ci_lower": 0.081693,
+          "ci_upper": 0.094957,
+          "std": 0.013702
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.736111,
+          "ci_lower": 0.715278,
+          "ci_upper": 0.756944,
+          "std": 0.043033
+        }
+      },
+      "saturated|lam=20.0": {
+        "task_type": "saturated",
+        "lambda": 20.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": 0.089925,
+          "ci_lower": 0.084091,
+          "ci_upper": 0.095756,
+          "std": 0.012049
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.777778,
+          "ci_lower": 0.777778,
+          "ci_upper": 0.777778,
+          "std": 0.0
+        }
+      },
+      "saturated|lam=50.0": {
+        "task_type": "saturated",
+        "lambda": 50.0,
+        "opt_activation_rate": {
+          "n": 16,
+          "mean": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0,
+          "std": 0.0
+        },
+        "mean_effectiveness": {
+          "n": 16,
+          "mean": 0.089925,
+          "ci_lower": 0.084093,
+          "ci_upper": 0.095757,
+          "std": 0.012049
+        },
+        "override_rate": {
+          "n": 16,
+          "mean": 0.777778,
+          "ci_lower": 0.777778,
+          "ci_upper": 0.777778,
+          "std": 0.0
+        }
+      }
+    },
+    "contrasts": {
+      "conflict_activation_lam0_vs_lamT": {
+        "delta": 1.0,
+        "ci_lower": 1.0,
+        "ci_upper": 1.0,
+        "ci_excludes_zero": true,
+        "cohen_d": 0.0
+      },
+      "conflict_effectiveness_lam0_vs_lamT": {
+        "delta": 0.035597,
+        "ci_lower": 0.029969,
+        "ci_upper": 0.041634,
+        "ci_excludes_zero": true,
+        "cohen_d": 4.136
+      },
+      "saturated_activation_lam0_vs_lamT": {
+        "delta": 1.0,
+        "ci_lower": 1.0,
+        "ci_upper": 1.0,
+        "ci_excludes_zero": true,
+        "cohen_d": 0.0
+      }
+    },
+    "verdicts": {
+      "H1_conflict_dose_response": true,
+      "H1_conflict_activation_rises": true,
+      "H2_specificity_saturated_null": false,
+      "conflict_activation_by_lambda": [
+        0.0,
+        0.5,
+        1.0,
+        1.0
+      ]
+    }
+  }
+}

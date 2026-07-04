@@ -1,0 +1,1026 @@
+# /evolution/auto_mutator.py
+
+import time
+import math
+import logging
+from typing import Dict, Any, Optional, List
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+class AutoMutator:
+    def __init__(self,
+                 neurogenesis_manager,
+                 katana_pruner,
+                 neuro_threshold: float = 0.3,
+                 prune_threshold: float = -0.3,
+                 max_pressure: float = 1.0,
+                 min_pressure: float = -1.0,
+                 pressure_decay: float = 0.95,
+                 adaptive_step: float = 0.01,
+                 log_events: bool = True,
+                 warmup_limit: int = 5000,
+                 testing: bool = False):
+        self.neurogenesis = neurogenesis_manager
+        self.katana = katana_pruner
+        self.neuro_threshold = neuro_threshold
+        self.prune_threshold = prune_threshold
+        self.max_pressure = max_pressure
+        self.min_pressure = min_pressure
+        self.pressure_decay = pressure_decay
+        self.adaptive_step = adaptive_step
+        self.log_events = log_events
+        self.warmup_limit = warmup_limit
+        self.testing = testing
+
+        self.pressure = 0.0
+        self.pressure_history = []
+        self.mutation_log = []
+        self.last_event = None
+        self.oscillation_counter = 0
+
+    def evaluate_mutation_pressure(self, ctx: Dict[str, Any]) -> float:
+        delta_epist = ctx.get("delta_epist", 0.0)
+        eta_bayes = ctx.get("mutual_info", 0.0)
+        thermal_risk = ctx.get("thermal_risk", 0.0)
+        pruning_level = ctx.get("pruning_intensity", 0.0)
+        growth_impact = ctx.get("neurogenesis_impact", {})
+        growth_avg = np.mean(list(growth_impact.values())) if growth_impact else 0.0
+
+        # Presión base: combinación no lineal
+        pressure = (
+            -math.tanh(delta_epist * 2) * 0.4 +
+            math.erf(pruning_level) * 0.3 -
+            thermal_risk * 0.2 +
+            math.log1p(growth_avg) * 0.3 +
+            1 / (1 + math.exp(-5 * (eta_bayes - 0.5))) * 0.4
+        )
+
+        # Memoria histórica amortiguada
+        if self.pressure_history:
+            historical = sum(p * (self.pressure_decay ** i)
+                             for i, p in enumerate(reversed(self.pressure_history))) / len(self.pressure_history)
+            pressure = 0.7 * pressure + 0.3 * historical
+
+            # Oscilación: reducción si cambia de signo muchas veces
+            if np.sign(self.pressure_history[-1]) != np.sign(pressure):
+                self.oscillation_counter += 1
+            else:
+                self.oscillation_counter = max(0, self.oscillation_counter - 1)
+
+            if self.oscillation_counter > 3:
+                pressure *= 0.5
+                self.oscillation_counter = 0
+
+        self.pressure = np.clip(pressure, self.min_pressure, self.max_pressure)
+        self.pressure_history.append(self.pressure)
+        if len(self.pressure_history) > 10:
+            self.pressure_history.pop(0)
+
+        return self.pressure
+
+    def adaptive_step_size(self) -> float:
+        if len(self.pressure_history) < 3:
+            return self.adaptive_step
+        volatility = np.std(self.pressure_history[-3:])
+        return np.clip(self.adaptive_step * (1 + volatility * 10), 0.001, 0.1)
+
+    def adjust_thresholds(self):
+        step = self.adaptive_step_size()
+        sigmoid_factor = 1.0 / (1.0 + math.exp(-10 * (abs(self.pressure) - 0.5)))
+
+        if self.pressure > self.neuro_threshold:
+            self.neurogenesis.delta_epist_min *= (1.0 - step * sigmoid_factor)
+            self.neurogenesis.mutual_info_min *= (1.0 - step * sigmoid_factor)
+            if hasattr(self.katana, "base_tau"):
+                self.katana.base_tau = min(0.1, self.katana.base_tau * (1.0 + step * sigmoid_factor / 2))
+
+        elif self.pressure < self.prune_threshold:
+            if hasattr(self.katana, "base_tau"):
+                self.katana.base_tau = max(0.001, self.katana.base_tau * (1.0 - step * sigmoid_factor))
+            self.neurogenesis.delta_epist_min *= (1.0 + step * sigmoid_factor / 2)
+            self.neurogenesis.mutual_info_min *= (1.0 + step * sigmoid_factor / 2)
+
+    def step(self, ctx: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        """
+        Evaluates mutation pressure, adjusts module thresholds, and triggers adaptation actions.
+        It captures adaptation payloads and returns them as a list, prioritizing neurogenesis.
+
+        Args:
+            ctx: The context dictionary with current system metrics.
+
+        Returns:
+            A list of adaptation payloads, or None if no action was taken.
+        """
+        # --- TESTING MODE: skip warmup and relax thresholds ---
+        if self.testing:
+            # Pruning: VRAM > 90%
+            if ctx.get('vram_usage_gb', 0.0) / getattr(ctx, 'MAX_VRAM_GB', 1.0) >= 0.90:
+                prune_payload = self.katana.step(ctx)
+                self.log_mutation_event(ctx, 0, 1, None, prune_payload)
+                return [prune_payload]
+            # Neurogenesis: loss history rising
+            hist = ctx.get('history', [])
+            if len(hist) >= 4 and hist[-1] > max(hist[-4:-1]):
+                neuro_payload = self.neurogenesis.step(ctx)
+                self.log_mutation_event(ctx, 1, 0, neuro_payload, None)
+                return [neuro_payload]
+
+        pressure = self.evaluate_mutation_pressure(ctx)
+        self.adjust_thresholds()
+
+        neuro_intensity = np.clip((pressure - self.neuro_threshold) / 0.5, 0, 1)
+        prune_intensity = np.clip((-pressure - self.prune_threshold) / 0.5, 0, 1)
+
+        neuro_payload = None
+        if neuro_intensity > 0:
+            ctx["neurogenesis_intensity"] = neuro_intensity
+            neuro_payload = self.neurogenesis.step(ctx)
+
+        prune_payload = None
+        if prune_intensity > 0:
+            ctx["pruning_intensity"] = prune_intensity
+            prune_payload = self.katana.step(ctx)
+
+        # Prioritize neurogenesis over pruning by returning only that payload if both are generated.
+        if neuro_payload:
+            final_payloads = [neuro_payload]
+        elif prune_payload:
+            final_payloads = [prune_payload]
+        else:
+            final_payloads = []
+
+        if self.log_events:
+            self.log_mutation_event(ctx, neuro_intensity, prune_intensity, neuro_payload, prune_payload)
+
+        return final_payloads if final_payloads else None
+
+    def log_mutation_event(self, ctx: Dict[str, Any], n_intensity: float, p_intensity: float, neuro_payload: Optional[Dict], prune_payload: Optional[Dict]):
+        action_taken = "none"
+        prioritization_details = "N/A"
+
+        if neuro_payload and prune_payload:
+            action_taken = neuro_payload.get('action', 'neurogenesis')
+            prioritization_details = f"Neurogenesis prioritized over pruning. Neurogenesis payload selected."
+        elif neuro_payload:
+            action_taken = neuro_payload.get('action', 'neurogenesis')
+            prioritization_details = "Only neurogenesis payload was generated."
+        elif prune_payload:
+            action_taken = prune_payload.get('action', 'pruning')
+            prioritization_details = "Only pruning payload was generated."
+
+        event = {
+            "timestamp": time.time(),
+            "pressure": self.pressure,
+            "trigger": action_taken,
+            "neuro_intensity": n_intensity,
+            "prune_intensity": p_intensity,
+            "delta_epist": ctx.get("delta_epist", 0.0),
+            "thermal_risk": ctx.get("thermal_risk", 0.0),
+            "growth_impact": ctx.get("neurogenesis_impact", {}),
+            "neuro_payload_generated": bool(neuro_payload),
+            "prune_payload_generated": bool(prune_payload),
+            "prioritization_details": prioritization_details,
+            "thresholds": {
+                "delta_min": self.neurogenesis.delta_epist_min,
+                "mutual_min": self.neurogenesis.mutual_info_min,
+                "pruning_tau": getattr(self.katana, "base_tau", None)
+            }
+        }
+        self.mutation_log.append(event)
+        self.last_event = event
+        if len(self.mutation_log) > 1000:
+            self.mutation_log = self.mutation_log[-1000:]
+-------------------------------------------------------------------------------------------------------
+
+#EvolutionaryRehabilitationCenter
+"""
+– Gestor de Cuarentena Cuántica Avanzada para AEON FENIX-Δ
+-------------------------------------------------------------------------------
+• Pruning cuántico con retroalimentación epistémica
+• Distillation con NAS adaptativo y temperatura ajustable
+• Monitorización física con veto térmico y gestión de entropía
+• Resurrección caótica si el sistema colapsa
+• Basado en el marco teórico de AEON FENIX-Δ Fase 0
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import math
+from dataclasses import dataclass, field
+from typing import Callable, Dict, Optional, Tuple, List
+from collections import deque
+from abc import ABC, abstractmethod
+from aeon.core.event_bus import event_bus  # Integración EventBus centralizado
+
+# ────────────────────────────  CONFIGURACIONES AVANZADAS  ────────────────────────────
+@dataclass
+class AdvancedPhysicsConfig:
+    vram_threshold: float = 0.85  # Umbral para activar cuarentena
+    thermal_threshold: float = 0.90  # Umbral térmico (Max-Q: 85°C)
+    entropy_threshold: float = 0.80  # Umbral de entropía computacional
+    resource_recovery_time: int = 300  # Segundos entre recuperaciones
+    quantum_monitoring: bool = True  # Activar monitoreo cuántico
+
+@dataclass
+class QuantumEpistemicConfig:
+    prior_strength: float = 0.7  # Peso de la creencia previa
+    kl_tolerance: float = 1e-3  # Tolerancia de divergencia KL
+    temperature: float = 0.05  # Temperatura para suavizado de logits
+    uncertainty_weight: float = 1.2  # Peso de la incertidumbre en decisiones
+
+# ────────────────────────────  INTERFAZ DE INTELIGENCIA EPISTÉMICA  ────────────────────────────
+class EpistemicIntelligence(ABC):
+    @abstractmethod
+    def get_cognitive_load(self) -> float: ...
+    @abstractmethod
+    def get_resource_utilization(self) -> Dict[str, float]: ...
+    @abstractmethod
+    def get_epistemic_value(self, uid: str) -> float: ...
+    @abstractmethod
+    def get_system_efficiency(self) -> float: ...
+
+# ────────────────────────────  MOTOR DE NAS CUÁNTICO  ────────────────────────────
+class QuantumNASEngine:
+    def __init__(self, max_params_ratio: float = 0.15):
+        self.max_params_ratio = max_params_ratio
+        self.architecture_pool = {}
+
+    def generate_architecture(self, base: nn.Module) -> nn.Module:
+        """Genera arquitecturas optimizadas con NAS cuántico"""
+        input_shape = self._get_input_shape(base)
+        output_shape = self._get_output_shape(base)
+        depth = max(1, min(5, int(math.log2(base.num_parameters()))))
+        width = max(16, int(base.num_parameters() * self.max_params_ratio))
+        
+        from src.core.module_orchestrator import LargeDenseModel
+        in_dim = input_shape[0]
+        out_dim = output_shape[0]
+        if in_dim == 4096 and out_dim == 4096:
+            return LargeDenseModel(4096, 4096)
+        else:
+            return nn.Sequential(
+                nn.Linear(in_dim, 4096),
+                LargeDenseModel(4096, 4096),
+                nn.Linear(4096, out_dim)
+            )
+
+    def validate_surrogate(self, surrogate: nn.Module, base: nn.Module) -> bool:
+        """Valida que el modelo sustituto mantenga la eficiencia epistémica"""
+        test_input = torch.randn(32, *self._get_input_shape(base))
+        with torch.no_grad():
+            base_output = base(test_input)
+            surr_output = surrogate(test_input)
+            kl_div = F.kl_div(
+                F.log_softmax(surr_output, dim=-1),
+                F.softmax(base_output, dim=-1),
+                reduction='batchmean'
+            )
+            return kl_div.item() <= self.kl_tolerance
+
+    def _get_input_shape(self, module: nn.Module) -> Tuple[int, ...]:
+        for p in module.parameters():
+            if p.dim() > 1:
+                return (p.shape[1],)
+        return (1,)
+
+    def _get_output_shape(self, module: nn.Module) -> Tuple[int, ...]:
+        for p in module.parameters():
+            if p.dim() > 1:
+                return (p.shape[0],)
+        return (1,)
+
+# ────────────────────────────  MONITOREO FÍSICO CON VETO TÉRMICO  ────────────────────────────
+class PhysicsAwareMonitor:
+    def __init__(self, config: AdvancedPhysicsConfig):
+        self.config = config
+        self.resource_state = {'vram': 0.0, 'thermal': 0.0, 'entropy': 0.0}
+        self.last_recovery = time.time()
+
+    def update(self, vram: float, thermal: float, entropy: float):
+        self.resource_state = {'vram': vram, 'thermal': thermal, 'entropy': entropy}
+
+    def should_quarantine(self) -> bool:
+        return any(val > self.config.__dict__[key] for key, val in self.resource_state.items())
+
+    def can_recover(self) -> bool:
+        time_ok = time.time() - self.last_recovery > self.config.resource_recovery_time
+        resource_ok = all(val < thres * 0.8 for key, val in self.resource_state.items()
+                          for thres in [self.config.vram_threshold, self.config.thermal_threshold, self.config.entropy_threshold])
+        return time_ok and resource_ok
+
+    def trigger_recovery(self):
+        self.last_recovery = time.time()
+
+# ────────────────────────────  PRUNING CUÁNTICO CON RETROALIMENTACIÓN  ────────────────────────────
+class QuantumBayesPruner:
+    def __init__(self, config: QuantumEpistemicConfig):
+        self.config = config
+        self.belief_threshold = 0.85
+        self.uncertainty_threshold = 0.25
+
+    def should_prune(self, quantum_state: 'QuantumState') -> bool:
+        uncertainty_weighted = quantum_state.belief * (1 + self.config.uncertainty_weight * quantum_state.uncertainty)
+        return uncertainty_weighted > self.belief_threshold
+
+    def should_recover(self, quantum_state: 'QuantumState') -> bool:
+        return quantum_state.belief < 0.3 and quantum_state.uncertainty < self.uncertainty_threshold
+
+# ────────────────────────────  METADATOS CUÁNTICOS CON HISTÓRICO  ────────────────────────────
+@dataclass
+class QuantumResourceMeta:
+    module: nn.Module
+    surrogate: Optional[nn.Module] = None
+    snapshot: Dict[str, torch.Tensor] = field(default_factory=dict)
+    quantum_state: 'QuantumState' = field(default_factory=lambda: QuantumState())
+    step_entered: int = 0
+    step_last_eval: int = 0
+    efficiency_history: deque = field(default_factory=lambda: deque(maxlen=100))
+    epistemic_value: float = 0.0
+    cognitive_load: float = 0.0
+    architecture_signature: str = ""
+    distillation_loss: float = float('inf')
+    recovery_attempts: int = 0
+
+# ────────────────────────────  GESTOR DE CUARENTENA AVANZADO  ────────────────────────────
+class QuantumQuarantineManager:
+    def __init__(self,
+                 epistemic_intel: EpistemicIntelligence,
+                 prune_callback: Callable[[str], None],
+                 reintegrate_callback: Callable[[str, nn.Module], None],
+                 physics_config: AdvancedPhysicsConfig = AdvancedPhysicsConfig(),
+                 quantum_config: QuantumEpistemicConfig = QuantumEpistemicConfig()):
+        self.ep_intel = epistemic_intel
+        self.prune = prune_callback
+        self.reint = reintegrate_callback
+        self.physics_monitor = PhysicsAwareMonitor(physics_config)
+        self.quantum_pruner = QuantumBayesPruner(quantum_config)
+        self.nas_engine = QuantumNASEngine(max_params_ratio=0.15)
+        self.store: Dict[str, QuantumResourceMeta] = {}
+        self.step_idx = 0
+        self.global_efficiency = 1.0
+        self.efficiency_history = deque(maxlen=1000)
+
+    def quarantine(self, uid: str, module: nn.Module):
+        """Aisla módulos con bajo valor epistémico"""
+        if uid in self.store:
+            return  # Ya en cuarentena
+        snap = {k: v.detach().clone() for k, v in module.state_dict().items()}
+        meta = QuantumResourceMeta(
+            module=module,
+            snapshot=snap,
+            epistemic_value=self.ep_intel.get_epistemic_value(uid),
+            cognitive_load=self.ep_intel.get_cognitive_load()
+        )
+        module.eval().to("cpu").requires_grad_(False)
+        self.store[uid] = meta
+        logger.info(f"[{uid}] Cuarentena cuántica iniciada | Epistemic: {meta.epistemic_value:.4f}")
+
+        event_bus.emit('quarantine_initiated', {
+            'uid': uid,
+            'epistemic_value': meta.epistemic_value,
+            'cognitive_load': meta.cognitive_load,
+            'timestamp': time.time()
+        })
+
+    def attempt_recovery(self, uid: str) -> bool:
+        """Intenta reintegrar módulos tras evaluación cuántica"""
+        if uid not in self.store or not self.physics_monitor.can_recover():
+            return False
+        meta = self.store[uid]
+        recovery_module = meta.surrogate or meta.module
+        if self._validate(recovery_module):
+            self.reint(uid, recovery_module.to("cuda"))
+            self.store.pop(uid)
+            self.physics_monitor.trigger_recovery()
+
+            event_bus.emit('quarantine_recovery', {
+                'uid': uid,
+                'timestamp': time.time()
+            })
+            return True
+        meta.recovery_attempts += 1
+        return False
+
+    def step(self):
+        """Ciclo principal de gestión cuántica"""
+        self._update_physics_awareness()
+        for uid, meta in list(self.store.items()):
+            self._update_quantum_state(uid, meta)
+            if self._should_process(meta):
+                self._distill(uid, meta)
+            if self._should_evaluate(meta):
+                self._quantum_evaluation(uid, meta)
+            if self._should_finalize(meta):
+                self._quantum_final_decision(uid, meta)
+
+    def _distill(self, uid: str, meta: QuantumResourceMeta):
+        """Distillation cuántica con NAS adaptativo"""
+        surrogate = self.nas_engine.generate_architecture(meta.module)
+        meta.architecture_signature = str(surrogate)
+        surrogate.to("cuda")
+        optimizer = torch.optim.Adam(surrogate.parameters(), lr=2e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5)
+        best_loss = float('inf')
+        for epoch in range(5):
+            x = self._generate_epistemic_input(meta.module)
+            with torch.no_grad():
+                y_target = meta.module(x)
+            y_pred = surrogate(x) / self.quantum_pruner.config.temperature
+            loss = self._quantum_aware_loss(y_pred, y_target, meta)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            best_loss = min(best_loss, loss.item())
+        meta.distillation_loss = best_loss
+        meta.surrogate = surrogate.cpu()
+        meta.step_last_eval = self.step_idx
+
+    def _quantum_aware_loss(self, y_pred, y_target, meta: QuantumResourceMeta) -> torch.Tensor:
+        base_loss = F.kl_div(F.log_softmax(y_pred, dim=-1), F.softmax(y_target, dim=-1), reduction='batchmean')
+        return base_loss * (1 + meta.quantum_state.uncertainty * 1.2) + meta.cognitive_load * 0.05
+
+    def _quantum_evaluation(self, uid: str, meta: QuantumResourceMeta):
+        self.global_efficiency = self.ep_intel.get_system_efficiency()
+        meta.efficiency_history.append(self.global_efficiency)
+        if self.quantum_pruner.should_prune(meta.quantum_state):
+            self._quantum_prune(uid, meta)
+        elif self.quantum_pruner.should_recover(meta.quantum_state):
+            self.attempt_recovery(uid)
+
+    def _quantum_prune(self, uid: str, meta: QuantumResourceMeta):
+        self.prune(uid)
+        self.store.pop(uid)
+
+        event_bus.emit('quarantine_pruned', {
+            'uid': uid,
+            'efficiency_min': min(meta.efficiency_history) if meta.efficiency_history else None,
+            'efficiency_max': max(meta.efficiency_history) if meta.efficiency_history else None,
+            'timestamp': time.time()
+        })
+        logger.info(f"[{uid}] Poda cuántica | Eficiencia: {min(meta.efficiency_history):.3f}-{max(meta.efficiency_history):.3f}")
+
+    # Métodos auxiliares omitidos para brevedad (ver código completo en `quantum_quarantine_adv3.py`)
+-------------------------------------------------------------------------------------------------------------------
+
+#katana_pruner
+import torch
+import torch.nn as nn
+import math
+import numpy as np
+import logging
+import os
+from aeon.utils.influx_logger import InfluxLogger
+from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+WARMUP_STEPS = 5000  # Número de pasos antes de permitir la poda
+
+class KatanaPruner:
+    def __init__(self, model: nn.Module, base_tau=0.01, patio_cfg=None,
+                 mask_temp=1.0, granularity="weight", cycle_length=1000):
+        self.model = model
+        self.base_tau = base_tau
+        self.mask_temp = mask_temp
+        self.granularity = granularity
+        self.cycle_length = cycle_length
+        self.step_count = 0
+        self.rollback_threshold = 0.02
+        patio_cfg = patio_cfg or {}
+        self.beta_T = patio_cfg.get("beta_T", 2.0)
+        self.beta_F = patio_cfg.get("beta_F", 0.5)
+        self.min_tau = patio_cfg.get("min_tau", 1e-3)
+        self.max_tau = patio_cfg.get("max_tau", 0.1)
+        self.amp = patio_cfg.get("amp", 0.01)
+        self.log_alpha = nn.ParameterDict()
+        self.current_masks = {}  # Almacena las máscaras activas
+        self._init_concrete_params()
+        self.influx_logger = InfluxLogger(
+            url=os.environ.get("INFLUXDB_URL", "http://localhost:8181"),
+            token=os.environ.get("INFLUXDB_TOKEN", "<TOKEN>"),
+            database=os.environ.get("INFLUXDB_BUCKET", "aeon_metrics")
+        )
+
+    def _init_concrete_params(self):
+        for name, module in self.model.named_modules():
+            if isinstance(module, nn.Linear):
+                sanitized_name = name.replace('.', '_')
+                shape = module.weight.shape
+                # Inicializar log_alpha basado en la magnitud media de los pesos
+                init_val = np.log(module.weight.abs().mean().item() + 1e-8)
+                param = nn.Parameter(torch.full(shape, init_val, device=module.weight.device))
+                self.log_alpha[sanitized_name] = param
+                # Inicializar máscaras a 1 (sin poda)
+                self.current_masks[name] = torch.ones(shape, device=module.weight.device)
+
+    def _schedule_tau(self, ctx):
+        # Telemetría: log de decisión de tau
+        try:
+            self.influx_logger.log_event(
+                name="katana_tau_schedule",
+                tags={
+                    "thermal_risk": str(ctx.get("thermal_risk", 0.0)),
+                    "fisher_density": str(ctx.get("fisher_density", 1.0)),
+                    "step_count": str(self.step_count)
+                }
+            )
+        except Exception as e:
+            logger.warning(f"No se pudo enviar evento a InfluxDB: {e}")
+        thermal_risk = ctx.get("thermal_risk", 0.0)
+        fisher_density = max(ctx.get("fisher_density", 1.0), 1e-9)
+        cyc = 0.5 * (1 + math.cos(2 * math.pi * self.step_count / self.cycle_length))
+        tau = (
+            self.base_tau +
+            self.beta_T * thermal_risk +
+            self.beta_F * (1 / fisher_density) +
+            cyc * self.amp
+        )
+        return max(self.min_tau, min(tau, self.max_tau))
+
+    def _horseshoe_kl(self, module):
+        w = module.weight
+        if not hasattr(module, 'lambda_global'):
+            module.lambda_global = nn.Parameter(torch.tensor(1.0, device=w.device))
+        w_sq = w.pow(2)
+        kl_local = torch.log1p(w_sq / (module.lambda_global**2 + 1e-9))
+        kl_global = torch.log1p(1 / (module.lambda_global**2 + 1e-9))
+        return kl_local + kl_global
+
+    def _hybrid_score(self, module, name, ctx):
+        # Si no hay Fisher ni gradientes, usamos |w| normalizada
+        fisher = ctx.get("fisher", {}).get(name, None)
+        grad = module.weight.grad if module.weight.grad is not None else None
+        if fisher is None and grad is None:
+            score = module.weight.abs()
+            score = score.float()  # Asegura tipo correcto para quantile
+            q10, q90 = score.quantile(0.1), score.quantile(0.9)
+            return (score - q10) / (q90 - q10 + 1e-9)
+        if fisher is None:
+            fisher = torch.ones_like(module.weight)  # type: ignore
+        if grad is None:
+            grad = torch.zeros_like(module.weight)  # type: ignore
+        kl = self._horseshoe_kl(module)
+        score = module.weight.pow(2) * fisher + grad.abs() + kl
+        score = score.float()  # Asegura tipo correcto para quantile
+        q10, q90 = score.quantile(0.1), score.quantile(0.9)
+        return (score - q10) / (q90 - q10 + 1e-9)
+
+    def _concrete_mask(self, log_alpha, tau, score):
+        u = torch.rand_like(log_alpha)
+        g = -torch.log(-torch.log(u + 1e-9) + 1e-9)
+        mask = torch.sigmoid((log_alpha + g) / self.mask_temp)
+        keep = torch.sigmoid(10 * (score - tau))
+        return mask * keep
+
+    def step(self, ctx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Calcula nuevas máscaras de poda. Si cambian, devuelve un 'Adaptation Payload'.
+        Ya no modifica los pesos del modelo directamente.
+        """
+        if self.step_count < WARMUP_STEPS:
+            logger.info(f"[Katana] Warmup activo ({self.step_count}/{WARMUP_STEPS}). No se realiza poda.")
+            self.step_count += 1
+            return None
+
+        if self._needs_rollback(ctx):
+            logger.warning("[Katana] Condición de rollback detectada. Revirtiendo toda la poda.")
+            return self._rollback()
+
+        tau = self._schedule_tau(ctx)
+        new_masks = {}
+        masks_changed = False
+
+        for name, module_proxy in self._get_all_linear_layers():
+            sanitized_name = name.replace('.', '_')
+            if sanitized_name not in self.log_alpha:
+                continue
+            
+            module = module_proxy.layer
+            score = self._hybrid_score(module, name, ctx)
+            
+            # Si el score es plano (sin fisher ni grad), no se poda
+            if torch.all(score.abs() < 1e-6):
+                mask = torch.ones_like(module.weight)  # type: ignore
+            else:
+                mask = self._concrete_mask(self.log_alpha[sanitized_name], tau, score)
+            
+            new_masks[name] = mask.detach()
+
+            # Comprobar si la máscara ha cambiado significativamente
+            if name not in self.current_masks or not torch.allclose(self.current_masks[name], new_masks[name], atol=1e-3):
+                masks_changed = True
+
+        self.step_count += 1
+
+        if masks_changed:
+            self.current_masks = new_masks
+            pruning_ratios = {name: 1.0 - mask.mean().item() for name, mask in new_masks.items()}
+            logger.info(f"[Katana] Nuevas máscaras de poda calculadas. Ratios: {pruning_ratios}")
+            
+            payload = {
+                "action": "PRUNING_MASKS_UPDATED",
+                "impact": {"pruning_ratios": pruning_ratios},
+                "artifacts": {
+                    "pruning_masks": self.current_masks
+                }
+            }
+            return payload
+
+        return None # No hubo cambios en las máscaras
+
+    def _needs_rollback(self, ctx):
+        delta_epist = ctx.get("delta_epist", 0)
+        acc_trend = ctx.get("acc_trend", 0)
+        risk_factor = 1.0 + ctx.get("thermal_risk", 0)
+        threshold = self.rollback_threshold * risk_factor
+        return delta_epist < -threshold and acc_trend < -threshold
+
+    def _rollback(self) -> Dict[str, Any]:
+        """Genera un payload para revertir la poda, creando máscaras de unos."""
+        rollback_masks = {}
+        for name, module_proxy in self._get_all_linear_layers():
+            rollback_masks[name] = torch.ones_like(module_proxy.layer.weight)  # type: ignore
+        
+        self.current_masks = rollback_masks
+        payload = {
+            "action": "PRUNING_MASKS_UPDATED",
+            "impact": {"pruning_ratios": {name: 0.0 for name in rollback_masks}},
+            "artifacts": {
+                "pruning_masks": self.current_masks
+            }
+        }
+        return payload
+
+    def _get_all_linear_layers(self):
+        """Generador que encuentra todas las capas lineales anidadas."""
+        for name, module in self.model.named_modules():
+            if isinstance(module, nn.Linear):
+                yield name, self._get_layer_proxy(name)
+
+    def _get_layer_proxy(self, layer_name: str) -> 'LayerProxy':
+        """Obtiene un proxy para acceder a una capa, incluso si es anidada."""
+        parts = layer_name.split('.')
+        obj = self.model
+        for part in parts[:-1]:
+            obj = getattr(obj, part)
+        return LayerProxy(obj, parts[-1])
+
+    def compute_kl_divergence(self):
+        # Para el test_horseshoe_kl_stability
+        total_kl = 0.0
+        for name, module in self.model.named_modules():
+            if name in self.log_alpha:
+                kl = self._horseshoe_kl(module)
+                total_kl += kl.sum().item()
+        return float(total_kl)
+
+    def get_masks(self):
+        """
+        Devuelve las máscaras de poda activas para cada parámetro relevante.
+        """
+        return self.current_masks.copy()
+
+# La clase LayerProxy debe ser definida para que _get_layer_proxy funcione
+class LayerProxy:
+    """Un objeto intermediario para obtener y establecer atributos de capa de forma segura."""
+    def __init__(self, parent_module: nn.Module, layer_attr: str):
+        self.parent_module = parent_module
+        self.layer_attr = layer_attr
+
+    @property
+    def layer(self) -> nn.Module:
+        return getattr(self.parent_module, self.layer_attr)
+
+    def set(self, new_layer: nn.Module):
+        setattr(self.parent_module, self.layer_attr, new_layer)
+-----------------------------------------------------------------------------------------------------------------------------
+
+
+#meta_optimizer
+
+"""
+quantum_optimizer_adv.py – Meta-Optimizador Cuántico Exponencial para AEON FENIX-Δ
+-------------------------------------------------------------------------------
+• Dinámica cuántica adaptativa con retroalimentación epistémica
+• Gestión de VRAM con escalado cuántico y FP16
+• Evolución arquitectónica con refuerzo cuántico
+• Reorganización proactiva con predicción térmica
+• Basado en el marco teórico de AEON FENIX-Δ Fase 0
+"""
+
+import time
+import math
+import random
+import numpy as np
+from collections import deque
+from dataclasses import dataclass
+from typing import Dict, Any, Callable, List, Tuple
+import torch.nn as nn
+import torch
+from aeon.core.event_bus import event_bus  # Integración EventBus centralizado
+
+# Si no existe un logger global, define uno mínimo
+try:
+    logger
+except NameError:
+    import logging
+    logger = logging.getLogger("meta_optimizer")
+    if not logger.hasHandlers():
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+
+# ──────────────────────────── CONFIGURACIONES AVANZADAS ────────────────────────────
+@dataclass
+class QuantumExponentialConfig:
+    # Parámetros fundamentales
+    base_cycle_interval: int = 5_000
+    max_modules: int = 128
+    min_modules: int = 8
+    thermal_threshold: float = 0.85  # 85% de umbral térmico
+
+    # Parámetros de crecimiento
+    growth_rate: float = 0.15
+    entropy_factor: float = 0.1
+    quantum_uncertainty: float = 0.05
+
+    # Parámetros de evolución
+    mutation_intensity: float = 0.08
+    crossover_rate: float = 0.25
+    architecture_exploration: float = 0.3
+
+    # Resiliencia térmica
+    max_violations: int = 3
+    max_vram_usage: float = 8.0  # GB
+
+# ──────────────────────────── CLASES AUXILIARES ────────────────────────────
+class QuantumState:
+    def __init__(self, latent_dim: int = 32):
+        self.latent_dim = latent_dim
+        self.belief = 0.5
+        self.uncertainty = 0.1
+        self.last_update = time.time()  # Inicialización para evitar AttributeError
+        self.coherence = 1.0  # Coherencia cuántica inicial máxima
+
+    def update(self, delta_epist: float, entropy: float):
+        """Actualiza creencia e incertidumbre con decaimiento exponencial y coherencia"""
+        decay = math.exp(-(time.time() - self.last_update) * 0.1)
+        self.belief = delta_epist * decay + (1 - decay) * self.belief
+        self.uncertainty = entropy * decay + (1 - decay) * self.uncertainty
+        # Coherencia cuántica robusta: inversamente proporcional a la incertidumbre, acotada [0,1]
+        self.coherence = max(0.0, min(1.0, 1.0 - self.uncertainty))
+        self.last_update = time.time()
+
+class PhysicsAwareMonitor:
+    def __init__(self, vram_threshold: float = 0.85, thermal_threshold: float = 0.90):
+        self.vram_threshold = vram_threshold
+        self.thermal_threshold = thermal_threshold
+        self.resource_state = {'vram': 0.0, 'thermal': 0.0, 'entropy': 0.0}
+        self.last_recovery = time.time()
+
+    def update(self, vram: float, thermal: float, entropy: float):
+        """Actualiza métricas de hardware"""
+        self.resource_state = {'vram': vram, 'thermal': thermal, 'entropy': entropy}
+
+    def should_quarantine(self) -> bool:
+        """Verifica si se deben tomar medidas por recursos físicos"""
+        return (
+            self.resource_state['vram'] > self.vram_threshold or
+            self.resource_state['thermal'] > self.thermal_threshold or
+            self.resource_state['entropy'] > 0.95
+        )
+
+    def can_recover(self) -> bool:
+        """Valida si es seguro reintegrar módulos"""
+        return time.time() - self.last_recovery > 300 and all(
+            val < thres * 0.8 for key, val in self.resource_state.items()
+            for thres in [self.vram_threshold, self.thermal_threshold]
+        )
+
+# ──────────────────────────── OPTIMIZADOR CUÁNTICO ────────────────────────────
+class QuantumExponentialOptimizer:
+    def __init__(self, config: QuantumExponentialConfig):
+        self.config = config
+        self.state = {}
+        self.state['epistemic_gain'] = 0.0  # Inicialización para evitar KeyError
+        self.state['cycle'] = 0
+        self.state['vfe'] = 1.0
+        self.state['eta_bayes'] = 0.5
+        self.state['modules'] = {}
+        self.state['violation_count'] = 0
+        self.state['last_reorg'] = 0
+        self.state['quantum_state'] = QuantumState(latent_dim=32)
+        self.state['epistemic_history'] = deque(maxlen=500)
+        self.state['thermal_history'] = deque(maxlen=100)
+        self.state['cognitive_load'] = 0.5
+
+        self.physics_monitor = PhysicsAwareMonitor(
+            vram_threshold=0.85,
+            thermal_threshold=0.90
+        )
+        self._spawn_module("core_module")
+        # Suscripción a eventos críticos externos (ejemplo: crisis global)
+        event_bus.on('crisis', self._on_crisis_event)
+
+    def _on_crisis_event(self, payload):
+        logger.warning(f"[EventBus] Crisis detectada en meta_optimizer | Payload: {payload}")
+        # Hook: lógica de respuesta a crisis global (extensible)
+
+    def step(self, physics_stats: Dict[str, float], epistemic_callback: Callable[[str], float]):
+        """Avanzar un ciclo de optimización"""
+        self.state['cycle'] += 1
+        self.state['cognitive_load'] = physics_stats.get('cognitive_load', 0.5)
+
+        # Actualizar estado cuántico global
+        self._update_quantum_state(physics_stats)
+
+        # Meta-optimización en intervalos cuánticos
+        cycle_interval = self._dynamic_cycle_interval()
+        if (self.state['cycle'] % cycle_interval) == 0:
+            self._quantum_optimize(physics_stats, epistemic_callback)
+
+        # Reorganización periódica
+        if self.state['cycle'] - self.state['last_reorg'] > self.config.base_cycle_interval * 10:
+            self._quantum_reorganization(physics_stats)
+
+        # Ejemplo: emitir evento de ciclo de optimización
+        event_bus.emit('meta_optimizer_step', {
+            'cycle': self.state['cycle'],
+            'cognitive_load': self.state['cognitive_load'],
+            'stats': physics_stats
+        })
+
+    def _update_quantum_state(self, physics_stats: Dict[str, float]):
+        """Actualiza el estado cuántico con retroalimentación epistémica"""
+        # Actualiza creencia e incertidumbre con métricas de autoconciencia
+        entropy = physics_stats.get('entropy', 0.0)
+        self.state['quantum_state'].update(self.state['epistemic_gain'], entropy)
+
+    def _dynamic_cycle_interval(self) -> int:
+        """Ajusta intervalo de optimización según carga cognitiva"""
+        load_factor = max(0.5, min(2.0, 1.0 + self.state['cognitive_load']))
+        return int(self.config.base_cycle_interval * load_factor)
+
+    def _quantum_optimize(self, physics_stats: Dict[str, float], epistemic_callback: Callable[[str], float]):
+        """Optimización cuántica adaptativa"""
+        # Calcular objetivos exponenciales
+        vfe_target, eta_target = self._quantum_targets(physics_stats)
+
+        # Evaluar progreso con incertidumbre cuántica
+        vfe_ok = self.state['vfe'] <= vfe_target * (1 + self.config.quantum_uncertainty)
+        eta_ok = self.state['eta_bayes'] >= eta_target * (1 - self.config.quantum_uncertainty)
+
+        # Manejar violaciones con resiliencia térmica
+        if not (vfe_ok and eta_ok):
+            self.state['violation_count'] += 1
+            event_bus.emit('homeostasis_violation', {
+                'cycle': self.state['cycle'],
+                'vfe': self.state['vfe'],
+                'eta_bayes': self.state['eta_bayes'],
+                'violation_count': self.state['violation_count']
+            })
+            if self.state['violation_count'] >= self.config.max_violations:
+                event_bus.emit('quantum_mutation_triggered', {'cycle': self.state['cycle']})
+                # Mutar el primer módulo disponible (si existe)
+                if self.state['modules']:
+                    first_uid = next(iter(self.state['modules']))
+                    self._quantum_mutation(self.state['modules'][first_uid], reason='violation')
+                self.state['violation_count'] = 0
+
+        # Actualizar módulos existentes
+        for uid in list(self.state['modules'].keys()):
+            module = self.state['modules'][uid]
+            self._evolve_module(uid, module, epistemic_callback)
+
+    def _quantum_targets(self, physics_stats: Dict[str, float]) -> Tuple[float, float]:
+        """Calcular objetivos exponenciales con dinámica cuántica"""
+        # Factor de crecimiento adaptativo
+        growth_factor = self.config.growth_rate * (1 + self.state['quantum_state'].belief)
+
+        # Objetivo VFE (decreciente exponencial)
+        vfe_target = self.state['vfe'] * math.exp(-growth_factor)
+
+        # Objetivo η (creciente exponencial)
+        eta_target = 1 - (1 - self.state['eta_bayes']) * math.exp(-growth_factor)
+
+        # Ajuste por entropía
+        entropy = physics_stats.get('entropy', 0.0)
+        entropy_adjust = 1 + self.config.entropy_factor * entropy
+        vfe_target *= entropy_adjust
+        eta_target /= entropy_adjust
+
+        return vfe_target, eta_target
+
+    def _quantum_reorganization(self, physics_stats: Dict[str, float]):
+        """Reorganización cuántica con predicción térmica"""
+        # Predicción de tendencia térmica
+        thermal_trend = np.mean(self.state['thermal_history']) * 1.1
+        if thermal_trend > self.config.thermal_threshold:
+            self._predictive_thermal_throttling()
+
+        # Ajuste de módulos según eficiencia epistémica
+        module_scores = []
+        for uid, module in self.state['modules'].items():
+            score = module.epistemic_value / (module.thermal_stress + 1e-8)
+            module_scores.append((uid, score))
+
+        # Eliminar módulos menos eficientes
+        module_scores.sort(key=lambda x: x[1])
+        while len(module_scores) > self.config.max_modules:
+            worst_uid, _ = module_scores.pop(0)
+            del self.state['modules'][worst_uid]
+
+        # Generar nuevos módulos si hay espacio
+        if len(self.state['modules']) < self.config.max_modules:
+            self._spawn_module(f"module_{self.state['cycle']}")
+        event_bus.emit('quantum_reorganization', {'cycle': self.state['cycle']})
+
+    def _predictive_thermal_throttling(self):
+        logger.critical("Iniciando estrategia térmica anticipativa")
+        event_bus.emit('thermal_throttling', {'cycle': self.state['cycle']})
+        # Poda agresiva de módulos menos eficientes
+        module_scores = [(uid, module.thermal_stress / (module.epistemic_value + 1e-8)) 
+                        for uid, module in self.state['modules'].items()]
+        module_scores.sort(key=lambda x: x[1])
+        for uid, _ in module_scores[:3]:  # Poda top 3 módulos más estresantes
+            self._quantum_prune(uid)
+
+    def _spawn_module(self, uid: str):
+        arch_types = ['MLP', 'Transformer', 'RNN']
+        weights = [0.5, 0.3 + 0.2 * self.state['cognitive_load'], 0.2]
+        arch = random.choices(arch_types, weights=weights, k=1)[0]
+        module = self._generate_quantum_module(arch)
+        # Atributos personalizados para trazabilidad y eventos
+        setattr(module, 'epistemic_value', 1.0)
+        setattr(module, 'thermal_stress', 0.0)
+        self.state['modules'][uid] = module
+        event_bus.emit('module_spawned', {
+            'uid': uid,
+            'arch': arch,
+            'cycle': self.state['cycle']
+        })
+        logger.info(f"[{uid}] Nuevo módulo creado | Arquitectura: {arch}")
+
+    def _generate_quantum_module(self, arch: str) -> nn.Module:
+        """Genera módulos con NAS cuántico adaptativo (maximiza VRAM)"""
+        from src.core.module_orchestrator import LargeDenseModel
+        input_shape = (32,)
+        output_shape = (64,)
+        in_dim = input_shape[0]
+        out_dim = output_shape[0]
+        if in_dim == 4096 and out_dim == 4096:
+            return LargeDenseModel(4096, 4096)
+        else:
+            return nn.Sequential(
+                nn.Linear(in_dim, 4096),
+                LargeDenseModel(4096, 4096),
+                nn.Linear(4096, out_dim)
+            )
+
+    def _quantum_mutation(self, module: nn.Module, reason: str = 'manual'):
+        logger.critical(f"Mutación cuántica iniciada | Reason: {reason}")
+        event_bus.emit('quantum_mutation_applied', {
+            'module': str(module),
+            'reason': reason
+        })
+        for layer in module.children():
+            if isinstance(layer, nn.Linear):
+                nn.init.xavier_normal_(layer.weight)
+                layer.bias.data.zero_()
+                layer.weight.data += 0.01 * torch.randn_like(layer.weight.data)
+
+    def _quantum_prune(self, uid: str):
+        if uid in self.state['modules']:
+            del self.state['modules'][uid]
+            event_bus.emit('module_pruned', {
+                'uid': uid,
+                'cycle': self.state['cycle']
+            })
+            logger.info(f"[{uid}] Módulo podado | Causa: Baja eficiencia epistémica")
+
+    def _evolve_module(self, uid: str, module: nn.Module, epistemic_callback: Callable[[str], float]):
+        epistemic = epistemic_callback(uid)
+        setattr(module, 'epistemic_value', float(epistemic))
+        if not hasattr(module, 'thermal_stress'):
+            setattr(module, 'thermal_stress', 0.0)
+        self.state['epistemic_history'].append(epistemic)
+        if epistemic < 0.6 and getattr(module, 'thermal_stress', 0.0) > 0.7:
+            self._quantum_mutation(module, reason='low_efficiency')
+
+    def update_epistemic_state(self, epistemic_callback: Callable[[str], float]):
+        epistemic_values = [getattr(m, 'epistemic_value', 1.0) for m in self.state['modules'].values()]
+        if epistemic_values:
+            self.state['eta_bayes'] = np.mean(epistemic_values)
+            self.state['epistemic_gain'] = self._compute_epistemic_gain()
+
+    def _compute_epistemic_gain(self):
+        # Implementación simple: diferencia entre último y promedio histórico
+        if not self.state['epistemic_history']:
+            return 0.0
+        last = self.state['epistemic_history'][-1]
+        mean_hist = np.mean(self.state['epistemic_history'])
+        return float(last - mean_hist)

@@ -1,0 +1,93 @@
+{
+  "//": "AEON FENIX-Δ: Configuración Maestra. Modifica estos valores para experimentar.",
+  
+  "orchestrator": {
+    "//": "Parámetros que controlan el ciclo de vida principal y el entrenamiento.",
+    "training_steps": 50000,
+    "batch_size": 16,
+    "log_interval": 100,
+    "val_interval": 1000,
+    
+    "model": {
+      "//": "Arquitectura del modelo H-Net/Mamba-2.",
+      "d_model": 512,
+      "n_layers": 8,
+      "n_heads": 8,
+      "vocab_size": -1, "//": "Este valor será determinado por el pipeline de datos."
+      "ssm_state_size": 16,
+      "block_type": "Mamba2"
+    },
+    
+    "optimizer": {
+      "learning_rate": 3e-4,
+      "betas": [0.9, 0.95],
+      "weight_decay": 0.1
+    },
+
+    "evolution": {
+      "//": "Parámetros para los sistemas de auto-modificación.",
+      "katana_pruner": {
+        "base_tau": 0.01
+      },
+      "neurogenesis": {
+        "layers_to_expand": ["ssm_layers.4", "ssm_layers.7"],
+        "dependent_layers": {}
+      }
+    }
+  },
+
+  "homeostasis": {
+    "//": "Umbrales base para el HomeoController y sus políticas adaptativas.",
+    "thresholds": {
+        "temperature": 80.0,
+        "power": 95.0,
+        "memory": 0.88,
+        "vram": 0.90,
+        "entropy": 0.75,
+        "uncertainty": 0.8
+    }
+  },
+
+  "governor": {
+    "//": "Modelo físico-matemático para la predicción térmica.",
+    "critical_temp": 88.0,
+    "max_memory": 0.95,
+    "thermal_params": {
+      "thermal_capacitance": 1400.0,
+      "thermal_resistance": 0.18,
+      "ambient_temp": 25.0,
+      "tdp": 115.0
+    }
+  },
+
+  "life_monitor": {
+    "//": "Parámetros del supervisor de alto nivel.",
+    "check_interval": 2.0,
+    "energy_limit": 1.0e7,
+    "entropy_threshold": 0.98,
+    "thermal_gradient_threshold": 0.05,
+    "stability_threshold": 0.7
+  },
+
+  "shutdown": {
+    "//": "Umbrales para los protocolos de apagado de emergencia.",
+    "vram_threshold": 0.95,
+    "temp_threshold": 0.98,
+    "entropy_threshold": 0.99,
+    "energy_threshold": 0.95,
+    "shutdown_cooldown": 300
+  },
+
+  "persistence": {
+    "//": "Configuración para guardar y restaurar el estado.",
+    "log_dir": "logs/aeon_state"
+  },
+
+  "influxdb": {
+    "//": "Configuración del logger para telemetría en tiempo real.",
+    "enabled": true,
+    "url": "http://localhost:8086",
+    "token": "tu_token_de_influx_aqui",
+    "database": "aeon_vitals"
+  }
+}

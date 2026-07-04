@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EXT_OPEN_THINKER response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "claim",
+    "reasoning_summary",
+    "candidate_hypotheses",
+    "causal_assumptions",
+    "counterfactual_checks",
+    "recommended_intervention",
+    "confidence_proxy"
+  ],
+  "properties": {
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "reasoning_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 420
+    },
+    "candidate_hypotheses": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 180
+      }
+    },
+    "causal_assumptions": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 180
+      }
+    },
+    "counterfactual_checks": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 180
+      }
+    },
+    "recommended_intervention": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "confidence_proxy": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  }
+}
