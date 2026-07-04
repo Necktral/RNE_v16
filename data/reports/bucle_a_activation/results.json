@@ -1,0 +1,173 @@
+{
+  "arms": {
+    "experiment": "arms",
+    "design": {
+      "lam_nu": 1.0,
+      "seeds": 12,
+      "episodes": 36,
+      "regime": "conflict"
+    },
+    "fixed": {
+      "effectiveness": {
+        "n": 12,
+        "mean": -0.012,
+        "ci_lower": -0.012,
+        "ci_upper": -0.012,
+        "std": 0.0
+      },
+      "effectiveness_full_run": {
+        "n": 12,
+        "mean": -0.012,
+        "ci_lower": -0.012,
+        "ci_upper": -0.012,
+        "std": 0.0
+      },
+      "reward_scalar": {
+        "n": 12,
+        "mean": 0.600039,
+        "ci_lower": 0.593527,
+        "ci_upper": 0.606296,
+        "std": 0.011696
+      },
+      "activation": {
+        "n": 12,
+        "mean": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "std": 0.0
+      },
+      "retention": {
+        "n": 12,
+        "mean": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "std": 0.0
+      }
+    },
+    "guided": {
+      "effectiveness": {
+        "n": 12,
+        "mean": 0.012,
+        "ci_lower": 0.012,
+        "ci_upper": 0.012,
+        "std": 0.0
+      },
+      "effectiveness_full_run": {
+        "n": 12,
+        "mean": 0.009333,
+        "ci_lower": 0.009333,
+        "ci_upper": 0.009333,
+        "std": 0.0
+      },
+      "reward_scalar": {
+        "n": 12,
+        "mean": 0.604869,
+        "ci_lower": 0.586801,
+        "ci_upper": 0.624362,
+        "std": 0.035206
+      },
+      "activation": {
+        "n": 12,
+        "mean": 1.0,
+        "ci_lower": 1.0,
+        "ci_upper": 1.0,
+        "std": 0.0
+      },
+      "retention": {
+        "n": 12,
+        "mean": 1.0,
+        "ci_lower": 1.0,
+        "ci_upper": 1.0,
+        "std": 0.0
+      }
+    },
+    "ecology": {
+      "effectiveness": {
+        "n": 12,
+        "mean": 0.012,
+        "ci_lower": 0.012,
+        "ci_upper": 0.012,
+        "std": 0.0
+      },
+      "effectiveness_full_run": {
+        "n": 12,
+        "mean": 0.01,
+        "ci_lower": 0.01,
+        "ci_upper": 0.01,
+        "std": 0.0
+      },
+      "reward_scalar": {
+        "n": 12,
+        "mean": 0.61964,
+        "ci_lower": 0.603146,
+        "ci_upper": 0.635102,
+        "std": 0.030211
+      },
+      "activation": {
+        "n": 12,
+        "mean": 1.0,
+        "ci_lower": 1.0,
+        "ci_upper": 1.0,
+        "std": 0.0
+      },
+      "retention": {
+        "n": 12,
+        "mean": 1.0,
+        "ci_lower": 1.0,
+        "ci_upper": 1.0,
+        "std": 0.0
+      }
+    },
+    "effectiveness_guided_vs_fixed": {
+      "delta": 0.024,
+      "ci_lower": 0.024,
+      "ci_upper": 0.024,
+      "ci_excludes_zero": true,
+      "cohen_d": 0.0
+    },
+    "activation_guided_vs_fixed": {
+      "delta": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0,
+      "ci_excludes_zero": true,
+      "cohen_d": 0.0
+    },
+    "ecology_multiplier_vs_isolated": {
+      "delta": 0.000667,
+      "ci_lower": 0.000667,
+      "ci_upper": 0.000667,
+      "ci_excludes_zero": true,
+      "cohen_d": 0.0
+    },
+    "verdicts": {
+      "A1a_guided_beats_fixed": true,
+      "A1b_effective_activation_rises": true,
+      "A1d_ecology_multiplies": true
+    }
+  },
+  "sweep": {
+    "experiment": "lambda_sweep",
+    "design": {
+      "grid": [
+        0.0,
+        0.5,
+        1.0,
+        2.0,
+        5.0
+      ],
+      "seeds": 12,
+      "episodes": 36
+    },
+    "retention_by_lambda": [
+      0.0,
+      0.4167,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "threshold_lambda_nu": 1.0,
+    "verdicts": {
+      "A1c_threshold_is_O1": true
+    }
+  }
+}
