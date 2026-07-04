@@ -142,6 +142,72 @@ class TestReward:
         ]
         assert abs(reasoning_cost_from_trace(trace) - 2.9) < 1e-9
 
+
+class TestRewardNuDecomposition:
+    """PR1 Bucle A — ν=cau.helps_goal como criterio aditivo de primera clase (cura J(h|X))."""
+
+    def test_nu_byte_identical_when_lambda_zero(self):
+        """λ_ν=0 (default) ⇒ el escalar `reward` es idéntico independientemente de ν."""
+        base = compute_episode_reward(delta_ioc=0.03, reasoning_cost=2.0, cost_budget=6.0, b_safe=None)
+        with_nu = compute_episode_reward(
+            delta_ioc=0.03, reasoning_cost=2.0, cost_budget=6.0, b_safe=None, nu=True,
+        )
+        assert with_nu["reward"] == base["reward"]
+        assert with_nu["schema"] == "reasoning_reward.v3"
+        assert with_nu["lambda_nu"] == 0.0
+        assert with_nu["nu"] == 1.0
+        assert with_nu["nu_term"] == 0.0
+
+    def test_nu_helps_goal_adds_lambda(self):
+        """Con λ_ν=1.0 y helps_goal=True, ν suma exactamente λ_ν al reward."""
+        without = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=0.0, cost_budget=6.0, b_safe=None,
+            nu=True, lambda_nu=0.0,
+        )
+        with_nu = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=0.0, cost_budget=6.0, b_safe=None,
+            nu=True, lambda_nu=1.0,
+        )
+        assert abs(with_nu["reward"] - without["reward"] - 1.0) < 1e-9
+        assert with_nu["nu_term"] == 1.0
+
+    def test_nu_false_or_none_no_bonus(self):
+        """helps_goal=False o None ⇒ ν=0 ⇒ sin bonus aunque λ_ν>0."""
+        false_nu = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=0.0, cost_budget=6.0, b_safe=None,
+            nu=False, lambda_nu=1.0,
+        )
+        none_nu = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=0.0, cost_budget=6.0, b_safe=None,
+            nu=None, lambda_nu=1.0,
+        )
+        assert false_nu["nu_term"] == 0.0
+        assert false_nu["reward"] == 0.0
+        assert none_nu["nu_term"] == 0.0
+        assert none_nu["nu"] is None
+
+    def test_nu_float_is_clamped(self):
+        """ν float se clampa a [0,1]."""
+        hi = compute_episode_reward(
+            delta_ioc=0.0, reasoning_cost=0.0, cost_budget=6.0, b_safe=None,
+            nu=5.0, lambda_nu=1.0,
+        )
+        assert hi["nu"] == 1.0 and hi["nu_term"] == 1.0
+
+    def test_env_flag_default_off(self, monkeypatch):
+        """Sin RNFE_REWARD_LAMBDA_NU en el entorno, λ_ν=0 y byte-idéntico."""
+        monkeypatch.delenv("RNFE_REWARD_LAMBDA_NU", raising=False)
+        r = compute_episode_reward(delta_ioc=0.02, reasoning_cost=6.0, cost_budget=6.0, b_safe=None, nu=True)
+        assert abs(r["reward"] - (-0.08)) < 1e-6  # idéntico a test_reward_formula
+        assert r["lambda_nu"] == 0.0
+
+    def test_env_flag_activates(self, monkeypatch):
+        """RNFE_REWARD_LAMBDA_NU=1.0 activa el término vía entorno."""
+        monkeypatch.setenv("RNFE_REWARD_LAMBDA_NU", "1.0")
+        r = compute_episode_reward(delta_ioc=0.0, reasoning_cost=0.0, cost_budget=6.0, b_safe=None, nu=True)
+        assert r["lambda_nu"] == 1.0
+        assert abs(r["reward"] - 1.0) < 1e-9
+
     def test_summary(self):
         rewards = [{"reward": 0.1}, {"reward": -0.2}, {"reward": 0.3}]
         s = summarize_rewards(rewards)
@@ -164,9 +230,11 @@ class TestRunnerIntegration:
             result = runner.run_episode()
 
         r = result["reasoning_reward"]
-        assert r["schema"] == "reasoning_reward.v2"
+        assert r["schema"] == "reasoning_reward.v3"
         assert isinstance(r["reward"], float)
         assert r["dissipation_term"] == 0.0  # D_t aún en R4
+        assert "nu" in r and "lambda_nu" in r  # término de viabilidad ν (PR1 Bucle A)
+        assert r["lambda_nu"] == 0.0  # default OFF ⇒ nominal byte-idéntico
         json.dumps(r)
 
         events = runner.storage.list_events(

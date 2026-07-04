@@ -630,6 +630,10 @@ class ScenarioEpisodeRunner:
             )
         except Exception:
             effectiveness = None
+        # ν = cau.helps_goal (¿la acción factual va en la dirección del objetivo?),
+        # ya direction-aware desde core_inference. Criterio de viabilidad de primera
+        # clase (cura J(h|X)); pesa solo con RNFE_REWARD_LAMBDA_NU>0.
+        nu_helps_goal = ((reasoning.get("state") or {}).get("cau_link") or {}).get("helps_goal")
         reasoning_reward = compute_episode_reward(
             delta_ioc=cert_risk_plus.get("delta_ioc"),
             delta_ioc_star=(cert_meta.get("omega") or {}).get("delta_ioc_star"),
@@ -637,6 +641,7 @@ class ScenarioEpisodeRunner:
             cost_budget=reasoning.get("effective_max_steps"),
             b_safe=cert_risk_plus.get("b_safe"),
             effectiveness=effectiveness,
+            nu=nu_helps_goal,
         )
         episode_result["reasoning_reward"] = reasoning_reward
         executed_overlays = [
