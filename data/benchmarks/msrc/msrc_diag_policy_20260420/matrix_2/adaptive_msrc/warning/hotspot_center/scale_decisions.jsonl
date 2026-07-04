@@ -1,0 +1,4 @@
+{"action_type": "keep_scale", "target_scale_id": "1x1", "reason": "evidencia de upgrade a\u00fan insuficiente", "expected_gain": 0.3762926675887498, "expected_cost_penalty": 0.07041145638541044, "lock_steps": 0, "metadata": {"upgrade_evidence": 1}}
+{"action_type": "keep_scale", "target_scale_id": "1x1", "reason": "evidencia de upgrade a\u00fan insuficiente", "expected_gain": 0.3769361347595822, "expected_cost_penalty": 0.07299783565622248, "lock_steps": 0, "metadata": {"upgrade_evidence": 2}}
+{"action_type": "upgrade_scale", "target_scale_id": "5x5", "reason": "cumple prioridad cognitiva y viabilidad con evidencia acumulada", "expected_gain": 0.36993821866666665, "expected_cost_penalty": 0.13136849198266692, "lock_steps": 3, "metadata": {"upgrade_evidence": 3}}
+{"action_type": "lock_scale_for_n_steps", "target_scale_id": "5x5", "reason": "lock activo para evitar oscilaci\u00f3n", "expected_gain": 0.0, "expected_cost_penalty": 0.0, "lock_steps": 2, "metadata": {}}

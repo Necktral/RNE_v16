@@ -1,0 +1,85 @@
+{
+  "campaign_id": "family_profiles_impl_main_v4",
+  "generated_at": "2026-04-21T11:46:20.618877",
+  "episodes_per_cell": 8,
+  "profiles": [
+    "core_only",
+    "core_plus_heur",
+    "core_plus_dialectic",
+    "core_plus_guard",
+    "adaptive_family_ecology"
+  ],
+  "regimes": [
+    "homogeneous_safe",
+    "heterogeneous_elevated",
+    "heterogeneous_warning",
+    "viability_edge",
+    "vram_favorable"
+  ],
+  "table_path": "data/benchmarks/family_profiles/family_profiles_impl_main_v4/family_profile_regime_table.json",
+  "dictamen": "ecolog\u00eda adaptativa ya influye en corridas reales",
+  "improved_regimes": [],
+  "optional_usage_regimes": [
+    "heterogeneous_elevated",
+    "heterogeneous_warning",
+    "viability_edge",
+    "vram_favorable"
+  ],
+  "evidence": [
+    {
+      "regime": "heterogeneous_elevated",
+      "optional_used": true,
+      "positive_signal_count": 0,
+      "deltas": {
+        "ivc_r": -0.4708914111029562,
+        "intervention_precision": 0.0,
+        "viability_margin": -0.006999999999999784,
+        "success_rate": -1.0
+      }
+    },
+    {
+      "regime": "heterogeneous_warning",
+      "optional_used": true,
+      "positive_signal_count": 0,
+      "deltas": {
+        "ivc_r": -0.44157538079214703,
+        "intervention_precision": 0.0,
+        "viability_margin": -0.007000000000000228,
+        "success_rate": -1.0
+      }
+    },
+    {
+      "regime": "homogeneous_safe",
+      "optional_used": false,
+      "positive_signal_count": 0,
+      "deltas": {
+        "ivc_r": -0.0002845770921575119,
+        "intervention_precision": 0.0,
+        "viability_margin": 0.0,
+        "success_rate": 0.0
+      }
+    },
+    {
+      "regime": "viability_edge",
+      "optional_used": true,
+      "positive_signal_count": 0,
+      "deltas": {
+        "ivc_r": -0.38983309556503287,
+        "intervention_precision": 0.0,
+        "viability_margin": -0.006899999999999906,
+        "success_rate": -1.0
+      }
+    },
+    {
+      "regime": "vram_favorable",
+      "optional_used": true,
+      "positive_signal_count": 0,
+      "deltas": {
+        "ivc_r": -0.045651675352629165,
+        "intervention_precision": 0.0,
+        "viability_margin": -0.006999999999999895,
+        "success_rate": -1.0
+      }
+    }
+  ]
+}

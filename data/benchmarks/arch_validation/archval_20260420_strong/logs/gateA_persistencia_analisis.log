@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-9.0.2, pluggy-1.6.0 -- /home/necktral/.pyenv/versions/3.10.14/bin/python
+cachedir: .pytest_cache
+rootdir: /home/necktral/rnfe.v15
+configfile: pytest.ini
+plugins: django-4.11.1, anyio-4.13.0
+collecting ... collected 6 items
+
+tests/benchmarks/test_benchmark_pipeline_resilience.py::test_adapter_emite_campos_minimos_requeridos PASSED [ 16%]
+tests/benchmarks/test_benchmark_pipeline_resilience.py::test_ivc_r_tolera_precision_negativa_sin_math_domain PASSED [ 33%]
+tests/benchmarks/test_benchmark_pipeline_resilience.py::test_generate_summary_soporta_todos_los_episodios_en_error PASSED [ 50%]
+tests/benchmarks/test_benchmark_pipeline_resilience.py::test_benchmark_persiste_reality_bench_run_con_proxies PASSED [ 66%]
+tests/benchmarks/test_benchmark_pipeline_resilience.py::test_analysis_estadistico_funciona_con_muestras_pequenas_validas PASSED [ 83%]
+tests/benchmarks/test_benchmark_pipeline_resilience.py::test_analysis_estadistico_no_rompe_con_muestra_uno_vs_uno PASSED [100%]
+
+============================== 6 passed in 1.15s ===============================
+
+
+STDERR:

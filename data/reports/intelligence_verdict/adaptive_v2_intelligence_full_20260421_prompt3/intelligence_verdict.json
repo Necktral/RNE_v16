@@ -1,0 +1,22 @@
+{
+  "campaign_id": "adaptive_v2_intelligence_full_20260421_prompt3",
+  "generated_at": "2026-04-21T13:55:57.229351",
+  "dictamen_principal": "hubo mejora estructural pero no cognitiva",
+  "justificacion_breve": {
+    "primary_verdict": "no hay ganancia cognitiva suficiente",
+    "strong_regimes": [],
+    "conditioned_regimes": [],
+    "closure_regressions": [],
+    "family_positive": []
+  },
+  "what_really_won": [
+    "estructura",
+    "cierre",
+    "disciplina composicional"
+  ],
+  "next_priority": "podar familias neutrales y volver a medir antes de a\u00f1adir m\u00e1s complejidad.",
+  "sources": {
+    "cognitive_verdicts_path": "data/benchmarks/cognitive_gain/adaptive_v2_intelligence_full_20260421_prompt1/regime_cognitive_verdicts.json",
+    "family_causal_path": null
+  }
+}

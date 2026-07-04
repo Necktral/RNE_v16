@@ -1,0 +1,20 @@
+
+======================================================================
+EJECUTANDO BENCHMARK: grid_thermal_5x5_hotspot_center
+======================================================================
+Episodios: 8
+Base seed: 200332
+Output: data/benchmarks/arch_validation/archval_20260420_strong/matrix_b/critical/hotspot_center/block_04
+======================================================================
+
+Episodio 1/8 (seed=200332)... ✓ success (certified, 543.3ms)
+Episodio 2/8 (seed=200333)... ✓ success (certified, 476.2ms)
+Episodio 3/8 (seed=200334)... ✓ success (certified, 533.3ms)
+Episodio 4/8 (seed=200335)... ✓ success (certified, 518.3ms)
+Episodio 5/8 (seed=200336)... ✓ success (certified, 476.9ms)
+Episodio 6/8 (seed=200337)... ✓ success (certified, 512.9ms)
+Episodio 7/8 (seed=200338)... ✓ success (certified, 543.2ms)
+Episodio 8/8 (seed=200339)... ✓ success (certified, 550.7ms)
+
+📊 Resultados guardados en: data/benchmarks/arch_validation/archval_20260420_strong/matrix_b/critical/hotspot_center/block_04/episodes.jsonl
+📊 Resumen guardado en: data/benchmarks/arch_validation/archval_20260420_strong/matrix_b/critical/hotspot_center/block_04/summary.json

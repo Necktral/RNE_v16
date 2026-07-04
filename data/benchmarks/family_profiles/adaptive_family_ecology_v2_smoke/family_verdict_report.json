@@ -1,0 +1,122 @@
+{
+  "campaign_id": "adaptive_family_ecology_v2_smoke",
+  "generated_at": "2026-04-21T12:45:00.870111",
+  "episodes_per_cell": 1,
+  "profiles": [
+    "core_only",
+    "core_plus_heur",
+    "core_plus_dialectic",
+    "core_plus_guard",
+    "adaptive_family_ecology",
+    "adaptive_family_ecology_v2"
+  ],
+  "regimes": [
+    "homogeneous_safe",
+    "heterogeneous_elevated",
+    "heterogeneous_warning",
+    "viability_edge",
+    "vram_favorable"
+  ],
+  "table_path": "data/benchmarks/family_profiles/adaptive_family_ecology_v2_smoke/family_profile_regime_table.json",
+  "dictamen": "ecolog\u00eda adaptativa v2 ya es segura y \u00fatil",
+  "recovered_regimes": [
+    "heterogeneous_elevated",
+    "heterogeneous_warning",
+    "viability_edge",
+    "vram_favorable"
+  ],
+  "critical_recovered_regimes": [
+    "heterogeneous_elevated",
+    "heterogeneous_warning",
+    "viability_edge",
+    "vram_favorable"
+  ],
+  "optional_usage_regimes": [
+    "heterogeneous_elevated",
+    "heterogeneous_warning",
+    "viability_edge",
+    "vram_favorable"
+  ],
+  "evidence": [
+    {
+      "regime": "heterogeneous_elevated",
+      "optional_used": true,
+      "recovered_vs_v1": true,
+      "v1_success_rate": 0.0,
+      "v2_success_rate": 1.0,
+      "v2_backbone_floor_satisfied_rate": 1.0,
+      "v2_optional_displacement_rate": 0.0,
+      "v2_closure_break_rate": 0.0,
+      "deltas_vs_core": {
+        "ivc_r": 0.0297877088832586,
+        "intervention_precision": 0.0,
+        "viability_margin": 0.0010000000000000009,
+        "success_rate": 0.0
+      }
+    },
+    {
+      "regime": "heterogeneous_warning",
+      "optional_used": true,
+      "recovered_vs_v1": true,
+      "v1_success_rate": 0.0,
+      "v2_success_rate": 1.0,
+      "v2_backbone_floor_satisfied_rate": 1.0,
+      "v2_optional_displacement_rate": 0.0,
+      "v2_closure_break_rate": 0.0,
+      "deltas_vs_core": {
+        "ivc_r": 0.02947326233713643,
+        "intervention_precision": 0.0,
+        "viability_margin": 0.0010000000000000009,
+        "success_rate": 0.0
+      }
+    },
+    {
+      "regime": "homogeneous_safe",
+      "optional_used": false,
+      "recovered_vs_v1": false,
+      "v1_success_rate": 1.0,
+      "v2_success_rate": 1.0,
+      "v2_backbone_floor_satisfied_rate": 1.0,
+      "v2_optional_displacement_rate": 0.0,
+      "v2_closure_break_rate": 0.0,
+      "deltas_vs_core": {
+        "ivc_r": 0.0022887445073844423,
+        "intervention_precision": 0.0,
+        "viability_margin": 0.0010000000000000009,
+        "success_rate": 0.0
+      }
+    },
+    {
+      "regime": "viability_edge",
+      "optional_used": true,
+      "recovered_vs_v1": true,
+      "v1_success_rate": 0.0,
+      "v2_success_rate": 1.0,
+      "v2_backbone_floor_satisfied_rate": 1.0,
+      "v2_optional_displacement_rate": 0.0,
+      "v2_closure_break_rate": 0.0,
+      "deltas_vs_core": {
+        "ivc_r": 0.027805467153072194,
+        "intervention_precision": 0.0,
+        "viability_margin": 0.001100000000000101,
+        "success_rate": 0.0
+      }
+    },
+    {
+      "regime": "vram_favorable",
+      "optional_used": true,
+      "recovered_vs_v1": true,
+      "v1_success_rate": 0.0,
+      "v2_success_rate": 1.0,
+      "v2_backbone_floor_satisfied_rate": 1.0,
+      "v2_optional_displacement_rate": 0.0,
+      "v2_closure_break_rate": 0.0,
+      "deltas_vs_core": {
+        "ivc_r": 0.0030988503087626684,
+        "intervention_precision": 0.0,
+        "viability_margin": 0.0010000000000000009,
+        "success_rate": 0.0
+      }
+    }
+  ]
+}

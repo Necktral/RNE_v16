@@ -1,0 +1,46 @@
+{
+  "run_id": "msrc_smoke_20260420-M2-always_5x5-ELEVATED-hotspot_center",
+  "policy_name": "always_5x5",
+  "level": "ELEVATED",
+  "topology": "hotspot_center",
+  "total_episodes": 1,
+  "successful": 1,
+  "failed": 0,
+  "errors": 0,
+  "success_rate": 1.0,
+  "avg_metrics": {
+    "intervention_precision": 0.08402948402948376,
+    "proposition_diversity": 3.169925001442312,
+    "spatial_information_usage": 0.5555555555555556,
+    "wall_time_ms": 214.05857099853165,
+    "artifact_size_bytes": 21585.0,
+    "reasoning_trace_length": 6.0,
+    "ivc_r": 0.506212921125764,
+    "viability_margin": 0.935
+  },
+  "failure_distribution": {},
+  "collapse_count": 0,
+  "proxy_mapping": {
+    "closure_rate": "success_rate",
+    "continuity_mean": "viability_margin"
+  },
+  "msrc_metrics": {
+    "scale_selection_accuracy": 1.0,
+    "upgrade_regret": 0,
+    "downgrade_regret": 0,
+    "oscillation_rate": 0.0,
+    "probe_value_rate": 0.0,
+    "mean_resolution_cost": 2.2,
+    "resolution_efficiency": 0.2300967823298927,
+    "cross_scale_memory_contamination_rate": 0.0,
+    "vram_headroom_mean": 0.0,
+    "vram_peak_ratio": 0.0,
+    "vram_recompute_avoided": 0,
+    "vram_enabled_probe_success_rate": 0.0,
+    "vram_efficiency_after_intelligence": 0.2300967823298927,
+    "selected_scale_distribution": {
+      "5x5": 1
+    }
+  },
+  "generated_at": "2026-04-20T20:23:43.822043+00:00"
+}

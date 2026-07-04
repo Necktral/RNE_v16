@@ -1,0 +1,29 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-9.0.2, pluggy-1.6.0 -- /home/necktral/.pyenv/versions/3.10.14/bin/python
+cachedir: .pytest_cache
+rootdir: /home/necktral/rnfe.v15
+configfile: pytest.ini
+plugins: django-4.11.1, anyio-4.13.0
+collecting ... collected 16 items
+
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_scenario_runner_executes_5x5_episode PASSED [  6%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_episode_creates_artifact PASSED [ 12%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_artifact_contains_cell_states PASSED [ 18%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_episode_emits_closed_event PASSED [ 25%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_episode_gets_certified PASSED [ 31%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_episode_has_world_level PASSED [ 37%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_with_baseline_fixed_profile PASSED [ 43%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_level_field_in_observation PASSED [ 50%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_with_strict_memory_mode PASSED [ 56%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_does_not_pollute_1x1_memory PASSED [ 62%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_multiple_episodes_maintain_continuity PASSED [ 68%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_episode_includes_organism_trajectory PASSED [ 75%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Integration::test_5x5_artifact_size_reasonable PASSED [ 81%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Compatibility::test_5x5_scenario_config_valid PASSED [ 87%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Compatibility::test_5x5_structural_profile_valid PASSED [ 93%]
+tests/integration/test_grid_5x5_episode.py::TestGrid5x5Compatibility::test_5x5_causal_signature_valid PASSED [100%]
+
+============================== 16 passed in 9.43s ==============================
+
+
+STDERR:

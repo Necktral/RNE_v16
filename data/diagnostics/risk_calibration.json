@@ -1,0 +1,4358 @@
+{
+  "report": {
+    "alpha": 0.95,
+    "total_certificates": 3841,
+    "total_runs": 481,
+    "runs_analizados": 480,
+    "cvar_percentiles": {
+      "25": 0.09,
+      "50": 0.09,
+      "75": 0.09,
+      "90": 0.09,
+      "95": 0.09,
+      "100": 0.09
+    },
+    "p_lcb_percentiles": {
+      "5": 0.4665,
+      "10": 0.4665,
+      "25": 0.4665,
+      "50": 0.4665,
+      "75": 0.4665,
+      "90": 0.4665
+    },
+    "frac_nonneg_percentiles": {
+      "5": 0.8571,
+      "25": 0.8571,
+      "50": 0.8571,
+      "75": 0.8571,
+      "95": 0.8571
+    },
+    "sugerencia": {
+      "RNFE_RISK_CVAR_THRESHOLD": 0.1,
+      "RNFE_RISK_PROB_THRESHOLD": 0.45,
+      "criterio": "CVaR \u03c4 = p75 + 0.01; prob = p25 de LCBs (floor a 0.05)"
+    }
+  },
+  "per_run": [
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-adaptive_family_ecology_v2-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_only-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_dialectic-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_guard-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-natural-core_plus_heur-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-adaptive_family_ecology_v2-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_only-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_dialectic-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_guard-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_elevated-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-heterogeneous_warning-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-homogeneous_safe-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-viability_edge-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b00",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b01",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b02",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b03",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b04",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b05",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b06",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    },
+    {
+      "run_id": "adaptive_v2_intelligence_full_20260421_prompt1-sensitivity_10-core_plus_heur-vram_favorable-b07",
+      "episodes": 8,
+      "frac_nonneg": 0.8571,
+      "p_lcb": 0.4665,
+      "cvar": 0.09,
+      "mean_delta": -0.012857,
+      "worst_delta": -0.09
+    }
+  ]
+}

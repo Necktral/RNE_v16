@@ -1,0 +1,25 @@
+{
+  "scenario": "grid_thermal_5x5_uniform",
+  "total_episodes": 8,
+  "successful": 8,
+  "failed": 0,
+  "errors": 0,
+  "success_rate": 1.0,
+  "avg_metrics": {
+    "intervention_precision": -0.002666666666666744,
+    "proposition_diversity": 2.0,
+    "spatial_information_usage": 0.75,
+    "wall_time_ms": 346.18239699995,
+    "artifact_size_bytes": 107741.625,
+    "reasoning_trace_length": 6.0,
+    "ivc_r": 0.047866204015907285,
+    "viability_margin": 0.9418999999999998
+  },
+  "failure_distribution": {
+    "total_episodes": 8,
+    "total_failures": 0,
+    "failure_rate": 0.0,
+    "failure_distribution": {},
+    "secondary_causes": {}
+  }
+}

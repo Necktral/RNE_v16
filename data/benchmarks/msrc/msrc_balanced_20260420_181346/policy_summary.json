@@ -1,0 +1,62 @@
+{
+  "always_1x1": {
+    "n": 7,
+    "success_rate": 1.0,
+    "ivc_r": 0.10121868007095276,
+    "intervention_precision": -0.0324434687676687,
+    "wall_time_ms": 213.2936301785731,
+    "artifact_size_bytes": 49405.92857142857,
+    "upgrade_rate": 0.0,
+    "probe_rate": 0.0,
+    "oscillation_rate": 0.0,
+    "mean_resolution_cost": 1.0
+  },
+  "always_5x5": {
+    "n": 7,
+    "success_rate": 1.0,
+    "ivc_r": 0.3495426021093489,
+    "intervention_precision": 0.045339048273274375,
+    "wall_time_ms": 224.9214183928489,
+    "artifact_size_bytes": 109594.89285714286,
+    "upgrade_rate": 0.0,
+    "probe_rate": 0.0,
+    "oscillation_rate": 0.0,
+    "mean_resolution_cost": 2.1999999999999997
+  },
+  "adaptive_msrc": {
+    "n": 7,
+    "success_rate": 1.0,
+    "ivc_r": 0.2563918444270457,
+    "intervention_precision": 0.016170604382920725,
+    "wall_time_ms": 222.21965757142522,
+    "artifact_size_bytes": 70936.51785714286,
+    "upgrade_rate": 0.125,
+    "probe_rate": 0.0,
+    "oscillation_rate": 0.0,
+    "mean_resolution_cost": 1.75
+  },
+  "adaptive_msrc_aggressive": {
+    "n": 7,
+    "success_rate": 1.0,
+    "ivc_r": 0.27142541318668595,
+    "intervention_precision": 0.014190877155169396,
+    "wall_time_ms": 220.01379207143705,
+    "artifact_size_bytes": 82280.92857142857,
+    "upgrade_rate": 0.05357142857142857,
+    "probe_rate": 0.05357142857142857,
+    "oscillation_rate": 0.0,
+    "mean_resolution_cost": 1.7071428571428573
+  },
+  "probe_before_switch": {
+    "n": 7,
+    "success_rate": 1.0,
+    "ivc_r": 0.25679961766181536,
+    "intervention_precision": 0.016170604382920725,
+    "wall_time_ms": 218.54354628571772,
+    "artifact_size_bytes": 70936.26785714286,
+    "upgrade_rate": 0.125,
+    "probe_rate": 0.0,
+    "oscillation_rate": 0.0,
+    "mean_resolution_cost": 1.75
+  }
+}

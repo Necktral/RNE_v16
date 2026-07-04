@@ -1,0 +1,29 @@
+# Family Profile vs Regime
+
+| Profile | Regime | ivc_r | intervention_precision | success_rate | viability_margin | wall_time_ms | artifact_size_bytes | reasoning_trace_length | family_mix_entropy | optional_family_usage_rate | family_specific_activation_counts |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| core_only | homogeneous_safe | 0.0509 | -0.0645 | 1.0000 | 0.9414 | 213.65 | 237706.4 | 6.00 | 2.5850 | 0.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 8, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 0, 'IND': 0, 'PROB': 8}` |
+| core_only | heterogeneous_elevated | 0.4976 | 0.0877 | 1.0000 | 0.9420 | 267.14 | 544173.5 | 6.00 | 2.5850 | 0.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 8, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 0, 'IND': 0, 'PROB': 8}` |
+| core_only | heterogeneous_warning | 0.4705 | 0.0671 | 1.0000 | 0.9019 | 260.53 | 541306.6 | 6.00 | 2.5850 | 0.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 8, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 0, 'IND': 0, 'PROB': 8}` |
+| core_only | viability_edge | 0.4149 | 0.0404 | 1.0000 | 0.9017 | 270.75 | 536071.6 | 6.00 | 2.5850 | 0.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 8, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 0, 'IND': 0, 'PROB': 8}` |
+| core_only | vram_favorable | 0.0487 | -0.0020 | 1.0000 | 0.9414 | 289.81 | 540519.0 | 6.00 | 2.5850 | 0.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 8, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 0, 'IND': 0, 'PROB': 8}` |
+| core_plus_heur | homogeneous_safe | 0.0004 | -0.0645 | 0.0000 | 0.9344 | 214.75 | 11168.6 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'HEUR': 8, 'PROB': 8}` |
+| core_plus_heur | heterogeneous_elevated | 0.0040 | 0.0877 | 0.0000 | 0.9350 | 215.40 | 22599.9 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'HEUR': 8, 'PROB': 8}` |
+| core_plus_heur | heterogeneous_warning | 0.0038 | 0.0671 | 0.0000 | 0.8949 | 208.79 | 22285.4 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'HEUR': 8, 'PROB': 8}` |
+| core_plus_heur | viability_edge | 0.0034 | 0.0404 | 0.0000 | 0.8948 | 219.32 | 21889.1 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'HEUR': 8, 'PROB': 8}` |
+| core_plus_heur | vram_favorable | 0.0004 | -0.0020 | 0.0000 | 0.9344 | 213.10 | 22240.8 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'HEUR': 8, 'PROB': 8}` |
+| core_plus_dialectic | homogeneous_safe | 0.0004 | -0.0645 | 0.0000 | 0.9344 | 198.98 | 11251.8 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 8, 'PROB': 8}` |
+| core_plus_dialectic | heterogeneous_elevated | 0.0041 | 0.0877 | 0.0000 | 0.9350 | 195.10 | 22682.6 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 8, 'PROB': 8}` |
+| core_plus_dialectic | heterogeneous_warning | 0.0039 | 0.0671 | 0.0000 | 0.8949 | 188.61 | 22367.1 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 8, 'PROB': 8}` |
+| core_plus_dialectic | viability_edge | 0.0034 | 0.0404 | 0.0000 | 0.8948 | 175.23 | 21972.2 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 8, 'PROB': 8}` |
+| core_plus_dialectic | vram_favorable | 0.0004 | -0.0020 | 0.0000 | 0.9344 | 174.54 | 22324.4 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 8, 'PROB': 8}` |
+| core_plus_guard | homogeneous_safe | 0.0004 | -0.0645 | 0.0000 | 0.9344 | 168.38 | 11192.1 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'FAL_GUARD': 8, 'PROB': 8}` |
+| core_plus_guard | heterogeneous_elevated | 0.0041 | 0.0877 | 0.0000 | 0.9350 | 176.39 | 22624.0 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'FAL_GUARD': 8, 'PROB': 8}` |
+| core_plus_guard | heterogeneous_warning | 0.0039 | 0.0671 | 0.0000 | 0.8949 | 177.16 | 22321.8 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'FAL_GUARD': 8, 'PROB': 8}` |
+| core_plus_guard | viability_edge | 0.0034 | 0.0404 | 0.0000 | 0.8948 | 171.80 | 21926.1 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'FAL_GUARD': 8, 'PROB': 8}` |
+| core_plus_guard | vram_favorable | 0.0004 | -0.0020 | 0.0000 | 0.9344 | 175.26 | 22264.8 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'FAL_GUARD': 8, 'PROB': 8}` |
+| adaptive_family_ecology | homogeneous_safe | 0.0508 | -0.0645 | 1.0000 | 0.9414 | 217.03 | 237891.8 | 6.00 | 2.5850 | 0.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 8, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 0, 'PROB': 8}` |
+| adaptive_family_ecology | heterogeneous_elevated | 0.0041 | 0.0877 | 0.0000 | 0.9350 | 177.73 | 22725.6 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 8, 'PROB': 8}` |
+| adaptive_family_ecology | heterogeneous_warning | 0.0039 | 0.0671 | 0.0000 | 0.8949 | 185.24 | 22435.0 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 8, 'PROB': 8}` |
+| adaptive_family_ecology | viability_edge | 0.0034 | 0.0404 | 0.0000 | 0.8948 | 177.29 | 22115.5 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 0, 'DED': 0, 'DIA_ADV': 8, 'EML_SR': 0, 'FAL_GUARD': 8, 'HEUR': 0, 'PROB': 8}` |
+| adaptive_family_ecology | vram_favorable | 0.0004 | -0.0020 | 0.0000 | 0.9344 | 177.08 | 22367.6 | 6.00 | 2.5850 | 1.0000 | `{'ABD': 8, 'ANA': 8, 'CAU': 8, 'CTF': 8, 'DED': 0, 'DIA_ADV': 0, 'EML_SR': 0, 'FAL_GUARD': 0, 'HEUR': 8, 'PROB': 8}` |

@@ -1,0 +1,27 @@
+{
+  "scenario": "grid_thermal_5x5_hotspot_center",
+  "total_episodes": 8,
+  "successful": 8,
+  "failed": 0,
+  "errors": 0,
+  "success_rate": 1.0,
+  "avg_metrics": {
+    "intervention_precision": 0.077200902934537,
+    "proposition_diversity": 2.321928094887362,
+    "spatial_information_usage": 0.7999999999999999,
+    "wall_time_ms": 537.900594375003,
+    "artifact_size_bytes": 110633.75,
+    "reasoning_trace_length": 6.0,
+    "ivc_r": 0.43641182940090106,
+    "viability_margin": 0.9025000000000001
+  },
+  "failure_distribution": {
+    "total_episodes": 8,
+    "total_failures": 0,
+    "failure_rate": 0.0,
+    "failure_distribution": {},
+    "secondary_causes": {
+      "spatial_complexity": 8
+    }
+  }
+}

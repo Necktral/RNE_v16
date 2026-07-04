@@ -1,0 +1,1 @@
+{"success_rate": 1.0, "viability_margin": 0.2, "intervention_precision": 0.1, "proposition_diversity": 1.1, "spatial_information_usage": 0.12, "wall_time_ms": 18.0, "artifact_size_bytes": 1800, "reasoning_trace_length": 6, "ivc_r": 0.32, "failure_primary": null}

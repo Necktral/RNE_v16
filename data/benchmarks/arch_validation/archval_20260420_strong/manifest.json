@@ -1,0 +1,119 @@
+{
+  "campaign_id": "archval_20260420_strong",
+  "created_at": "2026-04-20T12:33:21.258642",
+  "db_path": "aeon_event_log.db",
+  "objective": "Validaci\u00f3n arquitect\u00f3nica fuerte 1x1 vs 5x5",
+  "invariants": {
+    "no_runtime_contract_changes": true,
+    "no_scenario_episode_runner_changes": true,
+    "no_removed_metrics_reintroduced": true,
+    "proxy_semantics_explicit": {
+      "closure_rate_proxy": "success_rate",
+      "continuity_proxy": "viability_margin"
+    }
+  },
+  "stopping_rules": {
+    "abort_global": [
+      "inconsistencia episodes.jsonl/summary.json/reality_bench_runs",
+      "NaN/Inf/math-domain/ZeroDivision",
+      "reapertura de fallo de contrato"
+    ],
+    "quarantine_cell": [
+      "error_rate > 0.05",
+      "artifact_missing_rate > 0.01",
+      "data incompleta",
+      "output no cargable por BenchmarkAnalyzer"
+    ]
+  },
+  "matrices": {
+    "A": {
+      "episodes": 512,
+      "scenarios": [
+        "grid_thermal_1x1",
+        "grid_thermal_5x5_uniform"
+      ],
+      "levels": [
+        "SAFE",
+        "ELEVATED",
+        "WARNING",
+        "CRITICAL"
+      ],
+      "replicas_per_cell": 64,
+      "seed_ranges": {
+        "SAFE": [
+          100000,
+          100063
+        ],
+        "ELEVATED": [
+          100100,
+          100163
+        ],
+        "WARNING": [
+          100200,
+          100263
+        ],
+        "CRITICAL": [
+          100300,
+          100363
+        ]
+      }
+    },
+    "B": {
+      "episodes": 960,
+      "topologies": [
+        "uniform",
+        "hotspot_center",
+        "gradient_ns",
+        "gradient_ew",
+        "checkerboard"
+      ],
+      "levels": [
+        "SAFE",
+        "ELEVATED",
+        "WARNING",
+        "CRITICAL"
+      ],
+      "replicas_per_cell": 48
+    },
+    "C": {
+      "episodes": 576,
+      "scenarios": [
+        "grid_thermal_1x1",
+        "grid_thermal_5x5_uniform",
+        "grid_thermal_5x5_hotspot_center"
+      ],
+      "conditions": [
+        "tight_margin",
+        "weak_cooling",
+        "near_alarm",
+        "high_temp_tight"
+      ],
+      "replicas_per_cell": 48
+    },
+    "D": {
+      "episodes": 320,
+      "selected_cells": 10,
+      "episodes_per_selected_cell": 32,
+      "paired_seed_policy": "16 seed-pairs -> 32 episodios por celda"
+    }
+  },
+  "gates": {
+    "B": {
+      "wall_time_ratio_lt": 2.0,
+      "artifact_size_ratio_lt": 3.0,
+      "success_rate_degradation_pp_le": 3.0
+    },
+    "C": {
+      "net_cognitive_gain_gt": 0.08,
+      "intervention_precision_delta_pct_ge": 8.0,
+      "improvement_in_levels_ge": 3
+    }
+  },
+  "outputs": {
+    "manifest_json": "manifest.json",
+    "runs_index_jsonl": "runs_index.jsonl",
+    "cell_master_csv": "cell_master.csv",
+    "failure_surface_csv": "failure_surface.csv",
+    "final_report_md": "final_report.md"
+  }
+}

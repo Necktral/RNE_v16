@@ -1,0 +1,54 @@
+{
+  "run_id": "msrc_regime_v3_directed_20260420_184926-homogeneous_safe-adaptive_msrc_aggressive",
+  "policy_name": "adaptive_msrc_aggressive",
+  "level": "SAFE",
+  "topology": "uniform",
+  "total_episodes": 8,
+  "successful": 8,
+  "failed": 0,
+  "errors": 0,
+  "success_rate": 1.0,
+  "avg_metrics": {
+    "intervention_precision": -0.06666666666666675,
+    "proposition_diversity": 2.321928094887362,
+    "spatial_information_usage": 0.19999999999999998,
+    "wall_time_ms": 203.75165999996625,
+    "artifact_size_bytes": 49174.25,
+    "reasoning_trace_length": 6.0,
+    "ivc_r": 0.05116404155398461,
+    "viability_margin": 0.9418999999999998
+  },
+  "failure_distribution": {},
+  "collapse_count": 0,
+  "proxy_mapping": {
+    "closure_rate": "success_rate",
+    "continuity_mean": "viability_margin"
+  },
+  "msrc_metrics": {
+    "scale_selection_accuracy": 1.0,
+    "upgrade_regret": 0,
+    "downgrade_regret": 0,
+    "missed_upgrade_regret": 0,
+    "keep_scale_rate": 1.0,
+    "upgrade_rate": 0.0,
+    "downgrade_rate": 0.0,
+    "probe_rate": 0.0,
+    "probe_commit_rate": 0.0,
+    "oscillation_rate": 0.0,
+    "probe_value_rate": 0.0,
+    "mean_resolution_cost": 1.0,
+    "resolution_efficiency": 0.05116404155398461,
+    "cross_scale_memory_contamination_rate": 0.11111111111111113,
+    "vram_headroom_mean": 0.9967040000000001,
+    "vram_peak_ratio": 0.003296,
+    "vram_recompute_avoided": 0,
+    "vram_enabled_probe_success_rate": 0.0,
+    "vram_efficiency_after_intelligence": 15.523070859825427,
+    "selected_scale_distribution": {
+      "1x1": 8
+    },
+    "regime_distribution": {},
+    "regime_probe_rate": {}
+  },
+  "generated_at": "2026-04-21T00:49:34.660161+00:00"
+}

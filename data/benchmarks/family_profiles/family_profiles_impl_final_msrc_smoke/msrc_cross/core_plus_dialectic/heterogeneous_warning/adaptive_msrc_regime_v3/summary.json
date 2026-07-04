@@ -1,0 +1,134 @@
+{
+  "run_id": "msrc-core-plus-dialectic-heterogeneous-warning-adaptive-msrc-regime-v3",
+  "policy_name": "adaptive_msrc_regime_v3",
+  "level": "heterogeneous_warning",
+  "topology": "checkerboard",
+  "total_episodes": 1,
+  "successful": 1,
+  "failed": 0,
+  "errors": 0,
+  "success_rate": 1.0,
+  "avg_metrics": {
+    "intervention_precision": -0.0454545454545455,
+    "proposition_diversity": 2.321928094887362,
+    "spatial_information_usage": 0.2,
+    "wall_time_ms": 232.93804299964904,
+    "artifact_size_bytes": 11990.0,
+    "reasoning_trace_length": 7.0,
+    "ivc_r": 0.04982360206243361,
+    "viability_margin": 0.8944,
+    "family_mix_entropy": 2.807354922057604
+  },
+  "failure_distribution": {},
+  "collapse_count": 0,
+  "optional_family_usage_rate": 1.0,
+  "family_specific_activation_counts": {
+    "ABD": 1,
+    "ANA": 1,
+    "CAU": 1,
+    "CTF": 1,
+    "DED": 1,
+    "DIA_ADV": 1,
+    "PROB": 1
+  },
+  "family_impact_aggregates": {
+    "family_contribution_proxy": {
+      "ABD": 0.1493924231593996,
+      "ANA": 0.1493924231593996,
+      "CAU": 0.1493924231593996,
+      "CTF": 0.1493924231593996,
+      "DED": 0.1493924231593996,
+      "DIA_ADV": 0.10364546104360259,
+      "PROB": 0.1493924231593996
+    },
+    "family_delta_ivc_r": {
+      "ABD": 0.007443268642636616,
+      "ANA": 0.007443268642636616,
+      "CAU": 0.007443268642636616,
+      "CTF": 0.007443268642636616,
+      "DED": 0.007443268642636616,
+      "DIA_ADV": 0.00516399020661392,
+      "PROB": 0.007443268642636616
+    },
+    "family_delta_intervention_precision": {
+      "ABD": -0.0067905646890636245,
+      "ANA": -0.0067905646890636245,
+      "CAU": -0.0067905646890636245,
+      "CTF": -0.0067905646890636245,
+      "DED": -0.0067905646890636245,
+      "DIA_ADV": -0.004711157320163758,
+      "PROB": -0.0067905646890636245
+    },
+    "family_delta_viability_margin": {
+      "ABD": 0.133616583273767,
+      "ANA": 0.133616583273767,
+      "CAU": 0.133616583273767,
+      "CTF": 0.133616583273767,
+      "DED": 0.133616583273767,
+      "DIA_ADV": 0.09270050035739816,
+      "PROB": 0.133616583273767
+    },
+    "family_delta_reasoning_trace_length": {
+      "ABD": 1.0,
+      "ANA": 1.0,
+      "CAU": 1.0,
+      "CTF": 1.0,
+      "DED": 1.0,
+      "DIA_ADV": 1.0,
+      "PROB": 1.0
+    },
+    "family_delta_success_rate": {
+      "ABD": 0.1493924231593996,
+      "ANA": 0.1493924231593996,
+      "CAU": 0.1493924231593996,
+      "CTF": 0.1493924231593996,
+      "DED": 0.1493924231593996,
+      "DIA_ADV": 0.10364546104360259,
+      "PROB": 0.1493924231593996
+    },
+    "family_delta_spatial_information_usage": {
+      "ABD": 0.02987848463187992,
+      "ANA": 0.02987848463187992,
+      "CAU": 0.02987848463187992,
+      "CTF": 0.02987848463187992,
+      "DED": 0.02987848463187992,
+      "DIA_ADV": 0.020729092208720518,
+      "PROB": 0.02987848463187992
+    }
+  },
+  "proxy_mapping": {
+    "closure_rate": "success_rate",
+    "continuity_mean": "viability_margin"
+  },
+  "msrc_metrics": {
+    "scale_selection_accuracy": 1.0,
+    "upgrade_regret": 0,
+    "downgrade_regret": 0,
+    "missed_upgrade_regret": 0,
+    "keep_scale_rate": 0.0,
+    "upgrade_rate": 1.0,
+    "downgrade_rate": 0.0,
+    "probe_rate": 0.0,
+    "probe_commit_rate": 0.0,
+    "oscillation_rate": 0.0,
+    "probe_value_rate": 0.0,
+    "mean_resolution_cost": 1.0,
+    "resolution_efficiency": 0.04982360206243361,
+    "cross_scale_memory_contamination_rate": 0.1111111111111111,
+    "vram_headroom_mean": 0.996704,
+    "vram_peak_ratio": 0.003296,
+    "vram_recompute_avoided": 1,
+    "vram_enabled_probe_success_rate": 0.0,
+    "vram_efficiency_after_intelligence": 15.116384120883984,
+    "selected_scale_distribution": {
+      "1x1": 1
+    },
+    "regime_distribution": {
+      "heterogeneous": 1
+    },
+    "regime_probe_rate": {
+      "heterogeneous": 0.0
+    }
+  },
+  "generated_at": "2026-04-21T17:51:07.097045+00:00"
+}

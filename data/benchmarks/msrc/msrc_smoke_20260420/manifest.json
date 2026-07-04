@@ -1,0 +1,38 @@
+{
+  "campaign_id": "msrc_smoke_20260420",
+  "created_at": "2026-04-20T14:23:37.283400",
+  "db_path": "aeon_event_log.db",
+  "artifact_root": "rnfe_artifacts",
+  "policies": [
+    "always_1x1",
+    "always_5x5",
+    "adaptive_msrc"
+  ],
+  "matrix_1": {
+    "levels": [
+      "SAFE",
+      "ELEVATED",
+      "WARNING",
+      "CRITICAL"
+    ],
+    "episodes_per_cell": 1
+  },
+  "matrix_2": {
+    "levels": [
+      "ELEVATED",
+      "WARNING",
+      "CRITICAL"
+    ],
+    "topologies": [
+      "uniform",
+      "hotspot_center",
+      "gradient_ns",
+      "checkerboard"
+    ],
+    "episodes_per_cell": 1
+  },
+  "proxy_mapping": {
+    "closure_rate": "success_rate",
+    "continuity_mean": "viability_margin"
+  }
+}

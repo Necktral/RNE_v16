@@ -1,0 +1,72 @@
+{
+  "always_1x1": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.16102017558204768,
+    "mean_intervention_precision": -0.024691702731630155,
+    "mean_wall_time_ms": 213.96738562498996,
+    "mean_artifact_size_bytes": 10409.5625,
+    "mean_resolution_cost": 1.0,
+    "mean_upgrade_rate": 0.0,
+    "mean_probe_rate": 0.0,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  },
+  "always_5x5": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.349557512021713,
+    "mean_intervention_precision": 0.05323232106144957,
+    "mean_wall_time_ms": 220.07090931250417,
+    "mean_artifact_size_bytes": 21366.625,
+    "mean_resolution_cost": 2.1999999999999997,
+    "mean_upgrade_rate": 0.0,
+    "mean_probe_rate": 0.0,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  },
+  "adaptive_msrc": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.16152110403396178,
+    "mean_intervention_precision": -0.024691702731630155,
+    "mean_wall_time_ms": 208.0236200625052,
+    "mean_artifact_size_bytes": 10409.75,
+    "mean_resolution_cost": 1.0,
+    "mean_upgrade_rate": 0.0,
+    "mean_probe_rate": 0.0,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  },
+  "adaptive_msrc_aggressive": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.16157560278005365,
+    "mean_intervention_precision": -0.024691702731630155,
+    "mean_wall_time_ms": 206.65956112498662,
+    "mean_artifact_size_bytes": 10409.875,
+    "mean_resolution_cost": 1.0,
+    "mean_upgrade_rate": 0.0,
+    "mean_probe_rate": 0.0,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  },
+  "probe_before_switch": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.1611501802527864,
+    "mean_intervention_precision": -0.024691702731630155,
+    "mean_wall_time_ms": 213.13008649998721,
+    "mean_artifact_size_bytes": 10410.1875,
+    "mean_resolution_cost": 1.0,
+    "mean_upgrade_rate": 0.0,
+    "mean_probe_rate": 0.0,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  }
+}

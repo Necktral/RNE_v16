@@ -1,0 +1,29 @@
+{
+  "always_1x1": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.16206900215746695,
+    "mean_resolution_cost": 1.0,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  },
+  "always_5x5": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.35122131762141234,
+    "mean_resolution_cost": 2.1999999999999997,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  },
+  "adaptive_msrc": {
+    "runs": 16,
+    "mean_success_rate": 1.0,
+    "mean_ivc_r": 0.2096889276279952,
+    "mean_resolution_cost": 1.3450000000000004,
+    "mean_oscillation_rate": 0.0,
+    "mean_upgrade_regret": 0.0,
+    "mean_downgrade_regret": 0.0
+  }
+}

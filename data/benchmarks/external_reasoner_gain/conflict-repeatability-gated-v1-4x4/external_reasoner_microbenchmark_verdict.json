@@ -1,0 +1,52 @@
+{
+  "campaign_id": "conflict-repeatability-gated-v1-4x4",
+  "deltas_vs_core": [
+    {
+      "avoided_bad_decision_rate": 0.875,
+      "candidate_intervention_precision": 0.06778409090909106,
+      "candidate_ivc_r": 0.23140122093663498,
+      "candidate_success_rate": 0.875,
+      "candidate_viability_margin": 0.029650000000000107,
+      "closure_stable_rate": 0.875,
+      "core_closure_stable_rate": 0.0,
+      "core_intervention_precision": -0.001818181818181618,
+      "core_ivc_r": 0.0006912229801999994,
+      "core_success_rate": 0.0,
+      "core_viability_margin": -0.03159999999999985,
+      "delta_closure_stable_rate": 0.875,
+      "delta_intervention_precision": 0.06960227272727268,
+      "delta_ivc_r": 0.230709997956435,
+      "delta_success_rate": 0.875,
+      "delta_viability_margin": 0.06124999999999996,
+      "external_reasoner_accepted_rate": 0.875,
+      "external_reasoner_call_rate": 1.0,
+      "external_reasoner_considered_rate": 1.0,
+      "external_reasoner_contribution_proxy_mean": 0.12754233998948672,
+      "external_reasoner_corrected_core_failure_rate": 0.875,
+      "external_reasoner_cost_per_corrected_failure": 109.84556144049998,
+      "external_reasoner_generation_tps_mean": 44.13750000000001,
+      "external_reasoner_latency_s_mean": 96.11486626043748,
+      "external_reasoner_latency_s_p95": 98.9527675280001,
+      "external_reasoner_net_ivc_delta_when_called": 0.230709997956435,
+      "external_reasoner_net_ivc_delta_when_skipped": 0.0,
+      "external_reasoner_schema_validated_rate": 1.0,
+      "external_reasoner_skip_rate": 0.0,
+      "external_reasoner_success_rate": 1.0,
+      "guard_pass_rate": 0.875,
+      "guard_reject_rate": 0.125,
+      "profile": "core_plus_external_reasoner_gated_v1",
+      "regime": "causal_counterfactual_conflict",
+      "selected_intervention_changed_rate": 0.875
+    }
+  ],
+  "dictamen": "sin_ganancia",
+  "legacy_dictamen": "external_reasoner_aporta_solo_estructura",
+  "stopping_rules": {
+    "max_guard_reject_rate": 0.125,
+    "max_latency_s_mean_when_called": 96.11486626043748,
+    "min_external_ok_rate": 1.0,
+    "min_schema_validated_rate": 1.0,
+    "should_abort": false,
+    "violations": []
+  }
+}

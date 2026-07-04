@@ -1,0 +1,20 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-9.0.2, pluggy-1.6.0 -- /home/necktral/.pyenv/versions/3.10.14/bin/python
+cachedir: .pytest_cache
+rootdir: /home/necktral/rnfe.v15
+configfile: pytest.ini
+plugins: django-4.11.1, anyio-4.13.0
+collecting ... collected 7 items
+
+tests/benchmarks/test_1x1_vs_5x5_benchmark.py::TestBenchmark1x1vs5x5::test_comparative_benchmark_1x1_vs_5x5 PASSED [ 14%]
+tests/benchmarks/test_1x1_vs_5x5_benchmark.py::TestBenchmark1x1vs5x5::test_5x5_artifact_size_within_bounds PASSED [ 28%]
+tests/benchmarks/test_1x1_vs_5x5_benchmark.py::TestBenchmark1x1vs5x5::test_5x5_maintains_same_reasoning_depth PASSED [ 42%]
+tests/benchmarks/test_1x1_vs_5x5_benchmark.py::TestBenchmark1x1vs5x5::test_5x5_world_level_comparable_to_1x1 PASSED [ 57%]
+tests/benchmarks/test_1x1_vs_5x5_benchmark.py::TestBenchmarkMetrics::test_5x5_closure_rate_acceptable PASSED [ 71%]
+tests/benchmarks/test_1x1_vs_5x5_benchmark.py::TestBenchmarkMetrics::test_5x5_trace_integrity_acceptable PASSED [ 85%]
+tests/benchmarks/test_1x1_vs_5x5_benchmark.py::TestBenchmarkMetrics::test_5x5_no_collapses PASSED [100%]
+
+============================== 7 passed in 19.96s ==============================
+
+
+STDERR:

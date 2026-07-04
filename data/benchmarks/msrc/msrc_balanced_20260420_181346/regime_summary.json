@@ -1,0 +1,526 @@
+{
+  "homogeneous_safe": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.0510314516006418,
+      "intervention_precision": -0.06666666666666675,
+      "wall_time_ms": 210.05951237501108,
+      "artifact_size_bytes": 49173.25,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05016244616617787,
+      "intervention_precision": -0.002666666666666744,
+      "wall_time_ms": 213.70057612499238,
+      "artifact_size_bytes": 107742.125,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05037572059316033,
+      "intervention_precision": -0.026666666666666734,
+      "wall_time_ms": 217.42113662500628,
+      "artifact_size_bytes": 70039.25,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05096952263320124,
+      "intervention_precision": -0.06666666666666675,
+      "wall_time_ms": 211.3257858750046,
+      "artifact_size_bytes": 49174.375,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05054943619857833,
+      "intervention_precision": -0.026666666666666734,
+      "wall_time_ms": 209.2718451250022,
+      "artifact_size_bytes": 70038.75,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "homogeneous_warning": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05059245577797127,
+      "intervention_precision": -0.04597701149425292,
+      "wall_time_ms": 204.48700625000527,
+      "artifact_size_bytes": 49153.25,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.04965939329442276,
+      "intervention_precision": -0.001839080459770678,
+      "wall_time_ms": 212.0021903749887,
+      "artifact_size_bytes": 107400.5,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.04981812872501287,
+      "intervention_precision": -0.01839080459770152,
+      "wall_time_ms": 217.29185262498163,
+      "artifact_size_bytes": 69870.125,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.049727774706918235,
+      "intervention_precision": -0.012873563218391233,
+      "wall_time_ms": 217.42001887503193,
+      "artifact_size_bytes": 79714.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.9,
+      "selected_scale_distribution": {
+        "1x1": 2,
+        "5x5": 6
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.04965407423837588,
+      "intervention_precision": -0.01839080459770152,
+      "wall_time_ms": 225.44252062500902,
+      "artifact_size_bytes": 69870.125,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "homogeneous_critical": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.40332998222052135,
+      "intervention_precision": 0.03157894736842109,
+      "wall_time_ms": 219.32267387498428,
+      "artifact_size_bytes": 49848.25,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.47500307529377184,
+      "intervention_precision": 0.07199999999999983,
+      "wall_time_ms": 221.84783699998434,
+      "artifact_size_bytes": 110500.625,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.4477679411867722,
+      "intervention_precision": 0.05684210526315779,
+      "wall_time_ms": 222.10421674998315,
+      "artifact_size_bytes": 71586.375,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.44777259008845893,
+      "intervention_precision": 0.05684210526315779,
+      "wall_time_ms": 221.42272937500707,
+      "artifact_size_bytes": 94879.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.125,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.4475631068742108,
+      "intervention_precision": 0.05684210526315779,
+      "wall_time_ms": 223.38449574999686,
+      "artifact_size_bytes": 71587.5,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "heterogeneous_elevated": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05089728876404767,
+      "intervention_precision": -0.05128205128205133,
+      "wall_time_ms": 214.40180862499858,
+      "artifact_size_bytes": 49956.5,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.5038511156171699,
+      "intervention_precision": 0.08402948402948375,
+      "wall_time_ms": 229.09499312498838,
+      "artifact_size_bytes": 110696.75,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3326535323312494,
+      "intervention_precision": 0.0332876582876581,
+      "wall_time_ms": 226.9525698750101,
+      "artifact_size_bytes": 71699.0,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3340905439487021,
+      "intervention_precision": 0.0332876582876581,
+      "wall_time_ms": 223.98883574999218,
+      "artifact_size_bytes": 95013.625,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.125,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.33454144926989826,
+      "intervention_precision": 0.0332876582876581,
+      "wall_time_ms": 219.30346099999554,
+      "artifact_size_bytes": 71697.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "heterogeneous_warning": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.050343272052241386,
+      "intervention_precision": -0.04597701149425292,
+      "wall_time_ms": 214.81765387500218,
+      "artifact_size_bytes": 49153.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.4922162095776849,
+      "intervention_precision": 0.07902033271719067,
+      "wall_time_ms": 229.72165987498272,
+      "artifact_size_bytes": 109660.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3264131683927217,
+      "intervention_precision": 0.032146328637899325,
+      "wall_time_ms": 226.96126212498768,
+      "artifact_size_bytes": 70792.375,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3830665755404275,
+      "intervention_precision": 0.04777099666432977,
+      "wall_time_ms": 221.17194200002643,
+      "artifact_size_bytes": 81007.875,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.9,
+      "selected_scale_distribution": {
+        "1x1": 2,
+        "5x5": 6
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.32699075504660624,
+      "intervention_precision": 0.032146328637899325,
+      "wall_time_ms": 218.77182587499533,
+      "artifact_size_bytes": 70793.125,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "viability_edge": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05158419189847857,
+      "intervention_precision": 0.0,
+      "wall_time_ms": 208.91979525001148,
+      "artifact_size_bytes": 49367.875,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.42480366962422006,
+      "intervention_precision": 0.040000000000000084,
+      "wall_time_ms": 233.48534100000506,
+      "artifact_size_bytes": 108970.375,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.2856986442848907,
+      "intervention_precision": 0.025000000000000053,
+      "wall_time_ms": 222.5461510000173,
+      "artifact_size_bytes": 70669.875,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3328512096627965,
+      "intervention_precision": 0.030000000000000065,
+      "wall_time_ms": 220.06637712499355,
+      "artifact_size_bytes": 80733.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.9,
+      "selected_scale_distribution": {
+        "1x1": 2,
+        "5x5": 6
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.28574620507891896,
+      "intervention_precision": 0.025000000000000053,
+      "wall_time_ms": 217.36273250000693,
+      "artifact_size_bytes": 70668.875,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "probe_favorable_case": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.050752118182767286,
+      "intervention_precision": -0.04878048780487809,
+      "wall_time_ms": 221.046960999999,
+      "artifact_size_bytes": 49189.375,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.0,
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.4511023051919945,
+      "intervention_precision": 0.046829268292683704,
+      "wall_time_ms": 234.5973312500007,
+      "artifact_size_bytes": 112193.875,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.30201577547551284,
+      "intervention_precision": 0.010975609756098036,
+      "wall_time_ms": 222.2604139999902,
+      "artifact_size_bytes": 71898.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.301499675726297,
+      "intervention_precision": 0.010975609756098036,
+      "wall_time_ms": 224.70085550000363,
+      "artifact_size_bytes": 95443.375,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.125,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3025522969261191,
+      "intervention_precision": 0.010975609756098036,
+      "wall_time_ms": 216.2679431250183,
+      "artifact_size_bytes": 71897.875,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "mean_resolution_cost": 1.75,
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  }
+}

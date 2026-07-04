@@ -1,0 +1,65 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-9.0.2, pluggy-1.6.0 -- /home/necktral/.pyenv/versions/3.10.14/bin/python
+cachedir: .pytest_cache
+rootdir: /home/necktral/rnfe.v15
+configfile: pytest.ini
+plugins: django-4.11.1, anyio-4.13.0
+collecting ... collected 52 items
+
+tests/world/test_grid_thermal_scenario.py::TestGridThermalScenarioStructure::test_grid_has_25_cells PASSED [  1%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalScenarioStructure::test_grid_size_is_5x5 PASSED [  3%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalScenarioStructure::test_cells_have_correct_coordinates PASSED [  5%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalScenarioStructure::test_initial_temperature_applied_to_all_cells PASSED [  7%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalScenarioStructure::test_config_has_correct_name PASSED [  9%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalScenarioStructure::test_main_variable_is_global_temp_mean PASSED [ 11%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalAggregates::test_aggregates_computed_correctly_uniform_temp PASSED [ 13%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalAggregates::test_global_temp_mean_is_average_of_cells PASSED [ 15%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalAggregates::test_global_temp_max_is_maximum_of_cells PASSED [ 17%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalAggregates::test_cooling_cells_count_is_accurate PASSED [ 19%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalAggregates::test_global_alarm_triggers_on_mean_threshold PASSED [ 21%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalAggregates::test_global_alarm_off_below_threshold PASSED [ 23%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalTransitions::test_factual_transition_updates_all_cells PASSED [ 25%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalTransitions::test_factual_transition_applies_cooling_effect PASSED [ 26%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalTransitions::test_factual_transition_distributes_external_heat PASSED [ 28%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalTransitions::test_counterfactual_does_not_mutate_state PASSED [ 30%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalTransitions::test_counterfactual_returns_valid_state PASSED [ 32%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalTransitions::test_deactivate_cooling_turns_off_all_cells PASSED [ 34%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalWorldLevel::test_world_level_derived_from_mean PASSED [ 36%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalWorldLevel::test_world_level_in_valid_range PASSED [ 38%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalWorldLevel::test_world_level_present_in_transitions PASSED [ 40%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalStructuralProfile::test_structural_profile_declares_spatial_topology PASSED [ 42%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalStructuralProfile::test_structural_profile_has_grid_metadata PASSED [ 44%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalStructuralProfile::test_causal_signature_includes_grid_metadata PASSED [ 46%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalStructuralProfile::test_causal_signature_has_correct_polarity PASSED [ 48%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalObservation::test_observe_returns_temp_high_on_alarm PASSED [ 50%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalObservation::test_observe_returns_temp_normal_below_threshold PASSED [ 51%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalObservation::test_observe_includes_cooling_active_proposition PASSED [ 53%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalInterventions::test_select_intervention_activates_on_alarm PASSED [ 55%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalInterventions::test_select_intervention_deactivates_below_threshold PASSED [ 57%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalInterventions::test_get_main_proposition_returns_correct_value PASSED [ 59%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalInterventions::test_get_intervention_proposition_for_cooling PASSED [ 61%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalFormula::test_get_formula_returns_template PASSED [ 63%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalBoundaryConditions::test_temperature_clamped_at_0 PASSED [ 65%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalBoundaryConditions::test_temperature_clamped_at_1 PASSED [ 67%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalBoundaryConditions::test_zero_external_input_with_no_cooling PASSED [ 69%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalCloning::test_clone_grid_creates_independent_copy PASSED [ 71%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalCloning::test_clone_preserves_all_cell_states PASSED [ 73%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_safe_range PASSED [ 75%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_elevated_range PASSED [ 76%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_warning_range PASSED [ 78%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_critical_range PASSED [ 80%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_boundary_at_0_60 PASSED [ 82%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_boundary_at_alarm_threshold PASSED [ 84%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_boundary_at_0_95 PASSED [ 86%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_in_factual_transition PASSED [ 88%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_in_counterfactual_transition PASSED [ 90%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_state_has_three_level_representations PASSED [ 92%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_semantic_mapping PASSED [ 94%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_transitions_through_ranges PASSED [ 96%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_level_consistency_between_observation_and_transition PASSED [ 98%]
+tests/world/test_grid_thermal_scenario.py::TestGridThermalSemanticLevels::test_counterfactual_level_differs_from_factual PASSED [100%]
+
+============================== 52 passed in 0.33s ==============================
+
+
+STDERR:

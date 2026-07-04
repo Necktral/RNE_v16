@@ -1,0 +1,510 @@
+{
+  "metadata": {
+    "generated_at": "2026-04-20T19:24:52.448284",
+    "run_tag": "wiring_smoke",
+    "db_path": "/home/necktral/rnfe.v15/aeon_event_log.db",
+    "artifact_root": "/home/necktral/rnfe.v15/data/artifacts",
+    "proxy_mapping": {
+      "closure_rate": "success_rate",
+      "continuity_mean": "viability_margin"
+    }
+  },
+  "summary": {
+    "runtime": {
+      "run_id": "wiring_smoke-runtime",
+      "sequence": [
+        "ABD",
+        "ANA",
+        "CAU",
+        "CTF",
+        "DED",
+        "PROB"
+      ],
+      "trace_families": [
+        "ABD",
+        "ANA",
+        "CAU",
+        "CTF",
+        "DED",
+        "PROB"
+      ],
+      "persisted_rows": 6,
+      "artifact_path": "/home/necktral/rnfe.v15/data/artifacts/wiring_smoke-runtime/episode_report/81/ba/81ba908f80dd03169f89fb5d81a6bcfcb91589b31718a9d8cb24d74065689b38.json"
+    },
+    "benchmark": {
+      "run_1x1_dir": "/home/necktral/rnfe.v15/data/diagnostics/reasoning_wiring/wiring_smoke/benchmark_bridge/run_1x1",
+      "run_5x5_dir": "/home/necktral/rnfe.v15/data/diagnostics/reasoning_wiring/wiring_smoke/benchmark_bridge/run_5x5",
+      "summary_1x1": {
+        "scenario": "grid_thermal_1x1",
+        "total_episodes": 2,
+        "successful": 2,
+        "failed": 0,
+        "errors": 0,
+        "success_rate": 1.0,
+        "avg_metrics": {
+          "intervention_precision": -0.04878048780487809,
+          "proposition_diversity": 2.321928094887362,
+          "spatial_information_usage": 0.8,
+          "wall_time_ms": 220.9990450000987,
+          "artifact_size_bytes": 13810.0,
+          "reasoning_trace_length": 6.0,
+          "ivc_r": 0.050702094718082916,
+          "viability_margin": 0.9384
+        },
+        "failure_distribution": {
+          "total_episodes": 2,
+          "total_failures": 0,
+          "failure_rate": 0.0,
+          "failure_distribution": {},
+          "secondary_causes": {
+            "tight_threshold": 2
+          }
+        }
+      },
+      "summary_5x5": {
+        "scenario": "grid_thermal_5x5_uniform",
+        "total_episodes": 2,
+        "successful": 2,
+        "failed": 0,
+        "errors": 0,
+        "success_rate": 1.0,
+        "avg_metrics": {
+          "intervention_precision": -0.0019512195121949066,
+          "proposition_diversity": 2.0,
+          "spatial_information_usage": 0.75,
+          "wall_time_ms": 232.16570650038193,
+          "artifact_size_bytes": 28772.0,
+          "reasoning_trace_length": 6.0,
+          "ivc_r": 0.04969578472506905,
+          "viability_margin": 0.9384
+        },
+        "failure_distribution": {
+          "total_episodes": 2,
+          "total_failures": 0,
+          "failure_rate": 0.0,
+          "failure_distribution": {},
+          "secondary_causes": {
+            "tight_threshold": 2
+          }
+        }
+      },
+      "comparison_has_reasoning_trace_length": true,
+      "comparison_reasoning_trace_length": {
+        "metric": "reasoning_trace_length",
+        "mean_1x1": 6.0,
+        "mean_5x5": 6.0,
+        "std_1x1": 0.0,
+        "std_5x5": 0.0,
+        "delta": 0.0,
+        "delta_pct": 0.0,
+        "cohens_d": 0.0,
+        "p_value": 0.2,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0
+      },
+      "episodes_1x1_reasoning_trace_len_mean": 6.0,
+      "episodes_5x5_reasoning_trace_len_mean": 6.0
+    },
+    "reality": {
+      "baseline": {
+        "reasoning_sequence": [
+          "ABD",
+          "ANA",
+          "CAU",
+          "CTF",
+          "DED",
+          "PROB"
+        ],
+        "sequence_validation": {
+          "profile": "baseline_fixed",
+          "passed": true,
+          "checks": {
+            "exact_sequence_match": true,
+            "required_families_present": true,
+            "partial_order_respected": true,
+            "no_unknown_families": true,
+            "prob_closes_calibration": true
+          },
+          "sequence_normalized": [
+            "ABD",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "required_families": [
+            "ABD",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "optional_families": []
+        }
+      },
+      "adaptive": {
+        "reasoning_sequence": [
+          "ABD",
+          "HEUR",
+          "DIA_ADV",
+          "FAL_GUARD",
+          "EML_SR",
+          "ANA",
+          "CAU",
+          "CTF",
+          "DED",
+          "PROB"
+        ],
+        "sequence_validation": {
+          "profile": "adaptive_min",
+          "passed": true,
+          "checks": {
+            "required_families_present": true,
+            "partial_order_respected": true,
+            "no_unknown_families": true,
+            "prob_closes_calibration": true
+          },
+          "sequence_normalized": [
+            "ABD",
+            "HEUR",
+            "DIA_ADV",
+            "FAL_GUARD",
+            "EML_SR",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "required_families": [
+            "ABD",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "optional_families": [
+            "FAL_GUARD",
+            "HEUR",
+            "DIA_ADV",
+            "EML_SR"
+          ]
+        }
+      }
+    },
+    "adaptive_controlled": {
+      "run_id": "wiring_smoke-adaptive",
+      "sequence": [
+        "ABD",
+        "HEUR",
+        "DIA_ADV",
+        "FAL_GUARD",
+        "EML_SR",
+        "ANA",
+        "CAU",
+        "CTF",
+        "DED",
+        "PROB"
+      ],
+      "persisted_rows": 10
+    }
+  },
+  "family_connectivity": {
+    "ABD": {
+      "connectivity": "fuerte",
+      "executed_runtime": true,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Ejecuta en corrida real, persiste en traces y participa aguas abajo (benchmark/reality)."
+    },
+    "ANA": {
+      "connectivity": "fuerte",
+      "executed_runtime": true,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Ejecuta en corrida real, persiste en traces y participa aguas abajo (benchmark/reality)."
+    },
+    "CAU": {
+      "connectivity": "fuerte",
+      "executed_runtime": true,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Ejecuta en corrida real, persiste en traces y participa aguas abajo (benchmark/reality)."
+    },
+    "CTF": {
+      "connectivity": "fuerte",
+      "executed_runtime": true,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Ejecuta en corrida real, persiste en traces y participa aguas abajo (benchmark/reality)."
+    },
+    "DED": {
+      "connectivity": "fuerte",
+      "executed_runtime": true,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Ejecuta en corrida real, persiste en traces y participa aguas abajo (benchmark/reality)."
+    },
+    "PROB": {
+      "connectivity": "fuerte",
+      "executed_runtime": true,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Ejecuta en corrida real, persiste en traces y participa aguas abajo (benchmark/reality)."
+    },
+    "HEUR": {
+      "connectivity": "debil",
+      "executed_runtime": false,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Existe ejecucion o persistencia, pero impacto aguas abajo es parcial o indirecto."
+    },
+    "DIA_ADV": {
+      "connectivity": "debil",
+      "executed_runtime": false,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Existe ejecucion o persistencia, pero impacto aguas abajo es parcial o indirecto."
+    },
+    "FAL_GUARD": {
+      "connectivity": "debil",
+      "executed_runtime": false,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Existe ejecucion o persistencia, pero impacto aguas abajo es parcial o indirecto."
+    },
+    "EML_SR": {
+      "connectivity": "debil",
+      "executed_runtime": false,
+      "executed_adaptive": true,
+      "persisted": true,
+      "seen_in_reality": true,
+      "benchmark_signal_present": true,
+      "reason": "Existe ejecucion o persistencia, pero impacto aguas abajo es parcial o indirecto."
+    }
+  },
+  "dictamen": "familias conectadas parcialmente",
+  "evidence_table": [
+    {
+      "layer": "runtime",
+      "file": "runtime/world/scenario_runner.py",
+      "function/class": "ScenarioEpisodeRunner.run_episode",
+      "role": "Invoca MetaScheduler y propaga sequence/trace al episodio.",
+      "input": {
+        "scenario": "grid_thermal_5x5",
+        "external_input": 0.04
+      },
+      "output": {
+        "reasoning.sequence": [
+          "ABD",
+          "ANA",
+          "CAU",
+          "CTF",
+          "DED",
+          "PROB"
+        ],
+        "episode.result.reasoning_sequence": [
+          "ABD",
+          "ANA",
+          "CAU",
+          "CTF",
+          "DED",
+          "PROB"
+        ],
+        "episode.trace_len": 6
+      },
+      "evidence": "run_result.runtime+episode payload"
+    },
+    {
+      "layer": "scheduler",
+      "file": "runtime/reasoning/scheduler_meta/meta_scheduler.py",
+      "function/class": "MetaScheduler.run",
+      "role": "Selecciona secuencia, ejecuta familias y persiste trace.",
+      "input": {
+        "mode": "adaptive",
+        "run_id": "wiring_smoke-adaptive"
+      },
+      "output": {
+        "adaptive_sequence": [
+          "ABD",
+          "HEUR",
+          "DIA_ADV",
+          "FAL_GUARD",
+          "EML_SR",
+          "ANA",
+          "CAU",
+          "CTF",
+          "DED",
+          "PROB"
+        ],
+        "trace_len": 10
+      },
+      "evidence": "adaptive controlled run"
+    },
+    {
+      "layer": "storage",
+      "file": "runtime/storage/facade.py",
+      "function/class": "append_reasoning_trace/list_reasoning_traces",
+      "role": "Persistencia de familias por step_index y detail.sequence.",
+      "input": {
+        "runtime_run_id": "wiring_smoke-runtime",
+        "adaptive_run_id": "wiring_smoke-adaptive"
+      },
+      "output": {
+        "runtime_rows": 6,
+        "adaptive_rows": 10
+      },
+      "evidence": "reasoning_traces rows"
+    },
+    {
+      "layer": "benchmark",
+      "file": "tests/benchmarks/benchmark_runner.py",
+      "function/class": "adapt_runtime_result_to_benchmark / run_single_episode",
+      "role": "Convierte reasoning.sequence -> reasoning_sequence -> reasoning_trace_length.",
+      "input": {
+        "episodes_per_run": 2
+      },
+      "output": {
+        "adapted_reasoning_sequence_len": 6,
+        "episodes_jsonl_1x1": 2,
+        "episodes_jsonl_5x5": 2
+      },
+      "evidence": "episodes.jsonl + summary.json"
+    },
+    {
+      "layer": "analysis",
+      "file": "tests/benchmarks/analysis_report.py",
+      "function/class": "BenchmarkAnalyzer.compute_statistical_comparison",
+      "role": "Consume reasoning_trace_length en comparacion estadistica.",
+      "input": {
+        "dir_1x1": "/home/necktral/rnfe.v15/data/diagnostics/reasoning_wiring/wiring_smoke/benchmark_bridge/run_1x1",
+        "dir_5x5": "/home/necktral/rnfe.v15/data/diagnostics/reasoning_wiring/wiring_smoke/benchmark_bridge/run_5x5"
+      },
+      "output": {
+        "metric_present": true,
+        "net_cognitive_gain": null
+      },
+      "evidence": "comparison dict"
+    },
+    {
+      "layer": "reality_validation",
+      "file": "runtime/reality/service.py",
+      "function/class": "RealityValidationService.evaluate_episode_result",
+      "role": "Persiste details.reasoning_sequence y sequence_validation por profile.",
+      "input": {
+        "profiles": [
+          "baseline_fixed",
+          "adaptive_min"
+        ]
+      },
+      "output": {
+        "baseline_validation": {
+          "profile": "baseline_fixed",
+          "passed": true,
+          "checks": {
+            "exact_sequence_match": true,
+            "required_families_present": true,
+            "partial_order_respected": true,
+            "no_unknown_families": true,
+            "prob_closes_calibration": true
+          },
+          "sequence_normalized": [
+            "ABD",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "required_families": [
+            "ABD",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "optional_families": []
+        },
+        "adaptive_validation": {
+          "profile": "adaptive_min",
+          "passed": true,
+          "checks": {
+            "required_families_present": true,
+            "partial_order_respected": true,
+            "no_unknown_families": true,
+            "prob_closes_calibration": true
+          },
+          "sequence_normalized": [
+            "ABD",
+            "HEUR",
+            "DIA_ADV",
+            "FAL_GUARD",
+            "EML_SR",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "required_families": [
+            "ABD",
+            "ANA",
+            "CAU",
+            "CTF",
+            "DED",
+            "PROB"
+          ],
+          "optional_families": [
+            "FAL_GUARD",
+            "HEUR",
+            "DIA_ADV",
+            "EML_SR"
+          ]
+        }
+      },
+      "evidence": "reality_assessments.details"
+    },
+    {
+      "layer": "tests/regression",
+      "file": "tests/regression/test_meta_scheduler_storage_trace.py",
+      "function/class": "test_meta_scheduler_persists_trace_via_storage",
+      "role": "Regresion de persistencia de trace META.",
+      "input": {
+        "run_id": "run-meta-1"
+      },
+      "output": {
+        "expected_sequence": [
+          "ABD",
+          "ANA",
+          "CAU",
+          "CTF",
+          "DED",
+          "PROB"
+        ]
+      },
+      "evidence": "suite regression"
+    }
+  ]
+}

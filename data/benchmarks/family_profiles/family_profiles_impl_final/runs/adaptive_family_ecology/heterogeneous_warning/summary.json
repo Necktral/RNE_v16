@@ -1,0 +1,104 @@
+{
+  "scenario": "heterogeneous_warning__adaptive_family_ecology",
+  "reasoning_mode": "adaptive",
+  "family_profile": "adaptive_family_ecology",
+  "regime_label": "heterogeneous_warning",
+  "total_episodes": 8,
+  "successful": 0,
+  "failed": 8,
+  "errors": 0,
+  "success_rate": 0.0,
+  "avg_metrics": {
+    "intervention_precision": 0.06709558823529399,
+    "proposition_diversity": 3.169925001442312,
+    "spatial_information_usage": 0.8888888888888891,
+    "wall_time_ms": 243.96697025002823,
+    "artifact_size_bytes": 22431.5,
+    "reasoning_trace_length": 6.0,
+    "ivc_r": 0.0037532606396815447,
+    "family_mix_entropy": 2.584962500721156,
+    "viability_margin": 0.8948999999999999
+  },
+  "failure_distribution": {
+    "total_episodes": 8,
+    "total_failures": 8,
+    "failure_rate": 1.0,
+    "failure_distribution": {
+      "certification_failed": 8
+    },
+    "secondary_causes": {
+      "spatial_complexity": 8
+    }
+  },
+  "optional_family_usage_rate": 1.0,
+  "family_specific_activation_counts": {
+    "ABD": 8,
+    "ANA": 8,
+    "CAU": 8,
+    "CTF": 8,
+    "DED": 0,
+    "DIA_ADV": 0,
+    "EML_SR": 0,
+    "FAL_GUARD": 0,
+    "HEUR": 8,
+    "PROB": 8
+  },
+  "family_impact_aggregates": {
+    "family_contribution_proxy": {
+      "ABD": 0.15833333333333335,
+      "ANA": 0.15833333333333335,
+      "CAU": 0.15833333333333335,
+      "CTF": 0.15833333333333335,
+      "HEUR": 0.20833333333333331,
+      "PROB": 0.15833333333333335
+    },
+    "family_delta_ivc_r": {
+      "ABD": 0.0005942662679495779,
+      "ANA": 0.0005942662679495779,
+      "CAU": 0.0005942662679495779,
+      "CTF": 0.0005942662679495779,
+      "HEUR": 0.0007819292999336552,
+      "PROB": 0.0005942662679495779
+    },
+    "family_delta_intervention_precision": {
+      "ABD": 0.010623468137254883,
+      "ANA": 0.010623468137254883,
+      "CAU": 0.010623468137254883,
+      "CTF": 0.010623468137254883,
+      "HEUR": 0.01397824754901958,
+      "PROB": 0.010623468137254883
+    },
+    "family_delta_viability_margin": {
+      "ABD": 0.14169250000000003,
+      "ANA": 0.14169250000000003,
+      "CAU": 0.14169250000000003,
+      "CTF": 0.14169250000000003,
+      "HEUR": 0.1864375,
+      "PROB": 0.14169250000000003
+    },
+    "family_delta_reasoning_trace_length": {
+      "ABD": 1.0,
+      "ANA": 1.0,
+      "CAU": 1.0,
+      "CTF": 1.0,
+      "HEUR": 1.0,
+      "PROB": 1.0
+    },
+    "family_delta_success_rate": {
+      "ABD": 0.0,
+      "ANA": 0.0,
+      "CAU": 0.0,
+      "CTF": 0.0,
+      "HEUR": 0.0,
+      "PROB": 0.0
+    },
+    "family_delta_spatial_information_usage": {
+      "ABD": 0.14074074074074075,
+      "ANA": 0.14074074074074075,
+      "CAU": 0.14074074074074075,
+      "CTF": 0.14074074074074075,
+      "HEUR": 0.18518518518518515,
+      "PROB": 0.14074074074074075
+    }
+  }
+}

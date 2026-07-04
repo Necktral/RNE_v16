@@ -1,0 +1,1452 @@
+{
+  "campaign_id": "adaptive_v2_intelligence_full_20260421_prompt1",
+  "generated_at": "2026-04-21T13:55:57.224094",
+  "primary_protocol": "natural",
+  "sensitivity_protocol": "sensitivity_10",
+  "blocks": 8,
+  "episodes_per_block": 8,
+  "bootstrap_samples": 1000,
+  "primary_verdict": "no hay ganancia cognitiva suficiente",
+  "strong_regimes": [],
+  "conditioned_regimes": [],
+  "closure_regressions": [],
+  "should_run_family_causal": false,
+  "family_evidence": {
+    "HEUR": {
+      "positive_regimes": [],
+      "best_fixed_alignment": [],
+      "active_regimes": [
+        "heterogeneous_elevated",
+        "heterogeneous_warning",
+        "vram_favorable"
+      ]
+    },
+    "DIA_ADV": {
+      "positive_regimes": [],
+      "best_fixed_alignment": [],
+      "active_regimes": [
+        "viability_edge"
+      ]
+    },
+    "FAL_GUARD": {
+      "positive_regimes": [],
+      "best_fixed_alignment": [],
+      "active_regimes": [
+        "heterogeneous_warning",
+        "viability_edge"
+      ]
+    }
+  },
+  "regime_records": [
+    {
+      "regime": "homogeneous_safe",
+      "regime_gain_class": "sin ganancia",
+      "best_profile_by_regime": "core_only",
+      "best_fixed_baseline_by_regime": "core_only",
+      "active_optional_families": [],
+      "primary_protocol": {
+        "candidate": {
+          "protocol": "natural",
+          "reasoning_max_steps": null,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "homogeneous_safe",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 0.0,
+          "ivc_r_mean": 0.04744122322590886,
+          "ivc_r_median_by_block": 0.047457515144674264,
+          "intervention_precision_mean": -0.06451612903225803,
+          "intervention_precision_median_by_block": -0.06451612903225812,
+          "viability_margin_mean": 0.9419000000000004,
+          "viability_margin_median_by_block": 0.9418999999999998,
+          "spatial_information_usage_mean": 0.7999999999999992,
+          "spatial_information_usage_median_by_block": 0.7999999999999999,
+          "ioc_proxy_gain_mean": 0.21511057577066064,
+          "ioc_proxy_gain_median_by_block": 0.21511872173004326,
+          "wall_time_ms_mean": 433.34460129685226,
+          "artifact_size_bytes_mean": 61917.921875,
+          "reasoning_trace_length_mean": 6.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.003957097330646857,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.001978548665323432,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.004086041803714892,
+          "ivc_r_ci_upper": -0.0038269816831734416,
+          "ioc_proxy_ci_lower": -0.002319879621124288,
+          "ioc_proxy_ci_upper": -0.001614168642638164,
+          "block_median_delta_ivc_r": -0.003910016122372614,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.003957097330646857,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.001978548665323432,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.004076019806826668,
+          "ivc_r_ci_upper": -0.003827452716666145,
+          "ioc_proxy_ci_lower": -0.0023113094518172617,
+          "ioc_proxy_ci_upper": -0.0016480907320598204,
+          "block_median_delta_ivc_r": -0.003910016122372614,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        }
+      },
+      "sensitivity_protocol": {
+        "candidate": {
+          "protocol": "sensitivity_10",
+          "reasoning_max_steps": 10,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "homogeneous_safe",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 0.0,
+          "ivc_r_mean": 0.04724848191535842,
+          "ivc_r_median_by_block": 0.047277716201364985,
+          "intervention_precision_mean": -0.06451612903225803,
+          "intervention_precision_median_by_block": -0.06451612903225812,
+          "viability_margin_mean": 0.9419000000000004,
+          "viability_margin_median_by_block": 0.9418999999999998,
+          "spatial_information_usage_mean": 0.7999999999999992,
+          "spatial_information_usage_median_by_block": 0.7999999999999999,
+          "ioc_proxy_gain_mean": 0.21501420511538538,
+          "ioc_proxy_gain_median_by_block": 0.21502882225838862,
+          "wall_time_ms_mean": 452.33860187511254,
+          "artifact_size_bytes_mean": 61930.6875,
+          "reasoning_trace_length_mean": 6.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.00038443822316001214,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.00019221911158004423,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.0004984891149842005,
+          "ivc_r_ci_upper": -0.00026621946680007585,
+          "ioc_proxy_ci_lower": -0.000554610571280173,
+          "ioc_proxy_ci_upper": 0.00015897547181370486,
+          "block_median_delta_ivc_r": -0.0004014651124866278,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.00038443822316001214,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.00019221911158004423,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.0005025656392676631,
+          "ivc_r_ci_upper": -0.00026192564652946504,
+          "ioc_proxy_ci_lower": -0.0005352023366335112,
+          "ioc_proxy_ci_upper": 0.0001434688957649144,
+          "block_median_delta_ivc_r": -0.0004014651124866278,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "regime_gain_class": "sin ganancia"
+      }
+    },
+    {
+      "regime": "heterogeneous_elevated",
+      "regime_gain_class": "sin ganancia",
+      "best_profile_by_regime": "core_only",
+      "best_fixed_baseline_by_regime": "core_only",
+      "active_optional_families": [
+        "HEUR"
+      ],
+      "primary_protocol": {
+        "candidate": {
+          "protocol": "natural",
+          "reasoning_max_steps": null,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "heterogeneous_elevated",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "HEUR"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.47107479027066407,
+          "ivc_r_median_by_block": 0.47146725454483795,
+          "intervention_precision_mean": 0.08769230769230774,
+          "intervention_precision_median_by_block": 0.08769230769230774,
+          "viability_margin_mean": 0.9425,
+          "viability_margin_median_by_block": 0.9425000000000001,
+          "spatial_information_usage_mean": 0.875,
+          "spatial_information_usage_median_by_block": 0.875,
+          "ioc_proxy_gain_mean": 0.5099067325448757,
+          "ioc_proxy_gain_median_by_block": 0.5100833414682542,
+          "wall_time_ms_mean": 463.0445823436844,
+          "artifact_size_bytes_mean": 128283.890625,
+          "reasoning_trace_length_mean": 7.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.034850994232021815,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.015682947404409897,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.03594635732297907,
+          "ivc_r_ci_upper": -0.03377418643515395,
+          "ioc_proxy_ci_lower": -0.016307812571234592,
+          "ioc_proxy_ci_upper": -0.015052759288947115,
+          "block_median_delta_ivc_r": -0.034879715074425555,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.034850994232021815,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.015682947404409897,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.03599422146347675,
+          "ivc_r_ci_upper": -0.03364063835525577,
+          "ioc_proxy_ci_lower": -0.016293328900364834,
+          "ioc_proxy_ci_upper": -0.015075643432471697,
+          "block_median_delta_ivc_r": -0.034879715074425555,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        }
+      },
+      "sensitivity_protocol": {
+        "candidate": {
+          "protocol": "sensitivity_10",
+          "reasoning_max_steps": 10,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "heterogeneous_elevated",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "HEUR"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.47040682240748255,
+          "ivc_r_median_by_block": 0.4702350037336994,
+          "intervention_precision_mean": 0.08769230769230774,
+          "intervention_precision_median_by_block": 0.08769230769230774,
+          "viability_margin_mean": 0.9425,
+          "viability_margin_median_by_block": 0.9425000000000001,
+          "spatial_information_usage_mean": 0.875,
+          "spatial_information_usage_median_by_block": 0.875,
+          "ioc_proxy_gain_mean": 0.5096061470064441,
+          "ioc_proxy_gain_median_by_block": 0.5095288286032418,
+          "wall_time_ms_mean": 469.86433162493313,
+          "artifact_size_bytes_mean": 128300.140625,
+          "reasoning_trace_length_mean": 7.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.002277572041989806,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0010249074188954932,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.003395312257910177,
+          "ivc_r_ci_upper": -0.0011080394521919001,
+          "ioc_proxy_ci_lower": -0.0017195786655772594,
+          "ioc_proxy_ci_upper": -0.00038476764700368093,
+          "block_median_delta_ivc_r": -0.002803354888601506,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 1,
+              "total_blocks": 8,
+              "rate": 0.125
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 1,
+              "total_blocks": 8,
+              "rate": 0.125
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.002277572041989806,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0010249074188954932,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.0033806370710058875,
+          "ivc_r_ci_upper": -0.001127399731718548,
+          "ioc_proxy_ci_lower": -0.0016619205138955762,
+          "ioc_proxy_ci_upper": -0.0003532436461572974,
+          "block_median_delta_ivc_r": -0.002803354888601506,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 1,
+              "total_blocks": 8,
+              "rate": 0.125
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 1,
+              "total_blocks": 8,
+              "rate": 0.125
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "regime_gain_class": "sin ganancia"
+      }
+    },
+    {
+      "regime": "heterogeneous_warning",
+      "regime_gain_class": "sin ganancia",
+      "best_profile_by_regime": "core_only",
+      "best_fixed_baseline_by_regime": "core_only",
+      "active_optional_families": [
+        "HEUR",
+        "FAL_GUARD"
+      ],
+      "primary_protocol": {
+        "candidate": {
+          "protocol": "natural",
+          "reasoning_max_steps": null,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "heterogeneous_warning",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "HEUR",
+            "FAL_GUARD"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.4419023395991241,
+          "ivc_r_median_by_block": 0.441819118748382,
+          "intervention_precision_mean": 0.06709558823529398,
+          "intervention_precision_median_by_block": 0.06709558823529399,
+          "viability_margin_mean": 0.9023999999999996,
+          "viability_margin_median_by_block": 0.9024000000000002,
+          "spatial_information_usage_mean": 0.8888888888888876,
+          "spatial_information_usage_median_by_block": 0.8888888888888891,
+          "ioc_proxy_gain_mean": 0.48499883876731853,
+          "ioc_proxy_gain_median_by_block": 0.4849613893844844,
+          "wall_time_ms_mean": 486.8177377030918,
+          "artifact_size_bytes_mean": 132013.984375,
+          "reasoning_trace_length_mean": 8.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.032276316605818645,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.01452434247261808,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.03331469504031204,
+          "ivc_r_ci_upper": -0.031291608087549716,
+          "ioc_proxy_ci_lower": -0.01508398585253723,
+          "ioc_proxy_ci_upper": -0.013915810069949242,
+          "block_median_delta_ivc_r": -0.032818681154862084,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.032276316605818645,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.01452434247261808,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.03324805011550386,
+          "ivc_r_ci_upper": -0.03125342914633017,
+          "ioc_proxy_ci_lower": -0.01509816356733601,
+          "ioc_proxy_ci_upper": -0.013954810284294517,
+          "block_median_delta_ivc_r": -0.032818681154862084,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        }
+      },
+      "sensitivity_protocol": {
+        "candidate": {
+          "protocol": "sensitivity_10",
+          "reasoning_max_steps": 10,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "heterogeneous_warning",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "HEUR",
+            "FAL_GUARD"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.43980434748646546,
+          "ivc_r_median_by_block": 0.4397620274710515,
+          "intervention_precision_mean": 0.06709558823529398,
+          "intervention_precision_median_by_block": 0.06709558823529399,
+          "viability_margin_mean": 0.9023999999999996,
+          "viability_margin_median_by_block": 0.9024000000000002,
+          "spatial_information_usage_mean": 0.8888888888888876,
+          "spatial_information_usage_median_by_block": 0.8888888888888891,
+          "ioc_proxy_gain_mean": 0.484054742316622,
+          "ioc_proxy_gain_median_by_block": 0.4840356983096856,
+          "wall_time_ms_mean": 511.0499372031825,
+          "artifact_size_bytes_mean": 132033.203125,
+          "reasoning_trace_length_mean": 8.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.004262969524183924,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0019183362858826714,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.005372557382639864,
+          "ivc_r_ci_upper": -0.0031802225976891307,
+          "ioc_proxy_ci_lower": -0.0025830345865407445,
+          "ioc_proxy_ci_upper": -0.0013369727450213698,
+          "block_median_delta_ivc_r": -0.005227297363613215,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.004262969524183924,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0019183362858826714,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.005385320429407148,
+          "ivc_r_ci_upper": -0.0031391245809253565,
+          "ioc_proxy_ci_lower": -0.0025583147971386944,
+          "ioc_proxy_ci_upper": -0.0012313492533100323,
+          "block_median_delta_ivc_r": -0.005227297363613215,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "regime_gain_class": "sin ganancia"
+      }
+    },
+    {
+      "regime": "viability_edge",
+      "regime_gain_class": "sin ganancia",
+      "best_profile_by_regime": "core_only",
+      "best_fixed_baseline_by_regime": "core_only",
+      "active_optional_families": [
+        "DIA_ADV",
+        "FAL_GUARD"
+      ],
+      "primary_protocol": {
+        "candidate": {
+          "protocol": "natural",
+          "reasoning_max_steps": null,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "viability_edge",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "DIA_ADV",
+            "FAL_GUARD"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.39084087797582456,
+          "ivc_r_median_by_block": 0.39126138176780556,
+          "intervention_precision_mean": 0.0404210526315786,
+          "intervention_precision_median_by_block": 0.0404210526315786,
+          "viability_margin_mean": 0.9022249999999994,
+          "viability_margin_median_by_block": 0.9022249999999999,
+          "spatial_information_usage_mean": 0.833333333333334,
+          "spatial_information_usage_median_by_block": 0.8333333333333333,
+          "ioc_proxy_gain_mean": 0.4497619915803492,
+          "ioc_proxy_gain_median_by_block": 0.44995121828674056,
+          "wall_time_ms_mean": 492.02026692177014,
+          "artifact_size_bytes_mean": 130093.625,
+          "reasoning_trace_length_mean": 8.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.029685937735985102,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.013358671981193171,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.030624793175015097,
+          "ivc_r_ci_upper": -0.02877643039400868,
+          "ioc_proxy_ci_lower": -0.013887503328248896,
+          "ioc_proxy_ci_upper": -0.012718313402429293,
+          "block_median_delta_ivc_r": -0.02934268543289642,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.029685937735985102,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.013358671981193171,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.030595559907980296,
+          "ivc_r_ci_upper": -0.02868983316989321,
+          "ioc_proxy_ci_lower": -0.013905697901948122,
+          "ioc_proxy_ci_upper": -0.012771207279022034,
+          "block_median_delta_ivc_r": -0.02934268543289642,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        }
+      },
+      "sensitivity_protocol": {
+        "candidate": {
+          "protocol": "sensitivity_10",
+          "reasoning_max_steps": 10,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "viability_edge",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "DIA_ADV",
+            "FAL_GUARD"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.3902677458972253,
+          "ivc_r_median_by_block": 0.3903964925946851,
+          "intervention_precision_mean": 0.0404210526315786,
+          "intervention_precision_median_by_block": 0.0404210526315786,
+          "viability_margin_mean": 0.9022249999999994,
+          "viability_margin_median_by_block": 0.9022249999999999,
+          "spatial_information_usage_mean": 0.833333333333334,
+          "spatial_information_usage_median_by_block": 0.8333333333333333,
+          "ioc_proxy_gain_mean": 0.44950408214497944,
+          "ioc_proxy_gain_median_by_block": 0.44956201815883634,
+          "wall_time_ms_mean": 499.3307901092976,
+          "artifact_size_bytes_mean": 130112.578125,
+          "reasoning_trace_length_mean": 8.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.0029374200921518656,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0013218390414684311,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.003809964745341232,
+          "ivc_r_ci_upper": -0.0020411125593302604,
+          "ioc_proxy_ci_lower": -0.0018512098510866104,
+          "ioc_proxy_ci_upper": -0.0007705930540458095,
+          "block_median_delta_ivc_r": -0.0029817245389976987,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.0029374200921518656,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0013218390414684311,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.003948023799929701,
+          "ivc_r_ci_upper": -0.0020036989528847138,
+          "ioc_proxy_ci_lower": -0.0018359860004186213,
+          "ioc_proxy_ci_upper": -0.000794312526096963,
+          "block_median_delta_ivc_r": -0.0029817245389976987,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "regime_gain_class": "sin ganancia"
+      }
+    },
+    {
+      "regime": "vram_favorable",
+      "regime_gain_class": "sin ganancia",
+      "best_profile_by_regime": "core_only",
+      "best_fixed_baseline_by_regime": "core_only",
+      "active_optional_families": [
+        "HEUR"
+      ],
+      "primary_protocol": {
+        "candidate": {
+          "protocol": "natural",
+          "reasoning_max_steps": null,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "vram_favorable",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "HEUR"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.04634197972653715,
+          "ivc_r_median_by_block": 0.046365421201508175,
+          "intervention_precision_mean": -0.0020000000000001956,
+          "intervention_precision_median_by_block": -0.0020000000000001956,
+          "viability_margin_mean": 0.9419000000000004,
+          "viability_margin_median_by_block": 0.9418999999999998,
+          "spatial_information_usage_mean": 0.75,
+          "spatial_information_usage_median_by_block": 0.75,
+          "ioc_proxy_gain_mean": 0.2837338908769417,
+          "ioc_proxy_gain_median_by_block": 0.2837444395406787,
+          "wall_time_ms_mean": 472.1152733750955,
+          "artifact_size_bytes_mean": 126884.765625,
+          "reasoning_trace_length_mean": 7.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.003123128190807678,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0014054076858635023,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.0033107537338229603,
+          "ivc_r_ci_upper": -0.0029256353099295918,
+          "ioc_proxy_ci_lower": -0.0017238623605589365,
+          "ioc_proxy_ci_upper": -0.001081978031550468,
+          "block_median_delta_ivc_r": -0.003294994879923789,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.003123128190807678,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.0014054076858635023,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.0033068274549236457,
+          "ivc_r_ci_upper": -0.0029255078907225243,
+          "ioc_proxy_ci_lower": -0.0017111775077473523,
+          "ioc_proxy_ci_upper": -0.0010672241754098866,
+          "block_median_delta_ivc_r": -0.003294994879923789,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        }
+      },
+      "sensitivity_protocol": {
+        "candidate": {
+          "protocol": "sensitivity_10",
+          "reasoning_max_steps": 10,
+          "profile": "adaptive_family_ecology_v2",
+          "profile_label": "adaptive v2",
+          "regime": "vram_favorable",
+          "blocks": 8,
+          "episodes": 64,
+          "active_optional_families": [
+            "HEUR"
+          ],
+          "success_rate": 1.0,
+          "closure_break_rate": 0.0,
+          "backbone_floor_satisfied_rate": 1.0,
+          "optional_family_usage_rate": 1.0,
+          "ivc_r_mean": 0.04621768776156416,
+          "ivc_r_median_by_block": 0.04625324667254811,
+          "intervention_precision_mean": -0.0020000000000001956,
+          "intervention_precision_median_by_block": -0.0020000000000001956,
+          "viability_margin_mean": 0.9419000000000004,
+          "viability_margin_median_by_block": 0.9418999999999998,
+          "spatial_information_usage_mean": 0.75,
+          "spatial_information_usage_median_by_block": 0.75,
+          "ioc_proxy_gain_mean": 0.28367795949270386,
+          "ioc_proxy_gain_median_by_block": 0.28369396100264666,
+          "wall_time_ms_mean": 485.7132264218649,
+          "artifact_size_bytes_mean": 126900.8125,
+          "reasoning_trace_length_mean": 7.0,
+          "closure_stable": true
+        },
+        "vs_core_only": {
+          "delta_ivc_r": -0.0002747243590587034,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.00012362596157644568,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.0003841405837127221,
+          "ivc_r_ci_upper": -0.00015904430989055474,
+          "ioc_proxy_ci_lower": -0.00041778223769317613,
+          "ioc_proxy_ci_upper": 0.00018845491955638005,
+          "block_median_delta_ivc_r": -0.0002600195948925105,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "vs_best_fixed": {
+          "delta_ivc_r": -0.0002747243590587034,
+          "delta_intervention_precision": 0.0,
+          "delta_viability_margin": 0.0,
+          "delta_spatial_information_usage": 0.0,
+          "delta_ioc_proxy_gain": -0.00012362596157644568,
+          "delta_success_rate": 0.0,
+          "delta_closure_break_rate": 0.0,
+          "ivc_r_ci_lower": -0.0003859069622216965,
+          "ivc_r_ci_upper": -0.00016099550609816743,
+          "ioc_proxy_ci_lower": -0.00043175202856532424,
+          "ioc_proxy_ci_upper": 0.00019249493207490476,
+          "block_median_delta_ivc_r": -0.0002600195948925105,
+          "repeatability_blocks_positive": {
+            "ivc_r": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "intervention_precision": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "viability_margin": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "spatial_information_usage": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "ioc_proxy_gain": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "success_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            },
+            "closure_break_rate": {
+              "positive_blocks": 0,
+              "total_blocks": 8,
+              "rate": 0.0
+            }
+          },
+          "secondary_positive_repeatable_metrics": []
+        },
+        "regime_gain_class": "sin ganancia"
+      }
+    }
+  ]
+}

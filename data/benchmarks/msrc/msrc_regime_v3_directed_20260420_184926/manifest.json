@@ -1,0 +1,79 @@
+{
+  "campaign_id": "msrc_regime_v3_directed_20260420_184926",
+  "created_at": "2026-04-20T18:49:26.650000",
+  "policies": [
+    "always_1x1",
+    "always_5x5",
+    "adaptive_msrc",
+    "adaptive_msrc_aggressive",
+    "adaptive_msrc_regime_v3",
+    "probe_before_switch"
+  ],
+  "groups": {
+    "homogeneous_safe": {
+      "params": {
+        "initial_temperature": 0.6,
+        "alarm_threshold": 0.85,
+        "cooling_effect": 0.07,
+        "grid_size": 5,
+        "topology": "uniform"
+      },
+      "level_label": "SAFE",
+      "topology_label": "uniform",
+      "seed_base": 710000
+    },
+    "heterogeneous_elevated": {
+      "params": {
+        "initial_temperature": 0.78,
+        "alarm_threshold": 0.85,
+        "cooling_effect": 0.07,
+        "grid_size": 5,
+        "topology": "hotspot_center"
+      },
+      "level_label": "ELEVATED",
+      "topology_label": "hotspot_center",
+      "seed_base": 720000
+    },
+    "heterogeneous_warning": {
+      "params": {
+        "initial_temperature": 0.87,
+        "alarm_threshold": 0.85,
+        "cooling_effect": 0.07,
+        "grid_size": 5,
+        "topology": "checkerboard"
+      },
+      "level_label": "WARNING",
+      "topology_label": "checkerboard",
+      "seed_base": 730000
+    },
+    "viability_edge": {
+      "params": {
+        "initial_temperature": 0.96,
+        "alarm_threshold": 0.98,
+        "cooling_effect": 0.04,
+        "grid_size": 5,
+        "topology": "uniform"
+      },
+      "level_label": "EDGE",
+      "topology_label": "uniform",
+      "seed_base": 740000
+    },
+    "vram_favorable": {
+      "params": {
+        "initial_temperature": 0.82,
+        "alarm_threshold": 0.85,
+        "cooling_effect": 0.04,
+        "grid_size": 5,
+        "topology": "gradient_ns"
+      },
+      "level_label": "PROBE_FAVORABLE",
+      "topology_label": "gradient_ns",
+      "seed_base": 750000
+    }
+  },
+  "episodes_per_cell": 8,
+  "proxy_mapping": {
+    "closure_rate": "success_rate",
+    "continuity_mean": "viability_margin"
+  }
+}

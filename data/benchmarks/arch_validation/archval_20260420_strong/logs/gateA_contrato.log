@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-9.0.2, pluggy-1.6.0 -- /home/necktral/.pyenv/versions/3.10.14/bin/python
+cachedir: .pytest_cache
+rootdir: /home/necktral/rnfe.v15
+configfile: pytest.ini
+plugins: django-4.11.1, anyio-4.13.0
+collecting ... collected 5 items
+
+tests/benchmarks/test_metrics_consistency.py::TestMetricsConsistency::test_no_removed_metrics_in_analysis_report PASSED [ 20%]
+tests/benchmarks/test_metrics_consistency.py::TestMetricsConsistency::test_analysis_uses_correct_proxy_metrics PASSED [ 40%]
+tests/benchmarks/test_metrics_consistency.py::TestMetricsConsistency::test_benchmark_runner_provides_proxy_metrics PASSED [ 60%]
+tests/benchmarks/test_metrics_consistency.py::TestMetricsConsistency::test_ivc_r_receives_proxy_inputs PASSED [ 80%]
+tests/benchmarks/test_metrics_consistency.py::TestMetricsConsistency::test_removed_metrics_documented PASSED [100%]
+
+============================== 5 passed in 0.04s ===============================
+
+
+STDERR:

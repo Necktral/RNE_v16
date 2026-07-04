@@ -1,0 +1,111 @@
+{
+  "generated_at": "2026-04-21T11:40:06.130606",
+  "run_id": "family_ecology_impl_smoke",
+  "profile": "adaptive_family_ecology",
+  "regime": "viability_edge",
+  "sequence_executed": [
+    "ABD",
+    "FAL_GUARD",
+    "DIA_ADV",
+    "ANA",
+    "CAU",
+    "PROB"
+  ],
+  "families_activated": [
+    "ABD",
+    "ANA",
+    "CAU",
+    "DIA_ADV",
+    "FAL_GUARD",
+    "PROB"
+  ],
+  "metrics_by_family": {
+    "family_activation_counts": {
+      "ABD": 1,
+      "ANA": 1,
+      "CAU": 1,
+      "CTF": 0,
+      "DED": 0,
+      "DIA_ADV": 1,
+      "EML_SR": 0,
+      "FAL_GUARD": 1,
+      "HEUR": 0,
+      "PROB": 1
+    },
+    "family_contribution_proxy": {
+      "ABD": 0.17581082344144316,
+      "FAL_GUARD": 0.17478268997102536,
+      "DIA_ADV": 0.12197401626320219,
+      "ANA": 0.17581082344144316,
+      "CAU": 0.17581082344144316,
+      "PROB": 0.17581082344144316
+    },
+    "family_delta_ivc_r": {
+      "ABD": 0.000601947070841093,
+      "ANA": 0.000601947070841093,
+      "CAU": 0.000601947070841093,
+      "DIA_ADV": 0.000417618781205543,
+      "FAL_GUARD": 0.0005984269125320807,
+      "PROB": 0.000601947070841093
+    },
+    "family_delta_intervention_precision": {
+      "ABD": 0.007106458547527747,
+      "ANA": 0.007106458547527747,
+      "CAU": 0.007106458547527747,
+      "DIA_ADV": 0.00493031813105992,
+      "FAL_GUARD": 0.007064900310407701,
+      "PROB": 0.007106458547527747
+    },
+    "family_delta_viability_margin": {
+      "ABD": 0.15731552481540334,
+      "ANA": 0.15731552481540334,
+      "CAU": 0.15731552481540334,
+      "DIA_ADV": 0.10914234975231332,
+      "FAL_GUARD": 0.1563955509860735,
+      "PROB": 0.15731552481540334
+    },
+    "family_delta_reasoning_trace_length": {
+      "ABD": 1.0,
+      "ANA": 1.0,
+      "CAU": 1.0,
+      "DIA_ADV": 1.0,
+      "FAL_GUARD": 1.0,
+      "PROB": 1.0
+    },
+    "family_delta_success_rate": {
+      "ABD": 0.0,
+      "ANA": 0.0,
+      "CAU": 0.0,
+      "DIA_ADV": 0.0,
+      "FAL_GUARD": 0.0,
+      "PROB": 0.0
+    },
+    "family_delta_spatial_information_usage": {
+      "ABD": 0.146509019534536,
+      "ANA": 0.146509019534536,
+      "CAU": 0.146509019534536,
+      "DIA_ADV": 0.10164501355266849,
+      "FAL_GUARD": 0.14565224164252114,
+      "PROB": 0.146509019534536
+    }
+  },
+  "serialized_outputs": {
+    "target": {
+      "summary": "data/diagnostics/family_ecology/family_ecology_impl_smoke/adaptive_family_ecology/summary.json",
+      "episodes": "data/diagnostics/family_ecology/family_ecology_impl_smoke/adaptive_family_ecology/episodes.jsonl"
+    },
+    "core_only": {
+      "summary": "data/diagnostics/family_ecology/family_ecology_impl_smoke/core_only/summary.json",
+      "episodes": "data/diagnostics/family_ecology/family_ecology_impl_smoke/core_only/episodes.jsonl"
+    }
+  },
+  "quick_comparison_vs_core_only": {
+    "ivc_r_delta": -0.430318164005349,
+    "intervention_precision_delta": -0.0404210526315786,
+    "viability_margin_delta": -0.8988,
+    "success_rate_delta": -1.0,
+    "family_mix_entropy_delta": -2.584962500721156,
+    "optional_family_usage_rate_target": 1.0,
+    "optional_family_usage_rate_core_only": 0.0
+  }
+}

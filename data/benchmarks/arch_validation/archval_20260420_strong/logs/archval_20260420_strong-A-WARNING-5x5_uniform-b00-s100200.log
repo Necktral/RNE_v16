@@ -1,0 +1,20 @@
+
+======================================================================
+EJECUTANDO BENCHMARK: grid_thermal_5x5_uniform
+======================================================================
+Episodios: 8
+Base seed: 100200
+Output: data/benchmarks/arch_validation/archval_20260420_strong/matrix_a/warning/5x5_uniform/block_00
+======================================================================
+
+Episodio 1/8 (seed=100200)... ✓ success (certified, 494.0ms)
+Episodio 2/8 (seed=100201)... ✓ success (certified, 461.5ms)
+Episodio 3/8 (seed=100202)... ✓ success (certified, 518.8ms)
+Episodio 4/8 (seed=100203)... ✓ success (certified, 563.0ms)
+Episodio 5/8 (seed=100204)... ✓ success (certified, 723.6ms)
+Episodio 6/8 (seed=100205)... ✓ success (certified, 561.9ms)
+Episodio 7/8 (seed=100206)... ✓ success (certified, 557.0ms)
+Episodio 8/8 (seed=100207)... ✓ success (certified, 638.8ms)
+
+📊 Resultados guardados en: data/benchmarks/arch_validation/archval_20260420_strong/matrix_a/warning/5x5_uniform/block_00/episodes.jsonl
+📊 Resumen guardado en: data/benchmarks/arch_validation/archval_20260420_strong/matrix_a/warning/5x5_uniform/block_00/summary.json

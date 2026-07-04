@@ -1,0 +1,229 @@
+{
+  "generated_at": "2026-04-21T12:45:05.898295",
+  "run_id": "adaptive_family_ecology_v2_diag",
+  "profile": "adaptive_family_ecology_v2",
+  "regime": "viability_edge",
+  "primary_regime_label": "viability_edge",
+  "cognitive_regime_label": "viability_edge",
+  "floor_regime_label": "viability_edge",
+  "mandatory_family_floor": [
+    "CAU",
+    "CTF",
+    "DED",
+    "PROB"
+  ],
+  "sequence_proposed": [
+    "ABD",
+    "ANA",
+    "DIA_ADV",
+    "CAU",
+    "CTF",
+    "DED",
+    "FAL_GUARD",
+    "PROB"
+  ],
+  "sequence_validated": [
+    "ABD",
+    "ANA",
+    "DIA_ADV",
+    "CAU",
+    "CTF",
+    "DED",
+    "FAL_GUARD",
+    "PROB"
+  ],
+  "sequence_executed": [
+    "ABD",
+    "ANA",
+    "DIA_ADV",
+    "CAU",
+    "CTF",
+    "DED",
+    "FAL_GUARD",
+    "PROB"
+  ],
+  "families_activated": [
+    "ABD",
+    "ANA",
+    "CAU",
+    "CTF",
+    "DED",
+    "DIA_ADV",
+    "FAL_GUARD",
+    "PROB"
+  ],
+  "sequence_validation": {
+    "primary_regime_label": "viability_edge",
+    "cognitive_regime_label": "viability_edge",
+    "floor_regime_label": "viability_edge",
+    "mandatory_family_floor": [
+      "CAU",
+      "CTF",
+      "DED",
+      "PROB"
+    ],
+    "proposed_sequence": [
+      "ABD",
+      "ANA",
+      "DIA_ADV",
+      "CAU",
+      "CTF",
+      "DED",
+      "FAL_GUARD",
+      "PROB"
+    ],
+    "validated_sequence": [
+      "ABD",
+      "ANA",
+      "DIA_ADV",
+      "CAU",
+      "CTF",
+      "DED",
+      "FAL_GUARD",
+      "PROB"
+    ],
+    "proposed_passed": true,
+    "validated_passed": true,
+    "missing_floor": [],
+    "missing_core": [],
+    "partial_order_ok": true,
+    "prob_last_ok": true,
+    "length_ok": true,
+    "optional_displacement_detected": false,
+    "autocorrected": false,
+    "fallback_used": false,
+    "budget_overridden_by_floor": false,
+    "effective_max_steps": 8,
+    "unknown_families": [],
+    "admitted_overlays": [
+      "FAL_GUARD",
+      "DIA_ADV"
+    ],
+    "default_overlays": [
+      "FAL_GUARD",
+      "DIA_ADV"
+    ],
+    "correction_steps": [],
+    "fallback_profile_name": null
+  },
+  "sequence_validation_fail_flag": false,
+  "backbone_floor_satisfied_flag": true,
+  "fallback_to_safe_sequence_flag": false,
+  "sequence_autocorrected_flag": false,
+  "optional_displacement_flag": false,
+  "closure_break_flag": false,
+  "admitted_overlays": [
+    "FAL_GUARD",
+    "DIA_ADV"
+  ],
+  "default_overlays": [
+    "FAL_GUARD",
+    "DIA_ADV"
+  ],
+  "correction_steps": [],
+  "fallback_profile_name": null,
+  "metrics_by_family": {
+    "family_activation_counts": {
+      "ABD": 1,
+      "ANA": 1,
+      "CAU": 1,
+      "CTF": 1,
+      "DED": 1,
+      "DIA_ADV": 1,
+      "EML_SR": 0,
+      "FAL_GUARD": 1,
+      "HEUR": 0,
+      "IND": 0,
+      "PROB": 1
+    },
+    "family_contribution_proxy": {
+      "ABD": 0.13007399211672777,
+      "ANA": 0.13007399211672777,
+      "DIA_ADV": 0.0902427218034714,
+      "CAU": 0.13007399211672777,
+      "CTF": 0.13007399211672777,
+      "DED": 0.13007399211672777,
+      "FAL_GUARD": 0.1293133254961621,
+      "PROB": 0.13007399211672777
+    },
+    "family_delta_ivc_r": {
+      "ABD": 0.04904302389370795,
+      "ANA": 0.04904302389370795,
+      "CAU": 0.04904302389370795,
+      "CTF": 0.04904302389370795,
+      "DED": 0.04904302389370795,
+      "DIA_ADV": 0.03402506442386436,
+      "FAL_GUARD": 0.04875622258438802,
+      "PROB": 0.04904302389370795
+    },
+    "family_delta_intervention_precision": {
+      "ABD": 0.005257727681349793,
+      "ANA": 0.005257727681349793,
+      "CAU": 0.005257727681349793,
+      "CTF": 0.005257727681349793,
+      "DED": 0.005257727681349793,
+      "DIA_ADV": 0.0036477058076350233,
+      "FAL_GUARD": 0.005226980735844823,
+      "PROB": 0.005257727681349793
+    },
+    "family_delta_viability_margin": {
+      "ABD": 0.11743080008298183,
+      "ANA": 0.11743080008298183,
+      "CAU": 0.11743080008298183,
+      "CTF": 0.11743080008298183,
+      "DED": 0.11743080008298183,
+      "DIA_ADV": 0.08147112924417398,
+      "FAL_GUARD": 0.11674407025793514,
+      "PROB": 0.11743080008298183
+    },
+    "family_delta_reasoning_trace_length": {
+      "ABD": 1.0,
+      "ANA": 1.0,
+      "CAU": 1.0,
+      "CTF": 1.0,
+      "DED": 1.0,
+      "DIA_ADV": 1.0,
+      "FAL_GUARD": 1.0,
+      "PROB": 1.0
+    },
+    "family_delta_success_rate": {
+      "ABD": 0.13007399211672777,
+      "ANA": 0.13007399211672777,
+      "CAU": 0.13007399211672777,
+      "CTF": 0.13007399211672777,
+      "DED": 0.13007399211672777,
+      "DIA_ADV": 0.0902427218034714,
+      "FAL_GUARD": 0.1293133254961621,
+      "PROB": 0.13007399211672777
+    },
+    "family_delta_spatial_information_usage": {
+      "ABD": 0.10839499343060648,
+      "ANA": 0.10839499343060648,
+      "CAU": 0.10839499343060648,
+      "CTF": 0.10839499343060648,
+      "DED": 0.10839499343060648,
+      "DIA_ADV": 0.07520226816955951,
+      "FAL_GUARD": 0.10776110458013508,
+      "PROB": 0.10839499343060648
+    }
+  },
+  "serialized_outputs": {
+    "target": {
+      "summary": "data/diagnostics/family_ecology/adaptive_family_ecology_v2_diag/adaptive_family_ecology_v2/summary.json",
+      "episodes": "data/diagnostics/family_ecology/adaptive_family_ecology_v2_diag/adaptive_family_ecology_v2/episodes.jsonl"
+    },
+    "core_only": {
+      "summary": "data/diagnostics/family_ecology/adaptive_family_ecology_v2_diag/core_only/summary.json",
+      "episodes": "data/diagnostics/family_ecology/adaptive_family_ecology_v2_diag/core_only/episodes.jsonl"
+    }
+  },
+  "quick_comparison_vs_core_only": {
+    "ivc_r_delta": -0.009042199224982894,
+    "intervention_precision_delta": 0.0,
+    "viability_margin_delta": 0.0,
+    "success_rate_delta": 0.0,
+    "family_mix_entropy_delta": 0.4150374992788439,
+    "optional_family_usage_rate_target": 1.0,
+    "optional_family_usage_rate_core_only": 0.0
+  }
+}

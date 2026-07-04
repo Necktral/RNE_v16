@@ -1,0 +1,20 @@
+
+======================================================================
+EJECUTANDO BENCHMARK: grid_thermal_5x5_gradient_ns
+======================================================================
+Episodios: 8
+Base seed: 200140
+Output: data/benchmarks/arch_validation/archval_20260420_strong/matrix_b/elevated/gradient_ns/block_05
+======================================================================
+
+Episodio 1/8 (seed=200140)... ✓ success (certified, 676.4ms)
+Episodio 2/8 (seed=200141)... ✓ success (certified, 724.1ms)
+Episodio 3/8 (seed=200142)... ✓ success (certified, 934.8ms)
+Episodio 4/8 (seed=200143)... ✓ success (certified, 965.8ms)
+Episodio 5/8 (seed=200144)... ✓ success (certified, 796.4ms)
+Episodio 6/8 (seed=200145)... ✓ success (certified, 669.2ms)
+Episodio 7/8 (seed=200146)... ✓ success (certified, 560.4ms)
+Episodio 8/8 (seed=200147)... ✓ success (certified, 803.5ms)
+
+📊 Resultados guardados en: data/benchmarks/arch_validation/archval_20260420_strong/matrix_b/elevated/gradient_ns/block_05/episodes.jsonl
+📊 Resumen guardado en: data/benchmarks/arch_validation/archval_20260420_strong/matrix_b/elevated/gradient_ns/block_05/summary.json

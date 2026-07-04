@@ -1,0 +1,104 @@
+{
+  "experiment_id": "mult-v1",
+  "primary_verdict": "ning\u00fan modo de transferencia supera a 'isolated' con CI por encima de 0 en este dise\u00f1o (la colonia no multiplica la ganancia aqu\u00ed \u2014 sin enga\u00f1os)",
+  "design": {
+    "regimes": [
+      "heterogeneous_elevated",
+      "heterogeneous_warning",
+      "viability_edge"
+    ],
+    "members_per_regime": 2,
+    "generations": 3,
+    "episodes_per_member": 6,
+    "seed": 990000
+  },
+  "per_mode": {
+    "isolated": {
+      "mode": "isolated",
+      "population_summary": {
+        "schema": "ecology.v1",
+        "generation": 3,
+        "transfer_mode": "isolated",
+        "population_size": 6,
+        "best_member": "isolated-heterogeneous_warning-0",
+        "best_fitness": -0.062104,
+        "mean_fitness": -0.062121
+      },
+      "mean_guarded_reward": -0.06211674999999998,
+      "n_certified": 48,
+      "n_total": 48,
+      "closure_break_count": 0
+    },
+    "inheritance_only": {
+      "mode": "inheritance_only",
+      "population_summary": {
+        "schema": "ecology.v1",
+        "generation": 3,
+        "transfer_mode": "inheritance_only",
+        "population_size": 6,
+        "best_member": "inheritance_only-heterogeneous_warning-0",
+        "best_fitness": -0.062104,
+        "mean_fitness": -0.062121
+      },
+      "mean_guarded_reward": -0.06211674999999998,
+      "n_certified": 48,
+      "n_total": 48,
+      "closure_break_count": 0
+    },
+    "reasoning_policy": {
+      "mode": "reasoning_policy",
+      "population_summary": {
+        "schema": "ecology.v1",
+        "generation": 3,
+        "transfer_mode": "reasoning_policy",
+        "population_size": 6,
+        "best_member": "reasoning_policy-heterogeneous_warning-0",
+        "best_fitness": -0.062104,
+        "mean_fitness": -0.062121
+      },
+      "mean_guarded_reward": -0.06211674999999998,
+      "n_certified": 48,
+      "n_total": 48,
+      "closure_break_count": 0
+    },
+    "reasoning_policy_plus_rules": {
+      "mode": "reasoning_policy_plus_rules",
+      "population_summary": {
+        "schema": "ecology.v1",
+        "generation": 3,
+        "transfer_mode": "reasoning_policy_plus_rules",
+        "population_size": 6,
+        "best_member": "reasoning_policy_plus_rules-heterogeneous_warning-0",
+        "best_fitness": -0.062104,
+        "mean_fitness": -0.062121
+      },
+      "mean_guarded_reward": -0.06211674999999998,
+      "n_certified": 48,
+      "n_total": 48,
+      "closure_break_count": 0
+    }
+  },
+  "comparisons_vs_isolated": {
+    "inheritance_only": {
+      "delta_mean_guarded_reward_vs_isolated": 0.0,
+      "ci_lower": -0.066077,
+      "ci_upper": 0.067946,
+      "multiplies": false,
+      "closure_intact": true
+    },
+    "reasoning_policy": {
+      "delta_mean_guarded_reward_vs_isolated": 0.0,
+      "ci_lower": -0.066077,
+      "ci_upper": 0.067946,
+      "multiplies": false,
+      "closure_intact": true
+    },
+    "reasoning_policy_plus_rules": {
+      "delta_mean_guarded_reward_vs_isolated": 0.0,
+      "ci_lower": -0.066077,
+      "ci_upper": 0.067946,
+      "multiplies": false,
+      "closure_intact": true
+    }
+  }
+}

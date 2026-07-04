@@ -1,0 +1,649 @@
+{
+  "homogeneous_safe": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05071945056166965,
+      "intervention_precision": -0.06666666666666675,
+      "wall_time_ms": 222.05959262510078,
+      "artifact_size_bytes": 49173.625,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.0499352337276075,
+      "intervention_precision": -0.002666666666666744,
+      "wall_time_ms": 223.73454812503724,
+      "artifact_size_bytes": 107741.875,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.050208950576273365,
+      "intervention_precision": -0.026666666666666734,
+      "wall_time_ms": 224.01113762509794,
+      "artifact_size_bytes": 70038.875,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05082597103748018,
+      "intervention_precision": -0.06666666666666675,
+      "wall_time_ms": 217.59654825001462,
+      "artifact_size_bytes": 49174.625,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "adaptive_msrc_regime_v3": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05071253324664988,
+      "intervention_precision": -0.06666666666666675,
+      "wall_time_ms": 222.31196124999997,
+      "artifact_size_bytes": 49173.75,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {
+        "homogeneous": 8
+      },
+      "regime_probe_rate": {
+        "homogeneous": 0.0
+      },
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05042765666035892,
+      "intervention_precision": -0.026666666666666734,
+      "wall_time_ms": 214.633072749848,
+      "artifact_size_bytes": 70039.125,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "heterogeneous_elevated": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.0507650786299947,
+      "intervention_precision": -0.05128205128205133,
+      "wall_time_ms": 220.14295474997425,
+      "artifact_size_bytes": 49957.125,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.5045155676093959,
+      "intervention_precision": 0.08402948402948375,
+      "wall_time_ms": 226.80091312503237,
+      "artifact_size_bytes": 110697.25,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.33454065795082444,
+      "intervention_precision": 0.0332876582876581,
+      "wall_time_ms": 221.30738225001778,
+      "artifact_size_bytes": 71697.375,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3334273074318578,
+      "intervention_precision": 0.0332876582876581,
+      "wall_time_ms": 230.61474887509803,
+      "artifact_size_bytes": 95013.875,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.125,
+      "probe_commit_rate": 1.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 1,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_regime_v3": {
+      "success_rate": 1.0,
+      "ivc_r": 0.4488113732937347,
+      "intervention_precision": 0.06711554211554187,
+      "wall_time_ms": 220.13694700001452,
+      "artifact_size_bytes": 94852.875,
+      "keep_scale_rate": 0.75,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.05,
+      "regime_distribution": {
+        "heterogeneous": 8
+      },
+      "regime_probe_rate": {
+        "heterogeneous": 0.0
+      },
+      "selected_scale_distribution": {
+        "1x1": 1,
+        "5x5": 7
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3330062677276119,
+      "intervention_precision": 0.0332876582876581,
+      "wall_time_ms": 226.22864837495626,
+      "artifact_size_bytes": 71698.875,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "heterogeneous_warning": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05030324636723242,
+      "intervention_precision": -0.04597701149425292,
+      "wall_time_ms": 216.39942787498967,
+      "artifact_size_bytes": 49152.375,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.49000703334686024,
+      "intervention_precision": 0.07902033271719067,
+      "wall_time_ms": 241.03657574994486,
+      "artifact_size_bytes": 109661.0,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.32619314688923684,
+      "intervention_precision": 0.032146328637899325,
+      "wall_time_ms": 229.3697311250753,
+      "artifact_size_bytes": 70792.25,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3827868879291557,
+      "intervention_precision": 0.04777099666432977,
+      "wall_time_ms": 219.9037918749127,
+      "artifact_size_bytes": 81008.0,
+      "keep_scale_rate": 0.75,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 1,
+      "mean_resolution_cost": 1.9,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 2,
+        "5x5": 6
+      }
+    },
+    "adaptive_msrc_regime_v3": {
+      "success_rate": 1.0,
+      "ivc_r": 0.4369044628886123,
+      "intervention_precision": 0.06339566469076022,
+      "wall_time_ms": 229.39600962490658,
+      "artifact_size_bytes": 93866.5,
+      "keep_scale_rate": 0.75,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.05,
+      "regime_distribution": {
+        "heterogeneous": 8
+      },
+      "regime_probe_rate": {
+        "heterogeneous": 0.0
+      },
+      "selected_scale_distribution": {
+        "1x1": 1,
+        "5x5": 7
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3245775905376344,
+      "intervention_precision": 0.032146328637899325,
+      "wall_time_ms": 234.48009412499005,
+      "artifact_size_bytes": 70792.375,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "viability_edge": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.051344551695511324,
+      "intervention_precision": 0.0,
+      "wall_time_ms": 218.82213537514872,
+      "artifact_size_bytes": 49367.625,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.42583281940972023,
+      "intervention_precision": 0.040000000000000084,
+      "wall_time_ms": 227.6120700000206,
+      "artifact_size_bytes": 108971.625,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.28573479229266463,
+      "intervention_precision": 0.025000000000000053,
+      "wall_time_ms": 221.09980837495868,
+      "artifact_size_bytes": 70668.5,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.33244772563241093,
+      "intervention_precision": 0.030000000000000065,
+      "wall_time_ms": 224.32361724992234,
+      "artifact_size_bytes": 80732.75,
+      "keep_scale_rate": 0.75,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 1,
+      "mean_resolution_cost": 1.9,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 2,
+        "5x5": 6
+      }
+    },
+    "adaptive_msrc_regime_v3": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05125042212862181,
+      "intervention_precision": 0.0,
+      "wall_time_ms": 223.16173124988836,
+      "artifact_size_bytes": 49367.625,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {
+        "homogeneous": 8
+      },
+      "regime_probe_rate": {
+        "homogeneous": 0.0
+      },
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.2857427853895685,
+      "intervention_precision": 0.025000000000000053,
+      "wall_time_ms": 220.02563875003034,
+      "artifact_size_bytes": 70669.25,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  },
+  "vram_favorable": {
+    "always_1x1": {
+      "success_rate": 1.0,
+      "ivc_r": 0.05079988351732762,
+      "intervention_precision": -0.04878048780487809,
+      "wall_time_ms": 219.14217787497137,
+      "artifact_size_bytes": 49190.5,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 1.0,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 8
+      }
+    },
+    "always_5x5": {
+      "success_rate": 1.0,
+      "ivc_r": 0.45390069099502045,
+      "intervention_precision": 0.046829268292683704,
+      "wall_time_ms": 220.30224274999455,
+      "artifact_size_bytes": 112194.25,
+      "keep_scale_rate": 1.0,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.1999999999999997,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "5x5": 8
+      }
+    },
+    "adaptive_msrc": {
+      "success_rate": 1.0,
+      "ivc_r": 0.30143762262300733,
+      "intervention_precision": 0.010975609756098036,
+      "wall_time_ms": 225.65217162491535,
+      "artifact_size_bytes": 71897.625,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_aggressive": {
+      "success_rate": 1.0,
+      "ivc_r": 0.30210714848222603,
+      "intervention_precision": 0.010975609756098036,
+      "wall_time_ms": 220.84756049997623,
+      "artifact_size_bytes": 95444.375,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.0,
+      "probe_rate": 0.125,
+      "probe_commit_rate": 1.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 1,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    },
+    "adaptive_msrc_regime_v3": {
+      "success_rate": 1.0,
+      "ivc_r": 0.403373905096607,
+      "intervention_precision": 0.03487804878048849,
+      "wall_time_ms": 221.5940807500374,
+      "artifact_size_bytes": 95853.375,
+      "keep_scale_rate": 0.75,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 0,
+      "mean_resolution_cost": 2.05,
+      "regime_distribution": {
+        "heterogeneous": 8
+      },
+      "regime_probe_rate": {
+        "heterogeneous": 0.0
+      },
+      "selected_scale_distribution": {
+        "1x1": 1,
+        "5x5": 7
+      }
+    },
+    "probe_before_switch": {
+      "success_rate": 1.0,
+      "ivc_r": 0.3022962915840885,
+      "intervention_precision": 0.010975609756098036,
+      "wall_time_ms": 215.90718112497598,
+      "artifact_size_bytes": 71898.0,
+      "keep_scale_rate": 0.625,
+      "upgrade_rate": 0.125,
+      "probe_rate": 0.0,
+      "probe_commit_rate": 0.0,
+      "oscillation_rate": 0.0,
+      "upgrade_regret": 0,
+      "missed_upgrade_regret": 2,
+      "mean_resolution_cost": 1.75,
+      "regime_distribution": {},
+      "regime_probe_rate": {},
+      "selected_scale_distribution": {
+        "1x1": 3,
+        "5x5": 5
+      }
+    }
+  }
+}

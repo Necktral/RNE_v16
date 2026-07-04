@@ -1,0 +1,46 @@
+{
+  "run_id": "msrc_diag_policy_20260420-M2-always_5x5-CRITICAL-uniform",
+  "policy_name": "always_5x5",
+  "level": "CRITICAL",
+  "topology": "uniform",
+  "total_episodes": 4,
+  "successful": 4,
+  "failed": 0,
+  "errors": 0,
+  "success_rate": 1.0,
+  "avg_metrics": {
+    "intervention_precision": 0.07199999999999981,
+    "proposition_diversity": 2.584962500721156,
+    "spatial_information_usage": 0.3333333333333333,
+    "wall_time_ms": 216.1265695003749,
+    "artifact_size_bytes": 51355.25,
+    "reasoning_trace_length": 6.0,
+    "ivc_r": 0.47641419656011286,
+    "viability_margin": 0.903
+  },
+  "failure_distribution": {},
+  "collapse_count": 0,
+  "proxy_mapping": {
+    "closure_rate": "success_rate",
+    "continuity_mean": "viability_margin"
+  },
+  "msrc_metrics": {
+    "scale_selection_accuracy": 1.0,
+    "upgrade_regret": 0,
+    "downgrade_regret": 0,
+    "oscillation_rate": 0.0,
+    "probe_value_rate": 0.0,
+    "mean_resolution_cost": 2.2,
+    "resolution_efficiency": 0.216551907527324,
+    "cross_scale_memory_contamination_rate": 0.0,
+    "vram_headroom_mean": 0.0,
+    "vram_peak_ratio": 0.0,
+    "vram_recompute_avoided": 0,
+    "vram_enabled_probe_success_rate": 0.0,
+    "vram_efficiency_after_intelligence": 0.216551907527324,
+    "selected_scale_distribution": {
+      "5x5": 4
+    }
+  },
+  "generated_at": "2026-04-20T20:35:11.838918+00:00"
+}
