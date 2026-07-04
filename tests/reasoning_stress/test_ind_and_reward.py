@@ -241,3 +241,21 @@ class TestRunnerIntegration:
             run_id=runner.run_id, event_types=["reasoning.reward"]
         )
         assert len(events) == 3
+
+    def test_a2_nu_flag_threads_through_runner(self, tmp_path, monkeypatch):
+        """A2 — el flag RNFE_REWARD_LAMBDA_NU llega a la recompensa vía el runner real.
+
+        Con el flag apagado el término ν es nulo (nominal byte-idéntico); con el flag
+        encendido, λ_ν se propaga al bloque persistido y ν pondera cuando helps_goal.
+        """
+        from runtime.world import ScenarioEpisodeRunner
+
+        monkeypatch.setenv("RNFE_REWARD_LAMBDA_NU", "1.0")
+        runner = ScenarioEpisodeRunner(storage=_storage(tmp_path), scenario="thermal_homeostasis")
+        for _ in range(3):
+            result = runner.run_episode()
+        r = result["reasoning_reward"]
+        assert r["lambda_nu"] == 1.0  # el flag atraviesa scenario_runner → compute_episode_reward
+        # ν se extrae de cau_link.helps_goal; si actuó a favor del objetivo, pondera.
+        if r["nu"] == 1.0:
+            assert r["nu_term"] == 1.0

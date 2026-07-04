@@ -6,6 +6,15 @@
 > Anclas canon: `canon/normative/CANON_RNFE_v3_2_rc1.md`,
 > `docs/analysis/AUDITORIA_CANON_F21_F24_VS_CODIGO.md`, `docs/analysis/17_SYNTHESIS.md`.
 
+> **Actualización 2026-07-03 (rama `feat/bucle-a-activation`).** Ejecutado el primer movimiento:
+> **A1 confirmado en harness** — la selección guiada por la recompensa descompuesta (ν=`cau.helps_goal`
+> de primera clase, `RNFE_REWARD_LAMBDA_NU`) supera al perfil fijo en efectividad (Δ>0, CI excluye 0)
+> a λ_ν=O(1); la ecología multiplica por velocidad de convergencia
+> (`data/reports/bucle_a_activation/REPORT.md`). **R1 cableado**: el freno de riesgo de cola S-I-E pasa
+> de sombra a enforcement tras `RNFE_RISK_ENFORCEMENT` (bloquea lo inseguro con evidencia, sin falsos
+> positivos). **A2 gated**: los flags quedan OFF por defecto (nominal byte-idéntico), listos para
+> encender bajo la disciplina de sombra. Ver `governance/adr/ADR_BUCLE_A_ACTIVATION.md`.
+
 ## 1. Problema y meta
 
 El organismo RNFE tiene los **órganos** de un sistema autosustentable, pero los **bucles metabólicos
