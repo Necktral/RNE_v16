@@ -49,6 +49,7 @@ class LifeKernelConfig:
     enable_msrc: bool = True
     enable_operational_conjunction: bool = True
     max_compute_tier: ComputeTier = "tier_2_specialized"
+    autonomy_policy: str = "bounded"
 
 
 class LifeKernel:
@@ -257,6 +258,7 @@ class LifeKernel:
             external_input=external_input,
             allow_external_reasoner=self.config.allow_external_reasoner,
             max_compute_tier=self.config.max_compute_tier,
+            autonomy_policy=self.config.autonomy_policy,
         )
         self.last_operational = result
         return result

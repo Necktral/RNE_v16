@@ -72,6 +72,18 @@ _MATRIX = {
         "require_human_approval",
         {"automatic_execution": False, "request_human_approval": True},
     ),
+    "autonomy_degraded_by_policy": (
+        "degrade_autonomy_scope",
+        {"active_mode": "bounded", "automatic_execution": True},
+    ),
+    "unbounded_autonomy_without_agent_policy": (
+        "degrade_autonomy_scope",
+        {"active_mode": "bounded", "automatic_execution": False},
+    ),
+    "unbounded_autonomy_not_authorized": (
+        "degrade_autonomy_scope",
+        {"active_mode": "bounded", "automatic_execution": False},
+    ),
     "critical_action_without_validated_plan": (
         "require_plan_validation",
         {"automatic_execution": False, "create_plan_first": True},

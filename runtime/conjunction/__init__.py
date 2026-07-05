@@ -6,6 +6,7 @@ validators, compensations, and controlled execution policy.
 
 from .contracts import (
     AgentPolicy,
+    AutonomyPolicy,
     CausalAssumption,
     CompensationAction,
     ComputeRoute,
@@ -19,6 +20,7 @@ from .service import OperationalConjunctionLayer
 
 __all__ = [
     "AgentPolicy",
+    "AutonomyPolicy",
     "CausalAssumption",
     "CompensationAction",
     "ComputeRoute",

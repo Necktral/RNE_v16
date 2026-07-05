@@ -37,6 +37,7 @@ FinalDecision = Literal[
     "block",
     "observe",
 ]
+AutonomyMode = Literal["bounded", "governed_unbounded"]
 
 
 TIER_ORDER: tuple[ComputeTier, ...] = (
@@ -158,6 +159,100 @@ class AgentPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class AutonomyPolicy:
+    """Policy envelope for bounded or governed-unbounded autonomy."""
+
+    requested_mode: str = "bounded"
+    active_mode: AutonomyMode = "bounded"
+    policy_authorized: bool = False
+    step_budget: int = 1
+    run_budget: int | None = 1
+    requires_operational_conjunction: bool = True
+    degradation_reason: str | None = None
+    safety_invariants: tuple[str, ...] = (
+        "agent_policy_required",
+        "risk_below_limit",
+        "resource_pressure_below_limit",
+        "memory_purity_above_floor",
+    )
+    evidence: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def resolve(
+        cls,
+        *,
+        requested_mode: str | None,
+        risk_score: float,
+        resource_pressure: float,
+        memory_purity: float,
+        agent_policy_present: bool,
+        operational_conjunction_enabled: bool = True,
+        risk_limit: float = 0.80,
+        resource_pressure_limit: float = 0.85,
+        memory_purity_floor: float = 0.65,
+    ) -> "AutonomyPolicy":
+        requested = str(requested_mode or "bounded").strip().lower()
+        wants_unbounded = requested in {
+            "unlimited",
+            "unbounded",
+            "governed_unbounded",
+            "policy_unbounded",
+        }
+        evidence = {
+            "risk_score": round(clamp01(risk_score), 4),
+            "risk_limit": round(clamp01(risk_limit), 4),
+            "resource_pressure": round(clamp01(resource_pressure), 4),
+            "resource_pressure_limit": round(clamp01(resource_pressure_limit), 4),
+            "memory_purity": round(clamp01(memory_purity), 4),
+            "memory_purity_floor": round(clamp01(memory_purity_floor), 4),
+            "agent_policy_present": bool(agent_policy_present),
+            "operational_conjunction_enabled": bool(operational_conjunction_enabled),
+        }
+        blockers: list[str] = []
+        if not operational_conjunction_enabled:
+            blockers.append("operational_conjunction_required")
+        if not agent_policy_present:
+            blockers.append("agent_policy_required")
+        if risk_score >= risk_limit:
+            blockers.append("risk_limit")
+        if resource_pressure >= resource_pressure_limit:
+            blockers.append("resource_pressure_limit")
+        if memory_purity < memory_purity_floor:
+            blockers.append("memory_purity_floor")
+
+        if wants_unbounded and not blockers:
+            return cls(
+                requested_mode=requested,
+                active_mode="governed_unbounded",
+                policy_authorized=True,
+                step_budget=0,
+                run_budget=None,
+                evidence=evidence,
+            )
+        if wants_unbounded:
+            return cls(
+                requested_mode=requested,
+                active_mode="bounded",
+                policy_authorized=False,
+                step_budget=1,
+                run_budget=1,
+                degradation_reason=";".join(blockers),
+                evidence=evidence,
+            )
+        return cls(
+            requested_mode=requested,
+            active_mode="bounded",
+            policy_authorized=False,
+            step_budget=1,
+            run_budget=1,
+            evidence=evidence,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class OperationContext:
     operation_id: str
     run_id: str | None
@@ -170,6 +265,7 @@ class OperationContext:
     causal_assumptions: tuple[CausalAssumption, ...] = ()
     constraints: OperationalConstraints = field(default_factory=OperationalConstraints)
     agent_policy: AgentPolicy | None = None
+    autonomy_policy: AutonomyPolicy | None = None
     risk_score: float = 0.0
     complexity_score: float = 0.0
     resource_pressure: float = 0.0
@@ -191,6 +287,7 @@ class OperationContext:
         causal_assumptions: Sequence[CausalAssumption] | None = None,
         constraints: OperationalConstraints | None = None,
         agent_policy: AgentPolicy | None = None,
+        autonomy_policy: AutonomyPolicy | None = None,
         risk_score: float = 0.0,
         complexity_score: float = 0.0,
         resource_pressure: float = 0.0,
@@ -209,6 +306,7 @@ class OperationContext:
             causal_assumptions=tuple(causal_assumptions or ()),
             constraints=constraints or OperationalConstraints(),
             agent_policy=agent_policy,
+            autonomy_policy=autonomy_policy,
             risk_score=round(clamp01(risk_score), 4),
             complexity_score=round(clamp01(complexity_score), 4),
             resource_pressure=round(clamp01(resource_pressure), 4),
@@ -231,6 +329,7 @@ class OperationContext:
         data["causal_assumptions"] = [item.to_dict() for item in self.causal_assumptions]
         data["constraints"] = self.constraints.to_dict()
         data["agent_policy"] = self.agent_policy.to_dict() if self.agent_policy else None
+        data["autonomy_policy"] = self.autonomy_policy.to_dict() if self.autonomy_policy else None
         return data
 
 
