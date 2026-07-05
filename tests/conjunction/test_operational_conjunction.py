@@ -94,6 +94,56 @@ def test_missing_evidence_activates_compensation_without_external_oracle():
     assert any(item.code == "expand_retrieval" for item in result.compensations)
 
 
+def test_missing_memory_rag_executes_verified_recovery(tmp_path: Path):
+    storage = _storage(tmp_path)
+    storage.write_memory_record(
+        run_id="op-memory-recovery",
+        episode_id="episode-1",
+        scale="micro",
+        structure_json={
+            "scenario": "thermal_homeostasis",
+            "action": "act",
+            "external_input_band": "normal",
+        },
+        metadata={"scenario_name": "thermal_homeostasis"},
+        support_count=2,
+    )
+    storage.append_event(
+        event_type="life.step.completed",
+        run_id="op-memory-recovery",
+        source="life_kernel",
+        payload={"scenario": "thermal_homeostasis", "action": "act"},
+    )
+    context = OperationContext.create(
+        run_id="op-memory-recovery",
+        user_intent="answer_with_recovered_memory",
+        task_type="life_cycle",
+        requested_action="act",
+        scenario="thermal_homeostasis",
+        required_evidence=["memory_rag"],
+        available_evidence=[],
+        metadata={"external_input": 0.05},
+    )
+
+    result = OperationalConjunctionLayer(storage=storage).evaluate(context)
+
+    assert result.final_decision == "allow_with_compensation"
+    assert result.validation_status == "pass"
+    assert result.compensation_status == "applied"
+    assert result.context_summary["available_evidence_kinds"] == ["memory_rag"]
+    assert any(
+        item["stage"] == "compensation.execution"
+        and item["added_evidence_kinds"] == ["memory_rag"]
+        for item in result.to_dict()["trace"]
+    )
+    events = storage.list_events(
+        run_id="op-memory-recovery",
+        event_types=["operational.compensation.executed"],
+        limit=5,
+    )
+    assert events
+
+
 def test_contradictory_evidence_blocks_fusion():
     context = OperationContext.create(
         run_id="op-conflict",
@@ -171,6 +221,35 @@ def test_critical_agent_action_requires_validated_plan_and_rollback():
     assert any(item.code == "require_rollback_plan" for item in result.compensations)
 
 
+def test_human_approval_required_blocks_critical_agent_action():
+    context = OperationContext.create(
+        run_id="op-human-approval",
+        user_intent="self_modify_policy",
+        task_type="self_modification",
+        requested_action="self_modify",
+        required_evidence=["validated_plan", "rollback_plan", "human_approval"],
+        available_evidence=[
+            EvidenceItem.create(kind="validated_plan", source="test", confidence=1.0),
+            EvidenceItem.create(kind="rollback_plan", source="test", confidence=1.0),
+        ],
+        constraints=OperationalConstraints(
+            permitted_actions=("self_modify",),
+            critical_actions=("self_modify",),
+        ),
+        agent_policy=AgentPolicy(
+            role="life_kernel",
+            allowed_actions=("self_modify",),
+            human_approval_required_actions=("self_modify",),
+        ),
+    )
+
+    result = OperationalConjunctionLayer().evaluate(context)
+
+    assert result.final_decision == "block"
+    assert result.execution_permissions["automatic_execution_allowed"] is False
+    assert any(item.code == "require_human_approval" for item in result.compensations)
+
+
 def test_life_kernel_persists_operational_conjunction_trace(tmp_path: Path):
     storage = _storage(tmp_path)
     kernel = LifeKernel(
@@ -215,3 +294,30 @@ def test_life_kernel_blocks_unproven_self_modification(tmp_path: Path):
     assert result.decision.action == "act"
     assert result.decision.mode == "recovery"
     assert result.decision.directives["blocked_action"] == "self_modify"
+
+
+def test_life_kernel_can_disable_operational_conjunction(tmp_path: Path):
+    storage = _storage(tmp_path)
+    kernel = LifeKernel(
+        config=LifeKernelConfig(
+            run_id="life-conjunction-disabled",
+            scenarios=("thermal_homeostasis",),
+            restore=False,
+            enable_msrc=False,
+            enable_operational_conjunction=False,
+        ),
+        storage=storage,
+    )
+
+    result = kernel.step(external_input=0.05)
+
+    assert result.operational == {}
+    assert kernel.last_operational is None
+    assert result.episode_result is not None
+    assert "operational_conjunction" not in result.episode_result
+    events = storage.list_events(
+        run_id="life-conjunction-disabled",
+        event_types=["operational.conjunction.evaluated"],
+        limit=5,
+    )
+    assert events == []

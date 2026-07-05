@@ -203,6 +203,56 @@ class OperationalValidatorStack:
                     details={"role": policy.role, "requested_action": context.requested_action},
                 )
             )
+        requested_tool = context.metadata.get("requested_tool")
+        if requested_tool and not policy.allows_tool(str(requested_tool)):
+            out.append(
+                ValidationFinding(
+                    code="agent_tool_forbidden",
+                    status="fail",
+                    validator="agent_policy",
+                    message="agent policy forbids requested tool",
+                    details={"role": policy.role, "requested_tool": requested_tool},
+                )
+            )
+        if policy.budget_units <= 0:
+            out.append(
+                ValidationFinding(
+                    code="agent_budget_exhausted",
+                    status="fail",
+                    validator="agent_policy",
+                    message="agent policy budget is exhausted",
+                    details={"role": policy.role, "budget_units": policy.budget_units},
+                )
+            )
+        step_count = int(context.metadata.get("agent_step_count", 0) or 0)
+        if step_count > policy.max_steps:
+            out.append(
+                ValidationFinding(
+                    code="agent_step_limit_exceeded",
+                    status="fail",
+                    validator="agent_policy",
+                    message="agent exceeded maximum policy steps",
+                    details={
+                        "role": policy.role,
+                        "agent_step_count": step_count,
+                        "max_steps": policy.max_steps,
+                        "stop_conditions": policy.stop_conditions,
+                    },
+                )
+            )
+        if (
+            context.requested_action in policy.human_approval_required_actions
+            and not context.has_evidence("human_approval")
+        ):
+            out.append(
+                ValidationFinding(
+                    code="human_approval_required",
+                    status="fail",
+                    validator="agent_policy",
+                    message="requested action requires human approval evidence",
+                    details={"role": policy.role, "requested_action": context.requested_action},
+                )
+            )
         if (
             context.is_critical_action()
             and policy.requires_plan_for_critical

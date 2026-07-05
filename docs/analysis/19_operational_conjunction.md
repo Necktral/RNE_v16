@@ -25,10 +25,11 @@ operational truth > evidence > causality > constraints > reasoning > generation
   `tier_3_external`.
 - `OperationalValidatorStack` checks schema, evidence, causal support,
   constraints, risk, and agent execution policy.
-- `CompensationMatrix` converts failures into explicit operational behavior:
-  evidence recovery, conflict marking, causal downgrade, local degradation,
-  action blocking, plan validation, rollback requirement, or resource
-  conservation.
+- `CompensationMatrix` converts failures into explicit operational behavior,
+  then the layer executes the safe compensations before a second validation
+  pass: verified memory recovery, conflict isolation, causal downgrade, local
+  degradation, action blocking, plan preparation, rollback lookup, human
+  approval checks, and resource conservation.
 - The result is appended as `operational.conjunction.evaluated` and copied into
   `life.step.completed` plus the episode result under `operational_conjunction`.
 
@@ -41,6 +42,10 @@ Critical actions are not free-running:
 - `consult_external` is permitted only when external reasoning is enabled and
   the plan is validated.
 - `rollback` requires healthy checkpoint evidence.
+- actions listed in `human_approval_required_actions` require
+  `human_approval` evidence before automatic execution.
+- agent tools, step counts, stop conditions, and budget are checked by
+  `AgentPolicy` before the action can proceed.
 - `shutdown` remains allowed as a safe terminal action.
 
 This keeps self-modification and agents policy-bound instead of model-bound.
@@ -67,6 +72,7 @@ Minimum evidence that the layer is alive:
 PYTHONPATH=. .venv/bin/python scripts/life_kernel.py --run-id rne16-postgres-smoke --max-steps 3 --no-restore
 ```
 
-The tests cover cheap deterministic routing, missing evidence compensation,
+The tests cover cheap deterministic routing, executable evidence recovery,
 contradiction blocking, unsupported causal claim downgrade, critical action
-blocking, and persistence of operational trace inside the living cycle.
+blocking, human approval gates, disabled conjunction mode, and persistence of
+operational trace inside the living cycle.

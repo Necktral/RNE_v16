@@ -7,6 +7,8 @@ which route may act and records why.
 
 from __future__ import annotations
 
+import json
+from dataclasses import replace
 from typing import Any, Dict, Iterable
 
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
@@ -17,6 +19,7 @@ from .compensations import CompensationMatrix
 from .contracts import (
     AgentPolicy,
     CausalAssumption,
+    CompensationAction,
     CompensationStatus,
     ComputeTier,
     ConfidenceState,
@@ -46,6 +49,21 @@ class OperationalConjunctionLayer:
         route = self.router.route(context)
         findings = self.validators.validate(context=context, route=route)
         actions = self.compensations.compensate(context=context, findings=findings)
+        context, actions, compensation_trace = self._execute_compensations(
+            context=context,
+            actions=actions,
+        )
+        if actions:
+            route = self.router.route(context)
+            findings = self.validators.validate(context=context, route=route)
+            followup_actions = self.compensations.compensate(
+                context=context,
+                findings=findings,
+            )
+            actions = self._merge_compensation_actions(
+                executed_actions=actions,
+                followup_actions=followup_actions,
+            )
         validation_status = self._validation_status(findings)
         compensation_status = self._compensation_status(actions, validation_status)
         confidence_state = self._confidence_state(context=context, findings=findings)
@@ -81,6 +99,7 @@ class OperationalConjunctionLayer:
                 "status": compensation_status,
                 "actions": [item.to_dict() for item in actions],
             },
+            *compensation_trace,
             {
                 "stage": "final_decision",
                 "decision": final_decision,
@@ -186,6 +205,7 @@ class OperationalConjunctionLayer:
         raw_risk = float(getattr(vitals, "risk_score", 0.0) or 0.0)
         if int(getattr(vitals, "episode_count", 0) or 0) <= 0 and action == "act":
             raw_risk = min(raw_risk, 0.50)
+        directives = getattr(decision, "directives", {}) or {}
         return OperationContext.create(
             run_id=run_id,
             user_intent="maintain_autonomous_life_cycle",
@@ -206,6 +226,9 @@ class OperationalConjunctionLayer:
                 "external_input": external_input,
                 "decision_id": getattr(decision, "decision_id", None),
                 "decision_reason": getattr(decision, "reason", None),
+                "requested_tool": directives.get("requested_tool"),
+                "agent_step_count": int(directives.get("agent_step_count", 0) or 0),
+                "human_approved": bool(directives.get("human_approved")),
             },
         )
 
@@ -308,7 +331,371 @@ class OperationalConjunctionLayer:
                     canonical=True,
                 )
             )
+        if directives.get("human_approved") is True:
+            evidence.append(
+                EvidenceItem.create(
+                    kind="human_approval",
+                    source="autonomy_supervisor",
+                    confidence=0.95,
+                    payload={"step_index": step_index, "action": action},
+                    canonical=True,
+                )
+            )
         return tuple(evidence)
+
+    def _execute_compensations(
+        self,
+        *,
+        context: OperationContext,
+        actions: tuple[CompensationAction, ...],
+    ) -> tuple[OperationContext, tuple[CompensationAction, ...], tuple[Dict[str, Any], ...]]:
+        if not actions:
+            return context, actions, ()
+
+        current = context
+        executed: list[CompensationAction] = []
+        trace: list[Dict[str, Any]] = []
+        for action in actions:
+            current, action, entry = self._execute_compensation(
+                context=current,
+                action=action,
+            )
+            executed.append(action)
+            trace.append(entry)
+            self._persist_compensation_execution(context=current, action=action, entry=entry)
+        return current, tuple(executed), tuple(trace)
+
+    def _execute_compensation(
+        self,
+        *,
+        context: OperationContext,
+        action: CompensationAction,
+    ) -> tuple[OperationContext, CompensationAction, Dict[str, Any]]:
+        directive = dict(action.directive)
+        evidence_before = context.evidence_kinds()
+        metadata = dict(context.metadata)
+        status = action.status
+
+        if action.code == "expand_retrieval":
+            missing_kind = str(directive.get("finding_details", {}).get("missing_kind") or "")
+            recovered = self._recover_evidence(context=context, kind=missing_kind)
+            if recovered:
+                context = self._with_evidence(context=context, evidence=recovered)
+                status = "applied"
+                directive["recovered_evidence_kinds"] = [item.kind for item in recovered]
+            directive["executed"] = True
+            directive["execution"] = "recovered_evidence" if recovered else "no_recovery_available"
+
+        elif action.code == "resource_conservation":
+            metadata.update(
+                {
+                    "context_reduced": True,
+                    "cache_preferred": True,
+                    "large_models_avoided": True,
+                }
+            )
+            context = replace(context, metadata=metadata)
+            directive["executed"] = True
+            directive["execution"] = "resource_conservation_mode_enabled"
+
+        elif action.code in {"degrade_compute_tier", "degrade_to_local"}:
+            max_tier = "tier_1_local_light"
+            if action.code == "degrade_compute_tier":
+                max_tier = context.constraints.max_compute_tier
+            context = replace(
+                context,
+                constraints=replace(
+                    context.constraints,
+                    max_compute_tier=max_tier,
+                    allow_external=False,
+                ),
+                metadata={**metadata, "external_reasoner_disabled": True},
+            )
+            directive["executed"] = True
+            directive["execution"] = "compute_policy_degraded"
+
+        elif action.code == "require_rollback_plan":
+            recovered = self._recover_evidence(context=context, kind="rollback_plan")
+            if recovered:
+                context = self._with_evidence(context=context, evidence=recovered)
+                status = "applied"
+                directive["recovered_evidence_kinds"] = [item.kind for item in recovered]
+            directive["executed"] = True
+            directive["execution"] = "checkpoint_lookup_performed"
+
+        elif action.code == "require_plan_validation":
+            plan_evidence = EvidenceItem.create(
+                kind="execution_plan",
+                source="operational_conjunction",
+                confidence=0.55,
+                payload={
+                    "requested_action": context.requested_action,
+                    "requires_validation": True,
+                    "created_from_compensation": True,
+                },
+            )
+            context = self._with_evidence(context=context, evidence=(plan_evidence,))
+            directive["created_evidence_kind"] = "execution_plan"
+            directive["executed"] = True
+            directive["execution"] = "draft_plan_created_requires_validation"
+
+        elif action.code == "downgrade_causal_claim":
+            context = replace(
+                context,
+                metadata={**metadata, "causal_claim_downgraded_to_hypothesis": True},
+            )
+            directive["executed"] = True
+            directive["execution"] = "causal_claim_marked_hypothesis"
+
+        elif action.code == "mark_conflict":
+            context = replace(
+                context,
+                metadata={**metadata, "conflicting_evidence_isolated": True},
+            )
+            directive["executed"] = True
+            directive["execution"] = "conflict_isolated"
+
+        elif action.code == "require_human_approval":
+            recovered = self._recover_evidence(context=context, kind="human_approval")
+            if recovered:
+                context = self._with_evidence(context=context, evidence=recovered)
+                status = "applied"
+                directive["recovered_evidence_kinds"] = [item.kind for item in recovered]
+            directive["executed"] = True
+            directive["execution"] = "human_approval_checked"
+
+        elif action.code == "stop_agent":
+            context = replace(
+                context,
+                metadata={
+                    **metadata,
+                    "agent_stopped": True,
+                    "stop_reason": directive.get("stop_condition", action.reason),
+                },
+            )
+            directive["executed"] = True
+            directive["execution"] = "agent_stop_condition_applied"
+
+        else:
+            context = replace(context, metadata={**metadata, "scope_reduced": True})
+            directive["executed"] = True
+            directive["execution"] = "scope_reduction_applied"
+
+        evidence_after = context.evidence_kinds()
+        executed_action = replace(action, status=status, directive=directive)
+        return (
+            context,
+            executed_action,
+            {
+                "stage": "compensation.execution",
+                "action": action.code,
+                "status": status,
+                "execution": directive.get("execution"),
+                "added_evidence_kinds": sorted(evidence_after - evidence_before),
+            },
+        )
+
+    def _recover_evidence(
+        self,
+        *,
+        context: OperationContext,
+        kind: str,
+    ) -> tuple[EvidenceItem, ...]:
+        if not kind or context.has_evidence(kind):
+            return ()
+        if kind == "memory_rag":
+            hits = self._retrieve_verified_memory(context=context)
+            if not hits:
+                return ()
+            top = hits[0]
+            return (
+                EvidenceItem.create(
+                    kind="memory_rag",
+                    source="memory.hybrid_verified",
+                    confidence=float(top.get("score", 0.0) or 0.0),
+                    payload={
+                        "hit_count": len(hits),
+                        "top": top,
+                        "retrieval_strategy": [
+                            "exact_event_search",
+                            "structural_overlap",
+                            "canonical_source_priority",
+                        ],
+                    },
+                    canonical=bool(top.get("canonical")),
+                ),
+            )
+        if kind == "causal_signature" and context.scenario:
+            try:
+                signature = get_scenario(context.scenario).causal_signature
+            except Exception:
+                return ()
+            return (
+                EvidenceItem.create(
+                    kind="causal_signature",
+                    source="world.registry",
+                    confidence=self._signature_confidence(signature),
+                    payload={
+                        "scenario": signature.scenario_name,
+                        "main_variable": signature.main_variable,
+                        "edge_count": len(signature.causal_edges),
+                        "intervention_count": len(signature.intervention_effects),
+                    },
+                    canonical=True,
+                ),
+            )
+        if kind in {"healthy_checkpoint", "rollback_plan"} and context.run_id:
+            checkpoint = self._latest_checkpoint(run_id=context.run_id)
+            if not checkpoint:
+                return ()
+            out = []
+            if kind == "healthy_checkpoint" and checkpoint.get("healthy"):
+                out.append(
+                    EvidenceItem.create(
+                        kind="healthy_checkpoint",
+                        source="life.checkpoint",
+                        confidence=0.80,
+                        payload=checkpoint,
+                        canonical=True,
+                    )
+                )
+            if kind == "rollback_plan":
+                out.append(
+                    EvidenceItem.create(
+                        kind="rollback_plan",
+                        source="life.checkpoint",
+                        confidence=0.75 if checkpoint.get("healthy") else 0.40,
+                        payload={
+                            "plan": "restore_latest_healthy_checkpoint",
+                            "checkpoint_artifact_id": checkpoint.get("artifact_id"),
+                            "healthy": checkpoint.get("healthy"),
+                        },
+                        canonical=bool(checkpoint.get("healthy")),
+                    )
+                )
+            return tuple(out)
+        if kind == "human_approval" and context.metadata.get("human_approved") is True:
+            return (
+                EvidenceItem.create(
+                    kind="human_approval",
+                    source="operation.metadata",
+                    confidence=0.95,
+                    payload={"approved": True},
+                    canonical=True,
+                ),
+            )
+        return ()
+
+    def _retrieve_verified_memory(self, *, context: OperationContext) -> list[Dict[str, Any]]:
+        if self.storage is None or not context.run_id:
+            return []
+        query = {
+            "scenario": context.scenario,
+            "action": context.requested_action,
+            **{
+                key: value for key, value in context.metadata.items()
+                if key in {"external_input", "decision_reason"}
+            },
+        }
+        exact_hits = self._exact_event_search(context=context, query=query)
+        structural_hits = self._retrieve_life_memory(
+            run_id=context.run_id,
+            scenario=context.scenario or "",
+            action=context.requested_action,
+            external_input=context.metadata.get("external_input"),
+        )
+        hits = [
+            *exact_hits,
+            *[
+                {
+                    **item,
+                    "strategy": "structural_overlap",
+                    "canonical": False,
+                }
+                for item in structural_hits
+            ],
+        ]
+        hits.sort(key=lambda item: (bool(item.get("canonical")), float(item.get("score", 0.0))), reverse=True)
+        return hits[:5]
+
+    def _exact_event_search(
+        self,
+        *,
+        context: OperationContext,
+        query: Dict[str, Any],
+    ) -> list[Dict[str, Any]]:
+        if self.storage is None:
+            return []
+        terms = {
+            str(value).lower()
+            for value in query.values()
+            if value not in {None, ""}
+        }
+        if not terms:
+            return []
+        try:
+            events = self.storage.list_events(run_id=context.run_id, limit=100)
+        except Exception:
+            return []
+        hits: list[Dict[str, Any]] = []
+        for event in events:
+            payload = json.dumps(event.payload or {}, ensure_ascii=True, sort_keys=True).lower()
+            matched = sorted(term for term in terms if term in payload)
+            if not matched:
+                continue
+            hits.append(
+                {
+                    "event_type": event.event_type,
+                    "event_id": event.event_id,
+                    "timestamp": event.timestamp,
+                    "source": event.source,
+                    "score": round(len(matched) / len(terms), 4),
+                    "matched_terms": matched,
+                    "strategy": "exact_event_search",
+                    "canonical": event.source in {"life_kernel", "operational_conjunction"},
+                }
+            )
+        return hits
+
+    @staticmethod
+    def _with_evidence(
+        *,
+        context: OperationContext,
+        evidence: tuple[EvidenceItem, ...],
+    ) -> OperationContext:
+        existing_ids = {item.evidence_id for item in context.available_evidence}
+        existing_kinds = context.evidence_kinds()
+        additions = [
+            item for item in evidence
+            if item.evidence_id not in existing_ids and item.kind not in existing_kinds
+        ]
+        if not additions:
+            return context
+        return replace(context, available_evidence=(*context.available_evidence, *additions))
+
+    @staticmethod
+    def _merge_compensation_actions(
+        *,
+        executed_actions: tuple[CompensationAction, ...],
+        followup_actions: tuple[CompensationAction, ...],
+    ) -> tuple[CompensationAction, ...]:
+        merged: dict[tuple[str, str], CompensationAction] = {}
+        for action in executed_actions:
+            key = (action.code, str(action.directive.get("finding_code", "")))
+            merged[key] = action
+        for action in followup_actions:
+            key = (action.code, str(action.directive.get("finding_code", "")))
+            previous = merged.get(key)
+            if previous is None:
+                merged[key] = action
+                continue
+            merged[key] = replace(
+                previous,
+                status="blocked" if action.status == "blocked" else previous.status,
+                reason=action.reason,
+                directive={**previous.directive, **action.directive},
+            )
+        return tuple(merged.values())
 
     def _retrieve_life_memory(
         self,
@@ -483,6 +870,8 @@ class OperationalConjunctionLayer:
             return "block"
         if any(item.status == "fail" for item in findings):
             return "block" if context.is_critical_action() else "degrade"
+        if compensation_status == "applied":
+            return "allow_with_compensation"
         if any(item.status == "warn" for item in findings):
             return "allow_with_compensation"
         return "allow"
@@ -501,6 +890,30 @@ class OperationalConjunctionLayer:
             "resource_pressure": context.resource_pressure,
             "uncertainty_score": context.uncertainty_score,
         }
+
+    def _persist_compensation_execution(
+        self,
+        *,
+        context: OperationContext,
+        action: CompensationAction,
+        entry: Dict[str, Any],
+    ) -> None:
+        if self.storage is None:
+            return
+        try:
+            self.storage.append_event(
+                event_type="operational.compensation.executed",
+                run_id=context.run_id,
+                source="operational_conjunction",
+                payload={
+                    "timestamp": utc_now_iso(),
+                    "operation_id": context.operation_id,
+                    "action": action.to_dict(),
+                    "trace": dict(entry),
+                },
+            )
+        except Exception:
+            return
 
     def _persist_result(
         self,

@@ -130,13 +130,28 @@ class AgentPolicy:
     role: str
     allowed_actions: tuple[str, ...]
     prohibited_actions: tuple[str, ...] = ()
+    allowed_tools: tuple[str, ...] = ()
+    prohibited_tools: tuple[str, ...] = ()
     budget_units: float = 1.0
+    max_steps: int = 1
+    stop_conditions: tuple[str, ...] = (
+        "completed",
+        "budget_exhausted",
+        "policy_violation",
+    )
     requires_plan_for_critical: bool = True
     rollback_required_for_critical: bool = True
     human_approval_required_actions: tuple[str, ...] = ()
 
     def allows(self, action: str) -> bool:
         return action in self.allowed_actions and action not in self.prohibited_actions
+
+    def allows_tool(self, tool_name: str | None) -> bool:
+        if not tool_name:
+            return True
+        if tool_name in self.prohibited_tools:
+            return False
+        return not self.allowed_tools or tool_name in self.allowed_tools
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

@@ -56,6 +56,22 @@ _MATRIX = {
         "stop_agent",
         {"automatic_execution": False},
     ),
+    "agent_tool_forbidden": (
+        "stop_agent",
+        {"automatic_execution": False, "disable_tool": True},
+    ),
+    "agent_budget_exhausted": (
+        "stop_agent",
+        {"automatic_execution": False, "stop_condition": "budget_exhausted"},
+    ),
+    "agent_step_limit_exceeded": (
+        "stop_agent",
+        {"automatic_execution": False, "stop_condition": "step_limit_exceeded"},
+    ),
+    "human_approval_required": (
+        "require_human_approval",
+        {"automatic_execution": False, "request_human_approval": True},
+    ),
     "critical_action_without_validated_plan": (
         "require_plan_validation",
         {"automatic_execution": False, "create_plan_first": True},
@@ -85,6 +101,11 @@ class CompensationMatrix:
                 ("reduce_scope", {"reduce_scope": True, "avoid_automatic_execution": True}),
             )
             status = "blocked" if self._blocks(context=context, finding=finding) else "applied"
+            directive = {
+                **directive,
+                "finding_code": finding.code,
+                "finding_details": dict(finding.details),
+            }
             actions.append(
                 CompensationAction(
                     code=code,
@@ -104,4 +125,8 @@ class CompensationMatrix:
             "high_risk_action",
             "action_not_permitted",
             "agent_action_forbidden",
+            "agent_tool_forbidden",
+            "agent_budget_exhausted",
+            "agent_step_limit_exceeded",
+            "human_approval_required",
         }
