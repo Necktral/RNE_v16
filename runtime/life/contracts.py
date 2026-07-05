@@ -253,6 +253,7 @@ class LifeStepResult:
     episode_result: Dict[str, Any] | None
     checkpoint_artifact_id: str | None
     msrc: Dict[str, Any] = field(default_factory=dict)
+    operational: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -264,4 +265,5 @@ class LifeStepResult:
             "episode_result": self.episode_result,
             "checkpoint_artifact_id": self.checkpoint_artifact_id,
             "msrc": dict(self.msrc),
+            "operational": dict(self.operational),
         }

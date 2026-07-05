@@ -85,3 +85,4 @@ menores: `lotf`, `smg`, `telemetry`, `symbolic`, `agents`, `memory`, `utils`.
 | 15 | `tests/` | ✅ hecho | [15_tests.md](15_tests.md) |
 | 16 | `archive/` | ✅ hecho | [16_archive.md](16_archive.md) |
 | 17 | Síntesis cruzada | ✅ hecho | [17_SYNTHESIS.md](17_SYNTHESIS.md) |
+| 19 | `runtime/conjunction/` + gate en `LifeKernel` | ✅ hecho | [19_operational_conjunction.md](19_operational_conjunction.md) |
