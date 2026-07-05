@@ -30,6 +30,7 @@ from runtime.world.intervention_override import (
     is_actuation_enabled,
     outcome_effectiveness,
 )
+from runtime.world.causal_attestation import build_causal_attestation
 from runtime.symbolic.eml import EMLRunner
 
 from .scenario import CognitiveScenario, ScenarioObservation
@@ -378,6 +379,17 @@ class ScenarioEpisodeRunner:
         counterfactual_dict = self.scenario.to_transition_dict(counterfactual)
         updated_world = self.scenario.to_transition_dict(factual)
         belief_input = asdict(self._previous_belief) if self._previous_belief else None
+        causal_attestation = build_causal_attestation(
+            scenario_name=scenario_metadata["scenario_name"],
+            scenario_version=scenario_metadata.get("scenario_version"),
+            main_variable=self.scenario.config.main_variable,
+            intervention=intervention,
+            observation=observation_dict,
+            factual=updated_world,
+            counterfactual=counterfactual_dict,
+            relation_kind=relation_kind,
+            signature=self.scenario.causal_signature,
+        )
 
         # 9. Ejecutar scheduler de razonamiento
         reasoning_context = build_reasoning_context(
@@ -395,6 +407,10 @@ class ScenarioEpisodeRunner:
             belief_state=belief_input,
             closure_profile=self.closure_profile,
             reasoning_mode=self.reasoning_mode,
+            extra_signals={
+                "memory_filter_mode": self.memory_filter_mode,
+                "causal_attestation": causal_attestation,
+            },
         )
         overlay_directives: Dict[str, str] | None = None
         if self._reward_guided is not None:
@@ -450,6 +466,17 @@ class ScenarioEpisodeRunner:
             )
             counterfactual_dict = self.scenario.to_transition_dict(counterfactual)
             updated_world = self.scenario.to_transition_dict(factual)
+            causal_attestation = build_causal_attestation(
+                scenario_name=scenario_metadata["scenario_name"],
+                scenario_version=scenario_metadata.get("scenario_version"),
+                main_variable=self.scenario.config.main_variable,
+                intervention=intervention,
+                observation=observation_dict,
+                factual=updated_world,
+                counterfactual=counterfactual_dict,
+                relation_kind=relation_kind,
+                signature=self.scenario.causal_signature,
+            )
             self.storage.append_event(
                 event_type="reasoning.intervention_override",
                 run_id=self.run_id,
@@ -476,6 +503,9 @@ class ScenarioEpisodeRunner:
                 "intervention": intervention,
                 "counterfactual": counterfactual_dict,
                 "retrieved_memory": memory_hits,
+                "memory_rag_attestation": reasoning_context.get("memory_rag_attestation"),
+                "memory_filter_mode": self.memory_filter_mode,
+                "causal_attestation": causal_attestation,
                 "closure_profile": self.closure_profile,
             },
             "result": {

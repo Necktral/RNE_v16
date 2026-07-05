@@ -126,6 +126,9 @@ class PromotionGate:
             "certificate_scope": transfer.certificate_scope,
             "failure_mode_count": transfer.failure_mode_count,
         }
+        causal_attestation = (episode.get("context") or {}).get("causal_attestation")
+        if isinstance(causal_attestation, dict):
+            transfer_metadata["causal_attestation"] = causal_attestation
         if t5_result is not None:
             scope_to_transfer_verdict = {
                 "local_safe": "certified_local",
