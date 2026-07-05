@@ -185,6 +185,17 @@ def _regime_boosts(
         scores["heur"] += 0.18
         scores["ana"] += 0.12
         scores["ind"] += 0.20
+    gpu_acceleration = _clamp(features.get("gpu_acceleration_signal", 0.0))
+    if gpu_acceleration >= 0.70:
+        scores["ind"] += 0.18
+        scores["eml_sr"] += 0.18
+        scores["heur"] += 0.08
+    hardware_pressure = _clamp(features.get("hardware_pressure_signal", 0.0))
+    if hardware_pressure >= 0.70:
+        pressure_penalty = 0.18 + (0.22 * hardware_pressure)
+        for family in ("ind", "eml_sr", "plan", "opt", "ext_open_thinker"):
+            scores[family] = scores.get(family, 0.1) - pressure_penalty
+        scores["heur"] = scores.get("heur", 0.1) - (0.10 * hardware_pressure)
 
 
 def score_families(
@@ -343,6 +354,10 @@ def _should_activate_shadow(
                 regime_label == "vram_favorable"
                 and _clamp(features.get("pattern_without_structure_signal", 0.0)) >= 0.40
             )
+            or (
+                _clamp(features.get("gpu_acceleration_signal", 0.0)) >= 0.70
+                and _clamp(features.get("pattern_without_structure_signal", 0.0)) >= 0.40
+            )
         )
     if family == "eml_sr":
         return allow_experimental and (
@@ -373,6 +388,9 @@ def _admit_v2_overlays(
     requested_max_steps: int,
 ) -> Dict[str, List[str]]:
     allowed = set(allowed_families)
+    hardware_pressure = _clamp(features.get("hardware_pressure_signal", 0.0))
+    hardware_constrained = hardware_pressure >= 0.70
+    severe_hardware_pressure = hardware_pressure >= 0.85
     defaults: List[str] = []
     conditionals: List[str] = []
     shadows: List[str] = []
@@ -398,12 +416,13 @@ def _admit_v2_overlays(
     if primary_regime_label == "vram_favorable":
         add_default("heur")
 
-    if _contradiction_or_ambiguity_spike(features):
+    if _contradiction_or_ambiguity_spike(features) and not severe_hardware_pressure:
         add_conditional("dia_adv")
     if _fragility_spike(features):
         add_conditional("fal_guard")
     if (
         primary_regime_label == "viability_edge"
+        and not hardware_constrained
         and requested_max_steps >= len(CORE_SEQUENCE) + len(defaults) + 1
         and (
             _clamp(features.get("edge_pressure", 0.0)) >= 0.75
@@ -413,11 +432,12 @@ def _admit_v2_overlays(
         add_conditional("heur")
     if (
         primary_regime_label == "homogeneous_safe"
+        and not hardware_constrained
         and _clamp(features.get("edge_pressure", 0.0)) >= 0.75
     ):
         add_conditional("heur")
 
-    for family in CONDITIONAL_SHADOW_FAMILIES:
+    for family in ([] if hardware_constrained else CONDITIONAL_SHADOW_FAMILIES):
         if family in allowed and _should_activate_shadow(
             family=family,
             features=features,
@@ -431,6 +451,7 @@ def _admit_v2_overlays(
         "default_overlays": _dedup(defaults),
         "conditional_overlays": _dedup(conditionals),
         "shadow_overlays": _dedup(shadows),
+        "hardware_constrained": ["true"] if hardware_constrained else [],
     }
 
 

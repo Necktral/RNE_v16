@@ -13,6 +13,8 @@ def compute_budget(features: Dict[str, float], *, max_steps_override: int | None
     contradiction_signal = float(features.get("contradiction_signal", 0.0))
     causal_risk = float(features.get("causal_risk", 0.0))
     edge_pressure = float(features.get("edge_pressure", 0.0))
+    hardware_pressure = float(features.get("hardware_pressure_signal", 0.0))
+    gpu_acceleration = float(features.get("gpu_acceleration_signal", 0.0))
 
     base_steps = 6
     dynamic_bonus = 0
@@ -24,6 +26,12 @@ def compute_budget(features: Dict[str, float], *, max_steps_override: int | None
         dynamic_bonus += 1
     if edge_pressure >= 0.8:
         dynamic_bonus -= 1
+    if hardware_pressure >= 0.85:
+        dynamic_bonus -= 2
+    elif hardware_pressure >= 0.70:
+        dynamic_bonus -= 1
+    elif gpu_acceleration >= 0.70:
+        dynamic_bonus += 1
     max_steps = base_steps + dynamic_bonus
     max_steps = max(4, min(10, max_steps))
     if max_steps_override is not None:
@@ -36,8 +44,12 @@ def compute_budget(features: Dict[str, float], *, max_steps_override: int | None
         + (0.2 * contradiction_signal)
         + (0.1 * causal_risk),
     )
+    if hardware_pressure >= 0.70:
+        risk_budget = min(1.0, risk_budget + (0.10 * hardware_pressure))
     return {
         "max_steps": float(max_steps),
         "risk_budget": risk_budget,
         "cost_budget": float(max_steps),
+        "hardware_pressure": hardware_pressure,
+        "gpu_acceleration": gpu_acceleration,
     }

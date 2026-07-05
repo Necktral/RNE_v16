@@ -16,6 +16,7 @@ from runtime.reasoning.scheduler_meta.fallbacks import (
     cost_from_step,
     should_early_stop,
 )
+from runtime.reasoning.scheduler_meta.governance import build_governance_envelope
 from runtime.reasoning.scheduler_meta.policy import is_eml_experimental_enabled, select_sequence
 from runtime.storage.records import ReasoningTraceRecord
 
@@ -271,6 +272,19 @@ class MetaScheduler:
                     continue
                 break
 
+        governance = build_governance_envelope(
+            context=input_context,
+            features=features,
+            budget=budget,
+            selected_sequence=selected,
+            executed_sequence=executed_sequence,
+            policy_meta=policy_meta,
+            sequence_validation=sequence_validation,
+            effective_max_steps=effective_max_steps,
+        )
+        if traces:
+            traces[0].detail.setdefault("governance", governance)
+
         self._persist_trace(run_id=run_id, traces=traces)
         return {
             "meta_family": "META",
@@ -289,6 +303,7 @@ class MetaScheduler:
             "validated_sequence": validated_sequence,
             "sequence_validation": sequence_validation,
             "effective_max_steps": effective_max_steps,
+            "governance": governance,
         }
 
     def _persist_trace(self, *, run_id: str | None, traces: List[ReasoningTraceStep]) -> None:
