@@ -9,6 +9,8 @@ from uuid import uuid4
 
 from runtime.organism.lineage import LineageState
 from runtime.organism.state import IdentityState, OrganismState
+from runtime.conjunction import OperationalConjunctionLayer
+from runtime.conjunction.contracts import ComputeTier, OperationalConjunctionResult
 from runtime.storage import StorageFacade, get_storage
 from runtime.storage.records import utc_now_iso
 from runtime.world import ScenarioEpisodeRunner
@@ -45,6 +47,8 @@ class LifeKernelConfig:
     allow_external_reasoner: bool = False
     exploration_interval: int = 16
     enable_msrc: bool = True
+    enable_operational_conjunction: bool = True
+    max_compute_tier: ComputeTier = "tier_2_specialized"
 
 
 class LifeKernel:
@@ -67,6 +71,11 @@ class LifeKernel:
                 exploration_interval=self.config.exploration_interval,
             )
         )
+        self.conjunction = (
+            OperationalConjunctionLayer(storage=self.storage)
+            if self.config.enable_operational_conjunction
+            else None
+        )
         self.run_id = self.config.run_id or f"life-{uuid4().hex[:12]}"
         self.total_steps = 0
         self.scenario_index = 0
@@ -76,6 +85,7 @@ class LifeKernel:
         self.goal_manager = GoalManager()
         self.last_vitals: VitalSignsSnapshot | None = None
         self.last_decision: AutonomyDecision | None = None
+        self.last_operational: OperationalConjunctionResult | None = None
         self._runner: ScenarioEpisodeRunner | None = None
         self._runner_key: tuple[str, str, str] | None = None
         self._msrc_controller = None
@@ -133,10 +143,24 @@ class LifeKernel:
             scenario=scenario,
             external_input=input_value,
         )
+        operational = self._evaluate_operational_conjunction(
+            scenario=scenario,
+            decision=decision,
+            vitals=pre_vitals,
+            external_input=input_value,
+        )
+        decision = self._apply_operational_gate(
+            decision=decision,
+            operational=operational,
+        )
         self.last_decision = decision
 
         if decision.action in {"shutdown", "sleep", "quarantine", "rollback"}:
-            return self._handle_non_acting_decision(decision=decision, pre_vitals=pre_vitals)
+            return self._handle_non_acting_decision(
+                decision=decision,
+                pre_vitals=pre_vitals,
+                operational=operational,
+            )
 
         checkpoint_before = None
         if decision.action == "self_modify":
@@ -153,6 +177,8 @@ class LifeKernel:
             memory_filter_mode=self.config.memory_filter_mode,
         )
         episode_result = runner.run_episode(external_input=input_value)
+        if operational is not None:
+            episode_result["operational_conjunction"] = operational.to_dict()
         self.organism_state = runner.organism_state
         self.lineage = runner.lineage
 
@@ -196,6 +222,7 @@ class LifeKernel:
                 "checkpoint_artifact_id": getattr(checkpoint, "artifact_id", None),
                 "pre_mutation_checkpoint_artifact_id": getattr(checkpoint_before, "artifact_id", None),
                 "msrc": msrc_result,
+                "operational_conjunction": operational.to_dict() if operational else {},
             },
         )
         return LifeStepResult(
@@ -207,6 +234,100 @@ class LifeKernel:
             episode_result=episode_result,
             checkpoint_artifact_id=getattr(checkpoint, "artifact_id", None),
             msrc=msrc_result,
+            operational=operational.to_dict() if operational else {},
+        )
+
+    def _evaluate_operational_conjunction(
+        self,
+        *,
+        scenario: str,
+        decision: AutonomyDecision,
+        vitals: VitalSignsSnapshot,
+        external_input: float | None,
+    ) -> OperationalConjunctionResult | None:
+        if self.conjunction is None:
+            return None
+        result = self.conjunction.evaluate_life_cycle(
+            run_id=self.run_id,
+            scenario=scenario,
+            decision=decision,
+            vitals=vitals,
+            goals=self.goal_manager.goals,
+            step_index=self.total_steps,
+            external_input=external_input,
+            allow_external_reasoner=self.config.allow_external_reasoner,
+            max_compute_tier=self.config.max_compute_tier,
+        )
+        self.last_operational = result
+        return result
+
+    def _apply_operational_gate(
+        self,
+        *,
+        decision: AutonomyDecision,
+        operational: OperationalConjunctionResult | None,
+    ) -> AutonomyDecision:
+        if operational is None:
+            return decision
+        operational_payload = operational.to_dict()
+        if operational.final_decision == "block":
+            if decision.action in {"self_modify", "consult_external"}:
+                return AutonomyDecision(
+                    action="act",
+                    mode="recovery" if decision.action == "self_modify" else "conservative",
+                    reason=f"operational_conjunction_blocked_{decision.action}",
+                    priority=decision.priority,
+                    scenario=decision.scenario,
+                    external_input=decision.external_input,
+                    directives={
+                        **decision.directives,
+                        "blocked_action": decision.action,
+                        "closure_profile": "adaptive_min",
+                        "operational_conjunction": operational_payload,
+                    },
+                )
+            evidence_kinds = set(operational.context_summary.get("available_evidence_kinds") or [])
+            if decision.action == "rollback" and "healthy_checkpoint" not in evidence_kinds:
+                return AutonomyDecision(
+                    action="quarantine",
+                    mode="quarantine",
+                    reason="operational_conjunction_blocked_rollback_without_evidence",
+                    priority=decision.priority,
+                    scenario=decision.scenario,
+                    external_input=decision.external_input,
+                    directives={
+                        **decision.directives,
+                        "blocked_action": decision.action,
+                        "operational_conjunction": operational_payload,
+                    },
+                )
+        if operational.final_decision == "degrade":
+            return AutonomyDecision(
+                action=decision.action,
+                mode="conservative" if decision.mode == "normal" else decision.mode,
+                reason=f"{decision.reason};operational_conjunction_degraded",
+                priority=decision.priority,
+                scenario=decision.scenario,
+                external_input=decision.external_input,
+                directives={
+                    **decision.directives,
+                    "closure_profile": "baseline_fixed",
+                    "operational_conjunction": operational_payload,
+                },
+            )
+        return AutonomyDecision(
+            action=decision.action,
+            mode=decision.mode,
+            reason=decision.reason,
+            priority=decision.priority,
+            scenario=decision.scenario,
+            external_input=decision.external_input,
+            directives={
+                **decision.directives,
+                "operational_conjunction": operational_payload,
+            },
+            decision_id=decision.decision_id,
+            created_at=decision.created_at,
         )
 
     def _handle_non_acting_decision(
@@ -214,6 +335,7 @@ class LifeKernel:
         *,
         decision: AutonomyDecision,
         pre_vitals: VitalSignsSnapshot,
+        operational: OperationalConjunctionResult | None = None,
     ) -> LifeStepResult:
         assert self.organism_state is not None
         assert self.lineage is not None
@@ -241,6 +363,7 @@ class LifeKernel:
                 "decision": decision.to_dict(),
                 "vital_signs": vitals.to_dict(),
                 "checkpoint_artifact_id": checkpoint.artifact_id,
+                "operational_conjunction": operational.to_dict() if operational else {},
             },
         )
         return LifeStepResult(
@@ -251,6 +374,7 @@ class LifeKernel:
             goals=list(self.goal_manager.goals),
             episode_result=None,
             checkpoint_artifact_id=checkpoint.artifact_id,
+            operational=operational.to_dict() if operational else {},
         )
 
     def _restore_initial_identity(self) -> None:
