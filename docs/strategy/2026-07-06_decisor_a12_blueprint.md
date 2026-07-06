@@ -119,6 +119,21 @@ El greedy elige `boost` (trampa); A11 predice el breach; A12 retracta y adopta `
 
 **Nota:** la traza advisory `a12_*` puede quedar stale si el scheduler corre A12 temprano; la ACTUACIÓN usa el recómputo sobre el estado final. La protección R1 (checkpoint sano / riesgo) la aporta el `OperationalConjunction` que envuelve el life-step.
 
+### Resultado Fase 3b — override que REEMPLAZA (no apila) + ganancia viva medida ✅
+
+La primera corrida viva multi-episodio dio "sin ganancia" y **expuso un bug latente**: el runner aplicaba la acción greedy ([scenario_runner.py:489](../../runtime/world/scenario_runner.py#L489), `factual_transition` que **muta** incluida la deuda oculta) ANTES de que el override la reemplazara, así que el override **apilaba** sobre el greedy ya ejecutado — la deuda del boost quedaba comprometida. Invisible en mundos térmicos (sin estado oculto); nuestro `deferred_load_trap` lo reveló.
+
+**Fix (reemplazo limpio):** `run_episode` computa el greedy por **simulación** (`simulate_counterfactual`, sin mutar), decide, y aplica la acción FINAL **una sola vez** desde el estado pre-acción (paso 9c). El override reemplaza al greedy en vez de apilarse. Byte-idéntico con actuación OFF (final = greedy).
+
+**Ganancia VIVA medida** (`scripts/run_live_agents_trap.py`, trayectoria multi-episodio a través del `ScenarioEpisodeRunner` completo — memoria/certificación/reward):
+
+| config | breaches | overrides | carga media |
+|---|---:|---:|---:|
+| `baseline_core_only` | **13/15** | 0 | 0.95 |
+| `agents_live_a11_a12` | **0/15** | 10 | 0.62 |
+
+El organismo con A11+A12 **evita la trampa por completo en vivo** (13 → 0 breaches). Tests: override greedy existente intacto + ganancia organismo (multi-episodio) verde.
+
 ---
 
 ## Anti-objetivos

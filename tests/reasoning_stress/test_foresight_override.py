@@ -171,3 +171,36 @@ class TestLiveEpisodeWiring:
         res = self._run(tmp_path)
         assert res["intervention_override"]["fired"] is False
         assert res["episode"]["context"]["intervention"] == "boost_throughput"
+
+    def test_multi_episode_agents_avoid_trap_baseline_falls(self, tmp_path, monkeypatch):
+        # Ganancia a nivel ORGANISMO: en una trayectoria multi-episodio el baseline
+        # (core_only) cae en la trampa (la deuda del boost rebota), mientras A11+A12
+        # la evitan — el override REEMPLAZA el greedy desde el estado pre-acción.
+        def run(profile, actuate, sub):
+            monkeypatch.setenv("RNFE_REASONING_MODE", "fixed")
+            monkeypatch.setenv("RNFE_REASONING_FAMILY_PROFILE", profile)
+            monkeypatch.setenv("RNFE_REASONING_MAX_STEPS", "10")
+            if actuate:
+                for k in ("RNFE_REASONING_ACTUATES", "RNFE_IMAGINATION_DEEP", "RNFE_A12_DEEP"):
+                    monkeypatch.setenv(k, "1")
+            else:
+                for k in ("RNFE_REASONING_ACTUATES", "RNFE_IMAGINATION_DEEP", "RNFE_A12_DEEP"):
+                    monkeypatch.delenv(k, raising=False)
+            work = tmp_path / sub
+            work.mkdir(parents=True, exist_ok=True)
+            runner = ScenarioEpisodeRunner(
+                scenario=DeferredLoadScenario(initial_load=0.70),
+                storage=_storage(work), run_id=f"m-{sub}", closure_profile="adaptive_min",
+            )
+            breaches = 0
+            for _ in range(6):
+                runner.run_episode(external_input=0.04)
+                if runner.scenario.observe().alarm:
+                    breaches += 1
+            return breaches
+
+        baseline = run("core_only", False, "base")
+        agents = run("core_plus_imagination_a12", True, "agents")
+        assert baseline > 0        # el baseline reactivo cae en la trampa
+        assert agents == 0         # A11+A12 la evitan en vivo
+        assert agents < baseline

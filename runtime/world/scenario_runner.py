@@ -239,7 +239,7 @@ class ScenarioEpisodeRunner:
             greedy_intervention=greedy_intervention,
         )
         if foresight.fired:
-            candidate = self.scenario.factual_transition(
+            candidate = self.scenario.simulate_counterfactual(
                 intervention=foresight.to_intervention, external_input=external_input
             )
             return foresight, candidate
@@ -249,7 +249,7 @@ class ScenarioEpisodeRunner:
         sim_cache: Dict[str, Any] = {}
 
         def simulate_value(intervention: str) -> float:
-            transition = self.scenario.factual_transition(
+            transition = self.scenario.simulate_counterfactual(
                 intervention=intervention, external_input=external_input
             )
             sim_cache[intervention] = transition
@@ -485,8 +485,12 @@ class ScenarioEpisodeRunner:
             external_input=external_input,
         )
 
-        # 7. Ejecutar transición factual
-        factual = self.scenario.factual_transition(
+        # 7. Computar la transición factual (greedy) por SIMULACIÓN (sin mutar). La
+        # acción FINAL se aplica una sola vez tras la decisión de override (paso 9c), de
+        # modo que el override REEMPLACE al greedy desde el estado pre-acción — no lo
+        # apile — y los efectos colaterales ocultos del greedy (p.ej. deuda acumulada)
+        # no se comprometan si la acción fue reemplazada.
+        factual = self.scenario.simulate_counterfactual(
             intervention=intervention,
             external_input=external_input,
         )
@@ -631,6 +635,14 @@ class ScenarioEpisodeRunner:
                 source="scenario_episode_runner",
                 payload={"episode_id": episode_id, **intervention_override.to_dict()},
             )
+
+        # 9c. Aplicar la acción FINAL una sola vez desde el estado pre-acción. Hasta aquí
+        # nada mutó el escenario (greedy y candidatas se computaron por simulación); esta
+        # es la ÚNICA mutación que avanza el mundo, por la intervención efectivamente
+        # elegida (greedy o la del override). Byte-idéntico con actuación OFF (final=greedy).
+        self.scenario.factual_transition(
+            intervention=intervention, external_input=external_input
+        )
 
         # 10. Construir payload de episodio
         factual_delta = float(factual.state.get(self.scenario.config.main_variable, 0.0)) - float(
