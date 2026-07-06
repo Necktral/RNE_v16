@@ -199,6 +199,27 @@ class VitalSignsSnapshot:
             and self.memory_purity >= 0.75
         )
 
+    @property
+    def is_restorable(self) -> bool:
+        """Estado sano y REVERSIBLE al que es seguro rodar atrás (refugio E5).
+
+        A diferencia de ``is_stable``, NO exige la certificación formal del episodio
+        (``certified``): en vida real las certificaciones suelen quedar ``rejected``
+        por closure/trace, de modo que ``is_stable`` es inalcanzable y el organismo
+        nunca acumula un refugio — el callejón sin salida que dejó a aeon-01 atascado
+        en cuarentena sin a dónde volver. Para el refugio lo que importa es la salud
+        genuina: viabilidad, continuidad, riesgo acotado, memoria pura y REVERSIBILIDAD.
+        Umbrales de salud MÁS estrictos que ``is_stable`` para compensar la ausencia
+        del sello de certificación: solo un estado realmente bueno sirve de refugio.
+        """
+        return (
+            self.reversible
+            and self.viability_margin >= 0.55
+            and self.continuity_score >= 0.75
+            and self.risk_score < 0.50
+            and self.memory_purity >= 0.85
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 

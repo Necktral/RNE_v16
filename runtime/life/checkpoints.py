@@ -75,7 +75,7 @@ class CheckpointManager:
                 "episode_count": organism_state.episode_count,
                 "total_steps": total_steps,
                 "mode": vital_signs.mode,
-                "healthy": vital_signs.is_stable,
+                "healthy": vital_signs.is_restorable,
             },
         )
         self.storage.append_event(
@@ -87,7 +87,7 @@ class CheckpointManager:
                 "artifact_id": artifact.artifact_id,
                 "episode_count": organism_state.episode_count,
                 "mode": vital_signs.mode,
-                "healthy": vital_signs.is_stable,
+                "healthy": vital_signs.is_restorable,
             },
         )
         return artifact
