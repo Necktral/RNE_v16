@@ -138,6 +138,41 @@ def _better(a: Optional[float], b: Optional[float], direction: str) -> Optional[
     return a >= b if direction == "maximize" else a <= b
 
 
+# ───────────────────── flags de profundización (opt-in, OFF por defecto) ──────
+# Gated OFF ⇒ comportamiento byte-idéntico y benchmarks reproducibles. Cuando se
+# activan, ANA/CTF ejecutan su variante profunda (alineación estructural /
+# re-simulación contrafactual) preservando las mismas claves de contrato.
+_DEEP_TRUE = {"1", "true", "yes", "on"}
+
+
+def _flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in _DEEP_TRUE
+
+
+def _master_deep() -> bool:
+    """Flag maestro: activa la variante profunda de TODAS las familias a la vez."""
+    return _flag("RNFE_REASONING_DEEP")
+
+
+def family_deep_enabled(name: str) -> bool:
+    """True si la familia ``name`` debe ejecutar su variante profunda (opt-in).
+
+    Activada por el maestro ``RNFE_REASONING_DEEP`` o el específico
+    ``RNFE_<NAME>_DEEP``. OFF ⇒ comportamiento clásico byte-idéntico.
+    """
+    return _master_deep() or _flag(f"RNFE_{name.upper()}_DEEP")
+
+
+def ana_structural_enabled() -> bool:
+    """ANA con alineación estructural (SME-lite). OFF ⇒ ranking de memoria clásico."""
+    return _master_deep() or _flag("RNFE_ANA_STRUCTURAL")
+
+
+def ctf_resim_enabled() -> bool:
+    """CTF con re-simulación por modelo de efectos. OFF ⇒ comparación factual/cf clásica."""
+    return _master_deep() or _flag("RNFE_CTF_RESIM")
+
+
 # ─────────────────────────────── CAU: inferencia causal ──────────────────────
 
 def causal_infer(state: Mapping[str, Any]) -> Dict[str, Any]:
@@ -184,7 +219,67 @@ def causal_infer(state: Mapping[str, Any]) -> Dict[str, Any]:
         + 0.3 * strength
         + (0.2 if helps_goal else (-0.1 if helps_goal is False else 0.0))
     )
+
+    if family_deep_enabled("CAU"):
+        mechanism = _causal_mechanism(sig, intervention, expected_dir)
+        if mechanism is not None:
+            cau_link["causal_mechanism"] = mechanism
+            if mechanism.get("goal_consistent") and direction_match:
+                confidence = _clamp(confidence + 0.1 * (mechanism.get("path_strength") or 0.0))
     return {"state_delta": {"cau_link": cau_link}, "confidence": confidence}
+
+
+def _causal_mechanism(sig: Any, intervention: Any, expected_dir: Any) -> Optional[Dict[str, Any]]:
+    """Traza el mecanismo causal intervención→…→'alarm' por el DAG de la firma.
+
+    Explota ``causal_edges`` (que la inferencia clásica ignora): sigue el camino
+    dirigido desde la variable objetivo de la intervención hasta la alarma,
+    multiplica las polaridades de las aristas y evalúa si el efecto neto de la
+    intervención sobre la alarma es reductor (goal_consistent). Determinista.
+    """
+    if sig is None:
+        return None
+    dir_sign = {"+": 1, "-": -1}.get(expected_dir or "", 0)
+    if dir_sign == 0:
+        return None
+    target_var = None
+    for eff in getattr(sig, "intervention_effects", ()) or ():
+        if getattr(eff, "intervention_name", None) == intervention:
+            target_var = getattr(eff, "target_variable", None)
+            break
+    if not target_var:
+        return None
+    try:
+        graph = sig.causal_graph_dict
+    except Exception:
+        return None
+
+    stack = [(target_var, 1, 1.0, [target_var])]
+    seen = set()
+    best = None
+    while stack:
+        node, pol, wmin, path = stack.pop()
+        if node in seen:
+            continue
+        seen.add(node)
+        for edge in graph.get(node, []) or []:
+            p = {"+": 1, "-": -1}.get(edge.get("polarity"), 0)
+            npol = pol * p
+            nwmin = min(wmin, _num(edge.get("strength"), 1.0) or 1.0)
+            npath = path + [edge.get("target")]
+            if edge.get("target") == "alarm":
+                best = {"path": npath, "path_polarity": npol, "path_strength": round(nwmin, 4)}
+                break
+            stack.append((edge.get("target"), npol, nwmin, npath))
+        if best:
+            break
+    if best is None:
+        return None
+    net = dir_sign * best["path_polarity"]
+    best["net_effect_on_alarm"] = net
+    best["goal_consistent"] = net < 0
+    best["mechanism"] = " -> ".join(str(n) for n in best["path"])
+    return best
 
 
 # ─────────────────────────────── CTF: contrafactual ──────────────────────────
@@ -212,7 +307,82 @@ def counterfactual_check(state: Mapping[str, Any]) -> Dict[str, Any]:
         + (0.25 if supports else (-0.1 if supports is False else 0.0))
         + (0.1 if agreement else 0.0)
     )
+
+    if not ctf_resim_enabled():
+        # Ruta clásica (byte-idéntica): factual vs un único contrafactual precomputado.
+        return {"state_delta": {"ctf_checked": ctf_checked}, "confidence": confidence}
+
+    # Ruta profunda (opt-in): re-simula el contrafactual de cada intervención con el
+    # modelo de efectos declarado y evalúa si la intervención elegida domina.
+    resim = _counterfactual_resim(state, tr, direction)
+    ctf_checked["resim"] = resim
+    ctf_checked["resim_supports_choice"] = resim.get("chosen_dominates")
+    corroborates: Optional[bool] = None
+    if supports is not None and resim.get("chosen_dominates") is not None:
+        corroborates = bool(supports) == bool(resim["chosen_dominates"])
+    ctf_checked["resim_corroborates_factual"] = corroborates
+
+    margin = resim.get("dominance_margin") or 0.0
+    conf_adj = 0.0
+    if resim.get("chosen_dominates") is True:
+        conf_adj += 0.12 * _clamp(margin * 5.0)
+    elif resim.get("chosen_dominates") is False:
+        conf_adj -= 0.12
+    if corroborates:
+        conf_adj += 0.06
+    confidence = _clamp(confidence + conf_adj)
     return {"state_delta": {"ctf_checked": ctf_checked}, "confidence": confidence}
+
+
+def _counterfactual_resim(
+    state: Mapping[str, Any], tr: Mapping[str, Any], direction: str
+) -> Dict[str, Any]:
+    """Contrafactual *creído* por el agente: proyecta el resultado de cada
+    intervención con el modelo de efectos declarado de la firma causal (el mismo
+    que usan PLAN/OPT) y mide si la intervención elegida domina las alternativas.
+
+    No consulta el simulador real (la capa de razonamiento está desacoplada del
+    mundo): es re-simulación epistémica, no acceso-oráculo.
+    """
+    model = _effect_model(state)
+    x0 = tr.get("x0")
+    chosen = state.get("intervention")
+    if x0 is None or not model:
+        return {"status": "no_model_or_observation", "chosen_dominates": None}
+
+    def value(x: float) -> float:  # menor es mejor en ambas direcciones
+        return x if direction == "minimize" else (1.0 - x)
+
+    projected = {
+        iv: round(min(1.0, max(0.0, float(x0) + delta)), 6)
+        for iv, delta in model.items()
+    }
+    chosen_key = str(chosen) if chosen is not None else None
+    chosen_proj = projected.get(chosen_key)
+    alternatives = {iv: x for iv, x in projected.items() if iv != chosen_key}
+    best_alt_iv = (
+        min(alternatives, key=lambda iv: value(alternatives[iv])) if alternatives else None
+    )
+    best_alt = projected.get(best_alt_iv) if best_alt_iv is not None else None
+
+    chosen_dominates: Optional[bool] = None
+    dominance_margin: Optional[float] = None
+    if chosen_proj is not None:
+        if best_alt is None:
+            chosen_dominates, dominance_margin = True, 0.0
+        else:
+            dominance_margin = round(value(best_alt) - value(chosen_proj), 6)
+            chosen_dominates = dominance_margin >= 0.0
+    return {
+        "status": "ok",
+        "projected_counterfactuals": projected,
+        "chosen_intervention": chosen,
+        "chosen_projection": chosen_proj,
+        "best_alternative": best_alt_iv,
+        "best_alternative_projection": best_alt,
+        "dominance_margin": dominance_margin,
+        "chosen_dominates": chosen_dominates,
+    }
 
 
 # ─────────────────────────────── ABD: abducción ──────────────────────────────
@@ -276,34 +446,160 @@ def analogize(state: Mapping[str, Any]) -> Dict[str, Any]:
     obs = _safe_dict(state.get("observation"))
     props = {str(p) for p in (obs.get("propositions") or [])}
 
-    best: Optional[Dict[str, Any]] = None
-    if isinstance(memory, list) and memory:
-        scored = sorted(
-            (m for m in memory if isinstance(m, dict)),
-            key=lambda m: _num(m.get("score"), 0.0) or 0.0,
-            reverse=True,
-        )
-        if scored:
-            top = scored[0]
+    if not ana_structural_enabled():
+        # Ruta clásica (byte-idéntica): mejor memoria por score de recuperación.
+        best: Optional[Dict[str, Any]] = None
+        if isinstance(memory, list) and memory:
+            scored = sorted(
+                (m for m in memory if isinstance(m, dict)),
+                key=lambda m: _num(m.get("score"), 0.0) or 0.0,
+                reverse=True,
+            )
+            if scored:
+                top = scored[0]
+                best = {
+                    "source": "memory",
+                    "memory_id": top.get("memory_id"),
+                    "scale": top.get("scale"),
+                    "alignment_score": round(_num(top.get("score"), 0.0) or 0.0, 4),
+                    "analogical_source": bool(top.get("analogical_source")),
+                }
+        if best is None:
+            sig = resolve_signature(state)
+            vocab = set(getattr(sig, "proposition_vocabulary", set()) or set())
+            overlap = (len(props & vocab) / len(vocab)) if vocab else 0.0
             best = {
-                "source": "memory",
-                "memory_id": top.get("memory_id"),
-                "scale": top.get("scale"),
-                "alignment_score": round(_num(top.get("score"), 0.0) or 0.0, 4),
-                "analogical_source": bool(top.get("analogical_source")),
+                "source": "scenario_self",
+                "alignment_score": round(_clamp(overlap), 4),
+                "matched_propositions": sorted(props & vocab),
             }
-    if best is None:
-        sig = resolve_signature(state)
-        vocab = set(getattr(sig, "proposition_vocabulary", set()) or set())
-        overlap = (len(props & vocab) / len(vocab)) if vocab else 0.0
-        best = {
-            "source": "scenario_self",
-            "alignment_score": round(_clamp(overlap), 4),
-            "matched_propositions": sorted(props & vocab),
+        confidence = _clamp(0.45 + 0.5 * (_num(best.get("alignment_score"), 0.0) or 0.0))
+        return {"state_delta": {"ana_mapping": best}, "confidence": confidence}
+
+    # Ruta profunda (opt-in): alineación estructural (SME-lite).
+    return _analogize_structural(state, memory, props)
+
+
+def _analogize_structural(
+    state: Mapping[str, Any], memory: Any, props: set
+) -> Dict[str, Any]:
+    """Alineación relacional entre la estructura de la situación actual (relaciones
+    intervención→efecto de la firma causal) y la de cada episodio recuperado.
+    Puntúa por *sistematicidad* (correspondencias consistentes) y penaliza
+    conflictos, en lugar de elegir la memoria de mayor score bruto.
+
+    La memoria almacenada es plana (relation_kind, intervención, proposiciones),
+    así que la sistematicidad se acota a esas relaciones — honesto, no sobre-vende.
+    """
+    sig = resolve_signature(state)
+    direction = optimization_direction(state, sig)
+    alarm = bool(_safe_dict(state.get("observation")).get("alarm"))
+
+    # Relaciones-objetivo de la situación: intervención → (dirección, rol, meta).
+    target_rels: Dict[str, Dict[str, Any]] = {}
+    for eff in getattr(sig, "intervention_effects", ()) or ():
+        iv = getattr(eff, "intervention_name", "")
+        if not iv:
+            continue
+        d = getattr(eff, "expected_direction", None)
+        goal_aligned = (d == "-") if direction == "minimize" else (d == "+")
+        target_rels[str(iv)] = {
+            "expected_direction": d,
+            "semantic_role": getattr(eff, "semantic_role", ""),
+            "goal_aligned": bool(goal_aligned),
+            "magnitude": _num(getattr(eff, "expected_magnitude", 0.0), 0.0) or 0.0,
         }
 
-    confidence = _clamp(0.45 + 0.5 * (_num(best.get("alignment_score"), 0.0) or 0.0))
-    return {"state_delta": {"ana_mapping": best}, "confidence": confidence}
+    best: Optional[Dict[str, Any]] = None
+    best_syst = float("-inf")
+    best_score = -1.0
+    candidates: List[Dict[str, Any]] = []
+    for m in (memory if isinstance(memory, list) else []):
+        if not isinstance(m, dict):
+            continue
+        struct = _safe_dict(m.get("structure"))
+        mem_iv = (
+            struct.get("intervention")
+            or struct.get("intervention_label")
+            or m.get("intervention")
+        )
+        rk = struct.get("relation_kind") or m.get("relation_kind")
+        base_score = _num(m.get("score"), 0.0) or 0.0
+        corr: List[str] = []
+        conflicts = 0
+        systematicity = 0.0
+
+        tgt = target_rels.get(str(mem_iv)) if mem_iv is not None else None
+        if tgt is not None:
+            corr.append("intervention_match")
+            systematicity += 1.0
+            if rk in ("support", "contradiction"):
+                if (rk == "support") == tgt["goal_aligned"]:
+                    corr.append("relation_consistent")
+                    systematicity += 1.0 + tgt["magnitude"]
+                else:
+                    conflicts += 1
+                    systematicity -= 1.0
+            if tgt["semantic_role"] in ("corrective", "restorative") and alarm:
+                corr.append("corrective_under_alarm")
+                systematicity += 0.5
+
+        mem_props = {str(p) for p in (struct.get("propositions") or [])}
+        prop_overlap = len(props & mem_props)
+        systematicity += 0.25 * prop_overlap
+
+        align = _clamp(0.5 * _clamp(systematicity / 3.0) + 0.5 * base_score)
+        cand = {
+            "memory_id": m.get("memory_id"),
+            "mapped_intervention": mem_iv,
+            "relation_kind": rk,
+            "systematicity": round(systematicity, 4),
+            "correspondences": corr,
+            "conflicts": conflicts,
+            "retrieval_score": round(base_score, 4),
+            "alignment_score": round(align, 4),
+        }
+        candidates.append(cand)
+        if systematicity > best_syst or (systematicity == best_syst and base_score > best_score):
+            best_syst, best_score, best = systematicity, base_score, cand
+
+    if best is None:
+        # Sin memoria: auto-mapeo estructural (solapamiento proposicional +
+        # cobertura de relaciones intervención→meta de la firma causal).
+        vocab = set(getattr(sig, "proposition_vocabulary", set()) or set())
+        matched = sorted(props & vocab)
+        goal_rels = sum(1 for r in target_rels.values() if r["goal_aligned"])
+        coverage = (goal_rels / len(target_rels)) if target_rels else 0.0
+        overlap = (len(matched) / len(vocab)) if vocab else 0.0
+        align = _clamp(0.6 * overlap + 0.4 * coverage)
+        mapping = {
+            "source": "scenario_self",
+            "alignment_mode": "structural",
+            "alignment_score": round(align, 4),
+            "matched_propositions": matched,
+            "goal_aligned_relations": goal_rels,
+            "relation_coverage": round(coverage, 4),
+        }
+        return {
+            "state_delta": {"ana_mapping": mapping},
+            "confidence": _clamp(0.45 + 0.5 * align),
+        }
+
+    mapping = dict(best)
+    mapping["source"] = "memory"
+    mapping["alignment_mode"] = "structural"
+    confidence = _clamp(
+        0.45
+        + 0.4 * (_num(mapping.get("alignment_score"), 0.0) or 0.0)
+        + 0.15 * _clamp(best_syst / 3.0)
+    )
+    return {
+        "state_delta": {
+            "ana_mapping": mapping,
+            "ana_structural_candidates": candidates,
+        },
+        "confidence": confidence,
+    }
 
 
 # ─────────────────────────────── IND: inducción ──────────────────────────────

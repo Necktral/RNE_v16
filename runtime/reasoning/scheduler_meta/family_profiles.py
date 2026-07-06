@@ -260,6 +260,19 @@ PROFILES: Dict[str, FamilyProfile] = {
         adaptive=False,
         description="Core + optimización deliberativa (aislamiento por familia).",
     ),
+    "full_family_deep_v1": FamilyProfile(
+        name="full_family_deep_v1",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["heur", "dia_adv", "fal_guard", "ind", "plan", "opt", "eml_sr", "nesy", "evo_search"],
+        adaptive=False,
+        description=(
+            "Lab: core + TODAS las overlays, incl. nesy y evo_search (antes stubs idle, "
+            "ahora reales). Perfil fijo: ejecuta la secuencia completa en orden. La "
+            "variante profunda de cada familia se activa con RNFE_REASONING_DEEP (o el "
+            "flag por familia RNFE_<FAMILIA>_DEEP)."
+        ),
+        lab_only=True,
+    ),
 }
 
 
