@@ -37,6 +37,16 @@ from .scenario import CognitiveScenario, ScenarioObservation
 from .registry import get_scenario, DEFAULT_SCENARIO
 
 
+def _external_reasoner_runtime_flag() -> bool:
+    """True si RNFE_EXTERNAL_REASONER_RUNTIME habilita el razonador externo vivo."""
+    return os.environ.get("RNFE_EXTERNAL_REASONER_RUNTIME", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 class ScenarioEpisodeRunner:
     """Runner de episodio cognitivo que opera sobre escenarios parametrizables.
 
@@ -106,6 +116,19 @@ class ScenarioEpisodeRunner:
             )
         self.closure_profile = closure_profile
         self.reasoning_mode = resolve_reasoning_mode(closure_profile)
+        # Señales de recursos (host+GPU) inyectadas por el LifeKernel por ciclo.
+        # Vacío por defecto -> el contexto de razonamiento no cambia (byte-idéntico).
+        self._resource_signals: Dict[str, Any] = {}
+        # Habilitación por-episodio del razonador externo (tier_3). El runtime
+        # solo lo agenda si además el perfil admitido y el gate lo permiten (Bloque C).
+        self._external_reasoner_enabled: bool = False
+        # Experiencia: el organismo recuerda sus golpes y aprende (RNFE_EXPERIENCE).
+        # El namespace es organism_id (cross-vida); default = run_id (estable en aeon-01).
+        from runtime.organism.experience import ExperienceStore, experience_enabled
+
+        self._organism_id: str = self.run_id
+        self._experience = ExperienceStore(storage=self.storage) if experience_enabled() else None
+        self._experience_lessons: List[Dict[str, Any]] = []
 
         self.smg = SMGMin(storage=self.storage, run_id=self.run_id)
         self.lotf = LOTFMin()
@@ -282,6 +305,87 @@ class ScenarioEpisodeRunner:
             {"x": min(1.0, x + 0.02), "cf": cf, "y": y},
         ]
 
+    def set_organism_id(self, organism_id: str) -> None:
+        """Fija el namespace de identidad para la experiencia cross-vida."""
+        self._organism_id = str(organism_id or self.run_id)
+
+    def set_experience_lessons(self, lessons: List[Dict[str, Any]] | None) -> None:
+        """Inyecta lecciones del maestro (7B) para sesgar el razonamiento vía IND."""
+        self._experience_lessons = list(lessons) if lessons else []
+
+    def _situation_signature(self, observation) -> str:
+        """Firma de situación estable, consistente entre sesgo y grabación."""
+        from runtime.organism.experience import situation_key
+
+        regime = "alarm" if getattr(observation, "alarm", False) else "calm"
+        return situation_key(
+            scenario=self.scenario.config.name,
+            regime=regime,
+            main_variable=self.scenario.config.main_variable,
+        )
+
+    def _experience_biased_intervention(self, observation, intervention):
+        """Si esta intervención hirió antes en esta situación, propone una mejor.
+
+        Umbral de dolor mínimo + margen de mejora ⇒ el organismo solo cambia cuando
+        hay una alternativa claramente menos dolorosa; nunca veto absoluto. La
+        fuerza es proporcional a la cicatriz (más dolor ⇒ más probable superar el margen).
+        """
+        _MIN_SCAR = 0.5
+        _MARGIN = 0.25
+        sig = self._situation_signature(observation)
+        wisdom = self._experience.wisdom(organism_id=self._organism_id, situation=sig)
+        scar_here = float(wisdom.scar.get(intervention, 0.0))
+        if scar_here < _MIN_SCAR:
+            return None
+        candidates = [iv for iv in self.scenario.config.interventions if iv != intervention]
+        if not candidates:
+            return None
+        best = min(candidates, key=lambda iv: float(wisdom.scar.get(iv, 0.0)))
+        if float(wisdom.scar.get(best, 0.0)) + _MARGIN < scar_here:
+            return best
+        return None
+
+    def set_external_reasoner_enabled(self, enabled: bool) -> None:
+        """Habilita/inhabilita el razonador externo para el próximo episodio.
+
+        Es una condición NECESARIA pero no suficiente: el scheduler solo agenda
+        ``ext_open_thinker`` si además el perfil admitido y el gate lo permiten.
+        """
+        self._external_reasoner_enabled = bool(enabled)
+
+    def set_resource_signals(self, snapshot: Dict[str, Any] | None) -> None:
+        """Inyecta el snapshot de recursos host+GPU del ciclo vital actual.
+
+        Se traduce en señales de presión (cpu/mem/vram/thermal/gpu) dentro del
+        contexto de razonamiento para que ``extract_context_features`` y el
+        presupuesto reaccionen al hardware real. Snapshot vacío -> sin efecto.
+        """
+        self._resource_signals = dict(snapshot) if snapshot else {}
+
+    def _resource_context_signals(self) -> Dict[str, Any]:
+        """Mapea el snapshot de recursos a las claves que consume el scheduler."""
+        snap = self._resource_signals
+        if not snap:
+            return {}
+        signals: Dict[str, Any] = {}
+        for key in (
+            "cpu_pressure",
+            "memory_pressure",
+            "vram_pressure",
+            "thermal_pressure",
+            "gpu_load",
+        ):
+            if isinstance(snap.get(key), (int, float)):
+                signals[key] = float(snap[key])
+        if snap.get("gpu_available"):
+            signals["gpu_available"] = True
+        if isinstance(snap.get("gpu_acceleration"), (int, float)):
+            signals["gpu_acceleration_signal"] = float(snap["gpu_acceleration"])
+        if isinstance(snap.get("vram_headroom"), (int, float)):
+            signals["vram_headroom"] = float(snap["vram_headroom"])
+        return signals
+
     def run_episode(self, *, external_input: float = 0.04) -> Dict[str, Any]:
         """Ejecuta un episodio cognitivo completo.
 
@@ -333,6 +437,15 @@ class ScenarioEpisodeRunner:
             if top.get("relation_kind") == "support" and observation.alarm:
                 # Memoria soporta la intervención por alarma
                 intervention = self.scenario.select_intervention(observation)
+        # E3 — sabiduría ∝ daño: si esta situación ya lo hirió con esta intervención
+        # y hay una alternativa con claramente menos dolor recordado, la evita (no
+        # repetir errores). Fuerza proporcional a la cicatriz. RNFE_EXPERIENCE off ⇒ no-op.
+        self._experience_bias = None
+        if self._experience is not None:
+            alternative = self._experience_biased_intervention(observation, intervention)
+            if alternative is not None and alternative != intervention:
+                self._experience_bias = {"avoided": intervention, "chose": alternative}
+                intervention = alternative
 
         # 6. Simular contrafactual (sin intervención o con opuesta)
         counter_intervention = (
@@ -410,6 +523,7 @@ class ScenarioEpisodeRunner:
             extra_signals={
                 "memory_filter_mode": self.memory_filter_mode,
                 "causal_attestation": causal_attestation,
+                **self._resource_context_signals(),
             },
         )
         overlay_directives: Dict[str, str] | None = None
@@ -422,6 +536,13 @@ class ScenarioEpisodeRunner:
         # IND las consulta en su rama a-priori. Sin ecología quedan en None.
         if self._inherited_rules:
             reasoning_context["inherited_rules"] = self._inherited_rules
+        # C4: tier_3 pidió el razonador externo. Solo se solicita el perfil admitido
+        # cuando además RNFE_EXTERNAL_REASONER_RUNTIME está on; el scheduler agenda
+        # ext_open_thinker solo si el régimen valida la admisión, y degrada si no
+        # (nunca crashea). Sin ambos flags -> perfil nominal (byte-idéntico).
+        if self._external_reasoner_enabled and _external_reasoner_runtime_flag():
+            reasoning_context["family_profile"] = "core_plus_external_reasoner_gated_v1"
+            reasoning_context.setdefault("regime_hint", self._trajectory_regime_label)
         reasoning = self.scheduler.run(reasoning_context)
 
         # 9b. Override determinista guardado (actuación del razonamiento). Gated por
@@ -704,6 +825,49 @@ class ScenarioEpisodeRunner:
                 **reasoning_reward,
             },
         )
+
+        # E1 — Experiencia: destilar ESTE episodio (éxito o golpe) en el diario del
+        # organismo, con firma de situación y severidad ∝ daño. RNFE_EXPERIENCE off ⇒ skip.
+        if self._experience is not None:
+            from runtime.organism.experience import build_experience
+
+            cert = certification["certificate"]
+            va = episode_result.get("viability_assessment") or {}
+            prev_vm = float(getattr(getattr(previous_state, "viability", None), "viability_margin", va.get("viability_margin", 1.0)) or 1.0)
+            vm = float(va.get("viability_margin", prev_vm))
+            exp = build_experience(
+                organism_id=self._organism_id,
+                run_id=self.run_id,
+                episode_id=episode_id,
+                scenario=self.scenario.config.name,
+                regime=("alarm" if getattr(observation, "alarm", False) else "calm"),
+                main_variable=self.scenario.config.main_variable,
+                causal_status="",
+                intervention=intervention,
+                viability_margin=vm,
+                ioc=float(getattr(cert, "ioc_proxy", 0.0) or 0.0),
+                risk=float(getattr(cert, "risk_score", 0.0) or 0.0),
+                reward=float(reasoning_reward.get("reward", 0.0) or 0.0),
+                action="act",
+                certified=(getattr(cert, "verdict", None) == "certified"),
+                closure_passed=bool((va.get("is_viable", True))),
+                viability_delta=vm - prev_vm,
+            )
+            self._experience.record(exp)
+            episode_result["experience"] = {
+                "situation_key": exp.situation_key,
+                "severity": exp.severity,
+                "wound": exp.wound,
+                "biased": self._experience_bias,
+            }
+            if self._experience_bias is not None:
+                self.storage.append_event(
+                    event_type="experience.applied",
+                    run_id=self.run_id,
+                    source="experience",
+                    payload={"episode_id": episode_id, "situation_key": exp.situation_key,
+                             **self._experience_bias},
+                )
 
         # 14. EML shadow (opcional)
         eml_shadow = {"enabled": False, "status": "disabled"}

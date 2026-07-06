@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List
 
 from runtime.storage import StorageFacade
+from runtime.memory.embeddings import (
+    cosine_similarity,
+    get_embedder,
+    text_from_mapping,
+)
 
 # Penalty applied to cross-scenario memories in analogical mode
 _CROSS_SCENARIO_PENALTY = 0.5
+
+
+def _embedding_weight() -> float:
+    """Peso del coseno semántico al mezclar con Jaccard (default 0.5)."""
+    try:
+        w = float(os.environ.get("RNFE_MEMORY_EMBEDDINGS_WEIGHT", "0.5"))
+    except (TypeError, ValueError):
+        return 0.5
+    return min(max(w, 0.0), 1.0)
 
 
 def summarize_retrieval_hits(hits: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -217,6 +232,24 @@ class MemoryRetrieval:
         return out
 
     def _score(self, *, query: Dict[str, Any], structure: Dict[str, Any]) -> float:
+        jaccard = self._jaccard(query=query, structure=structure)
+        # RNFE_MEMORY_EMBEDDINGS off (default) -> get_embedder() None -> Jaccard puro
+        # (byte-idéntico). hashed/llama -> mezcla coseno semántico.
+        embedder = get_embedder()
+        if embedder is None:
+            return jaccard
+        cos = cosine_similarity(
+            embedder.embed(text_from_mapping(query)),
+            embedder.embed(text_from_mapping(structure)),
+        )
+        if cos <= 0.0:
+            # Embedding no disponible/degradado (p.ej. llama sin GGUF): cae a Jaccard.
+            return jaccard
+        weight = _embedding_weight()
+        return float((1.0 - weight) * jaccard + weight * cos)
+
+    @staticmethod
+    def _jaccard(*, query: Dict[str, Any], structure: Dict[str, Any]) -> float:
         query_tokens = {str(v) for v in query.values() if v is not None}
         if not query_tokens:
             return 0.0

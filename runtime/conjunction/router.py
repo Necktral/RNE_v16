@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from .contracts import ComputeRoute, ComputeTier, OperationContext, tier_rank
 
+# Tiers whose workload is served by the GPU (external reasoner / embeddings).
+_GPU_TIERS = ("tier_2_specialized", "tier_3_external")
+# Above this VRAM pressure the GPU cannot host a heavy workload.
+_VRAM_SATURATION = 0.92
+
 
 class ComputeRouter:
     """Select the cheapest compute tier that can satisfy the operation."""
@@ -18,11 +23,15 @@ class ComputeRouter:
                 "complexity_score": context.complexity_score,
                 "uncertainty_score": context.uncertainty_score,
                 "resource_pressure": context.resource_pressure,
+                "gpu_available": context.gpu_available,
+                "vram_pressure": context.vram_pressure,
+                "gpu_acceleration": context.gpu_acceleration,
             }
         ]
 
         if context.resource_pressure >= context.constraints.resource_pressure_limit:
             return self._route(
+                context,
                 tier="tier_0_deterministic",
                 path="deterministic.resource_conservation",
                 reason="resource_pressure_exceeds_policy",
@@ -83,9 +92,10 @@ class ComputeRouter:
         if (
             context.uncertainty_score >= 0.75
             and context.constraints.allow_external
-            and tier_rank(context.constraints.max_compute_tier) >= tier_rank("tier_3_external")
+            and tier_rank(self._effective_max_tier(context)) >= tier_rank("tier_3_external")
         ):
             return self._route(
+                context,
                 tier="tier_3_external",
                 path="external_reasoner.gated_advisory",
                 reason="high_uncertainty_external_allowed",
@@ -96,6 +106,7 @@ class ComputeRouter:
 
         if context.complexity_score <= 0.25 and context.uncertainty_score <= 0.45:
             return self._route(
+                context,
                 tier="tier_0_deterministic",
                 path="deterministic.rules.cache.validators",
                 reason="simple_low_uncertainty_operation",
@@ -114,6 +125,19 @@ class ComputeRouter:
             trace=trace,
         )
 
+    def _effective_max_tier(self, context: OperationContext) -> ComputeTier:
+        """Techo de tier efectivo: la política, más la disponibilidad de GPU.
+
+        Sin GPU no se degrada nada (byte-idéntico). Con GPU pero VRAM saturada,
+        los tiers servidos por GPU (2/3) quedan fuera de alcance: no hay memoria
+        de video para el workload.
+        """
+        ceiling = context.constraints.max_compute_tier
+        if context.gpu_available and context.vram_pressure >= _VRAM_SATURATION:
+            if tier_rank(ceiling) > tier_rank("tier_1_local_light"):
+                return "tier_1_local_light"
+        return ceiling
+
     def _bounded(
         self,
         context: OperationContext,
@@ -125,13 +149,16 @@ class ComputeRouter:
         estimated_cost: float,
         trace: list[dict],
     ) -> ComputeRoute:
-        max_tier = context.constraints.max_compute_tier
+        max_tier = self._effective_max_tier(context)
         tier = preferred
         if tier_rank(preferred) > tier_rank(max_tier):
             tier = max_tier
             reason = f"{reason};degraded_to:{max_tier}"
             path = f"degraded.{path}"
+            if max_tier != context.constraints.max_compute_tier:
+                reason = f"{reason};vram_saturated"
         return self._route(
+            context,
             tier=tier,
             path=path,
             reason=reason,
@@ -142,6 +169,7 @@ class ComputeRouter:
 
     @staticmethod
     def _route(
+        context: OperationContext,
         *,
         tier: ComputeTier,
         path: str,
@@ -150,12 +178,14 @@ class ComputeRouter:
         estimated_cost: float,
         trace: list[dict],
     ) -> ComputeRoute:
+        gpu_backed = bool(context.gpu_available and tier in _GPU_TIERS)
         return ComputeRoute(
             selected_compute_tier=tier,
             selected_reasoning_path=path,
             reason=reason,
             expected_quality=round(float(expected_quality), 4),
             estimated_cost=round(float(estimated_cost), 4),
+            gpu_backed=gpu_backed,
             trace=tuple(
                 [
                     *trace,
@@ -164,6 +194,7 @@ class ComputeRouter:
                         "selected_compute_tier": tier,
                         "selected_reasoning_path": path,
                         "reason": reason,
+                        "gpu_backed": gpu_backed,
                     },
                 ]
             ),

@@ -11,6 +11,7 @@ from runtime.organism.lineage import LineageState
 from runtime.organism.state import IdentityState, OrganismState
 from runtime.conjunction import OperationalConjunctionLayer
 from runtime.conjunction.contracts import ComputeTier, OperationalConjunctionResult
+from runtime.conjunction.execution import routing_enforced, tier_execution_directives
 from runtime.storage import StorageFacade, get_storage
 from runtime.storage.records import utc_now_iso
 from runtime.world import ScenarioEpisodeRunner
@@ -88,9 +89,21 @@ class LifeKernel:
         self.last_decision: AutonomyDecision | None = None
         self.last_operational: OperationalConjunctionResult | None = None
         self._runner: ScenarioEpisodeRunner | None = None
-        self._runner_key: tuple[str, str, str] | None = None
+        self._runner_key: tuple | None = None
         self._msrc_controller = None
         self._scale_state = None
+        # Sensado de recursos (host + GPU), opt-in por RNFE_HOST_SENSING.
+        self._host_sampler = None
+        self._vram_sampler = None
+        self._resource_snapshot: Dict[str, Any] = {}
+        # Experiencia: memoria de golpes + lecciones del maestro (RNFE_EXPERIENCE / RNFE_TEACHER).
+        from runtime.organism.experience import ExperienceStore, experience_enabled
+
+        self._experience = ExperienceStore(storage=self.storage) if experience_enabled() else None
+        self._experience_lessons: list = []
+        self._teacher = None
+        self._consecutive_quarantine = 0
+        self._steps_since_musing = 0
 
         if self.config.restore:
             self._restore_initial_identity()
@@ -132,11 +145,28 @@ class LifeKernel:
             if external_input is not None
             else self._perturbation(self.total_steps)
         )
-        pre_vitals = self.last_vitals or self.vitals_service.bootstrap(
-            run_id=self.run_id,
-            organism_state=self.organism_state,
-            lineage=self.lineage,
-        )
+        snapshot = self._sense_resources()
+        snap = snapshot or None
+        if self.last_vitals is None:
+            pre_vitals = self.vitals_service.bootstrap(
+                run_id=self.run_id,
+                organism_state=self.organism_state,
+                lineage=self.lineage,
+                resource_snapshot=snap,
+            )
+        elif snap is not None:
+            # Con sensado activo, refrescamos presión/modo para que el
+            # supervisor reaccione en el mismo ciclo (rama sleep, conservative).
+            pre_vitals = self.vitals_service.from_state(
+                run_id=self.run_id,
+                organism_state=self.organism_state,
+                lineage=self.lineage,
+                mode=self.last_vitals.mode,
+                episode_result=None,
+                resource_snapshot=snap,
+            )
+        else:
+            pre_vitals = self.last_vitals
         decision = self.supervisor.decide(
             vitals=pre_vitals,
             goals=self.goal_manager.goals,
@@ -172,12 +202,54 @@ class LifeKernel:
             )
 
         closure_profile = str(decision.directives.get("closure_profile") or self.config.closure_profile)
+        memory_retrieval_limit: int | None = None
+        external_reasoner_enabled = self.config.allow_external_reasoner
+        routing_directive: Dict[str, Any] | None = None
+        # B3: el tier del router se vuelve EJECUTABLE (gated por
+        # RNFE_CONJUNCTION_ROUTING_ENFORCED). Off -> nada de esto aplica.
+        if routing_enforced() and operational is not None:
+            exec_dir = tier_execution_directives(
+                operational.selected_compute_tier,
+                gpu_backed=self._route_gpu_backed(operational),
+            )
+            # La seguridad manda: si el gate/supervisor ya fijó un closure_profile
+            # (block/degrade/recovery), se respeta; si no, lo fija el tier.
+            if "closure_profile" not in decision.directives:
+                closure_profile = exec_dir.closure_profile
+            memory_retrieval_limit = exec_dir.memory_retrieval_limit
+            external_reasoner_enabled = (
+                external_reasoner_enabled and exec_dir.external_reasoner_enabled
+            )
+            routing_directive = exec_dir.to_dict()
         runner = self._runner_for(
             scenario=scenario,
             closure_profile=closure_profile,
             memory_filter_mode=self.config.memory_filter_mode,
+            memory_retrieval_limit=memory_retrieval_limit,
         )
+        # A3: el runner inyecta el snapshot de recursos en el contexto de razonamiento.
+        runner.set_resource_signals(self._resource_snapshot)
+        runner.set_external_reasoner_enabled(external_reasoner_enabled)
+        # Experiencia: identidad cross-vida + lecciones del maestro para sesgar el episodio.
+        runner.set_organism_id(self.run_id)
+        runner.set_experience_lessons(self._experience_lessons)
         episode_result = runner.run_episode(external_input=input_value)
+        self._consecutive_quarantine = 0  # actuó sano ⇒ ya no está atascado
+        # Reflexión continua (E2): el maestro reflexiona si el episodio hirió, o cada
+        # cierto tiempo — la reflexión es parte de su vida en todo momento. Off hot-path
+        # nominal (solo cuando hay herida o toca el musing).
+        if self._experience is not None:
+            exp_info = (episode_result or {}).get("experience") or {}
+            self._steps_since_musing += 1
+            # Cooldown: la reflexión PROFUNDA (7B, ~5s) es proporcional, no cada golpe —
+            # como mucho cada ~8 latidos, antes si la herida fue grave. La reflexión
+            # ligera (recall/sesgo E3) ya es continua y barata en cada latido.
+            severity = float(exp_info.get("severity", 0.0) or 0.0)
+            if self._steps_since_musing >= 8 or (severity >= 0.7 and self._steps_since_musing >= 4):
+                self._steps_since_musing = 0
+                self._maybe_reflect()
+        if routing_directive is not None:
+            episode_result["routing_directive"] = routing_directive
         if operational is not None:
             episode_result["operational_conjunction"] = operational.to_dict()
         self.organism_state = runner.organism_state
@@ -189,6 +261,7 @@ class LifeKernel:
             lineage=self.lineage,
             mode=decision.mode,
             episode_result=episode_result,
+            resource_snapshot=snap,
         )
         goals = self.goal_manager.update_from_vitals(vitals)
         msrc_result = self._maybe_run_msrc(
@@ -238,6 +311,112 @@ class LifeKernel:
             operational=operational.to_dict() if operational else {},
         )
 
+    def _sense_resources(self) -> Dict[str, Any]:
+        """Snapshot de recursos host+GPU para el ciclo actual (opt-in).
+
+        Off (``RNFE_HOST_SENSING`` sin setear) devuelve ``{}`` y todo el camino
+        vivo permanece byte-idéntico. On, compone CPU/RAM del host con la VRAM
+        real (``NvidiaVRAMSampler``) cuando hay GPU.
+        """
+        from runtime.control.msrc.host_sampler import (
+            HostResourceSampler,
+            build_resource_snapshot,
+            host_sensing_enabled,
+        )
+
+        if not host_sensing_enabled():
+            self._resource_snapshot = {}
+            return {}
+        if self._host_sampler is None:
+            self._host_sampler = HostResourceSampler()
+        if self._vram_sampler is None:
+            try:
+                from runtime.control.msrc.vram_sampler import NvidiaVRAMSampler
+
+                self._vram_sampler = NvidiaVRAMSampler()
+            except Exception:
+                self._vram_sampler = None
+        snapshot = build_resource_snapshot(
+            host_sampler=self._host_sampler,
+            vram_sampler=self._vram_sampler,
+        )
+        self._resource_snapshot = snapshot
+        return snapshot
+
+    @staticmethod
+    def _route_gpu_backed(operational: OperationalConjunctionResult) -> bool:
+        """True solo si el router marcó la ruta seleccionada como servida por GPU."""
+        for item in reversed(operational.trace):
+            if isinstance(item, dict) and item.get("stage") == "router.output":
+                return bool(item.get("gpu_backed"))
+        return False
+
+    @staticmethod
+    def _scenario_info(scenario: str) -> tuple[str, list]:
+        """(main_variable, interventions) del escenario, best-effort."""
+        try:
+            from runtime.world import get_scenario
+
+            sc = get_scenario(scenario)
+            return str(sc.config.main_variable), list(sc.config.interventions)
+        except Exception:
+            return "", []
+
+    def _record_nonacting_wound(self, *, decision: AutonomyDecision, vitals: VitalSignsSnapshot) -> None:
+        """Graba el golpe de una decisión no-actuante (cuarentena/rollback/sleep) en el diario."""
+        if self._experience is None:
+            return
+        from runtime.organism.experience import build_experience
+
+        scenario = self._current_scenario()
+        main_var, _ = self._scenario_info(scenario)
+        exp = build_experience(
+            organism_id=self.run_id,
+            run_id=self.run_id,
+            episode_id=f"life-{decision.action}-{self.total_steps}",
+            scenario=scenario,
+            regime="distress" if decision.action in {"quarantine", "rollback"} else "rest",
+            main_variable=main_var,
+            causal_status="",
+            intervention="",
+            viability_margin=vitals.viability_margin,
+            ioc=vitals.ioc_proxy,
+            risk=vitals.risk_score,
+            reward=0.0,
+            action=decision.action,
+            certified=bool(vitals.certified),
+            closure_passed=False,
+            viability_delta=0.0,
+        )
+        self._experience.record(exp)
+
+    def _maybe_reflect(self) -> None:
+        """El maestro (7B) reflexiona sobre las heridas recientes y destila lecciones (E2)."""
+        from runtime.organism.teacher import teacher_enabled
+
+        if not teacher_enabled() or self._experience is None:
+            return
+        if self._teacher is None:
+            from runtime.organism.teacher import Teacher
+
+            self._teacher = Teacher(storage=self.storage, experience=self._experience)
+        scenario = self._current_scenario()
+        _, valid = self._scenario_info(scenario)
+        if not valid:
+            return
+        try:
+            lessons = self._teacher.reflect(organism_id=self.run_id, valid_interventions=valid)
+        except Exception:
+            lessons = []
+        if lessons:
+            self._experience_lessons = lessons
+            self.storage.append_event(
+                event_type="life.reflection",
+                run_id=self.run_id,
+                source="life_kernel",
+                payload={"step_index": self.total_steps, "lessons": lessons},
+            )
+
     def _evaluate_operational_conjunction(
         self,
         *,
@@ -259,6 +438,7 @@ class LifeKernel:
             allow_external_reasoner=self.config.allow_external_reasoner,
             max_compute_tier=self.config.max_compute_tier,
             autonomy_policy=self.config.autonomy_policy,
+            resource_snapshot=self._resource_snapshot or None,
         )
         self.last_operational = result
         return result
@@ -351,6 +531,24 @@ class LifeKernel:
                     organism_state=self.organism_state,
                     lineage=self.lineage,
                 )
+        elif decision.action == "quarantine" and self._experience is not None:
+            # E5 — refugio sano: una cuarentena atascada es un callejón sin salida (no
+            # ejecuta episodios ⇒ no se recupera). Tras varias seguidas, el organismo rueda
+            # a su último yo sano para sobrevivir y seguir aprendiendo de sus golpes.
+            self._consecutive_quarantine += 1
+            if self._consecutive_quarantine >= 3 and self._restore_latest_healthy_checkpoint():
+                vitals = self.vitals_service.bootstrap(
+                    run_id=self.run_id,
+                    organism_state=self.organism_state,
+                    lineage=self.lineage,
+                )
+                self._consecutive_quarantine = 0
+                self.storage.append_event(
+                    event_type="life.refuge",
+                    run_id=self.run_id,
+                    source="life_kernel",
+                    payload={"step_index": self.total_steps, "reason": "quarantine_stuck_rollback_to_healthy"},
+                )
         checkpoint = self._save_checkpoint(
             vitals=vitals,
             decision=decision,
@@ -368,6 +566,11 @@ class LifeKernel:
                 "operational_conjunction": operational.to_dict() if operational else {},
             },
         )
+        # Experiencia: grabar el golpe de esta decisión no-actuante y —si es una herida
+        # profunda— que el maestro (7B) reflexione y destile una lección (E1 + E2, off hot-path).
+        self._record_nonacting_wound(decision=decision, vitals=vitals)
+        if decision.action in {"quarantine", "rollback"}:
+            self._maybe_reflect()
         return LifeStepResult(
             run_id=self.run_id,
             step_index=self.total_steps,
@@ -443,10 +646,11 @@ class LifeKernel:
         scenario: str,
         closure_profile: str,
         memory_filter_mode: str,
+        memory_retrieval_limit: int | None = None,
     ) -> ScenarioEpisodeRunner:
         assert self.organism_state is not None
         assert self.lineage is not None
-        key = (scenario, closure_profile, memory_filter_mode)
+        key = (scenario, closure_profile, memory_filter_mode, memory_retrieval_limit)
         if self._runner is not None and self._runner_key == key:
             return self._runner
         self._runner = ScenarioEpisodeRunner(
@@ -458,6 +662,10 @@ class LifeKernel:
             organism_state=self.organism_state,
             lineage=self.lineage,
         )
+        # El tier ejecutable (B3) puede fijar el límite de recuperación de memoria;
+        # None conserva el default del runner (byte-idéntico).
+        if memory_retrieval_limit is not None:
+            self._runner.memory_retrieval_limit = int(memory_retrieval_limit)
         self._runner_key = key
         return self._runner
 
@@ -549,9 +757,14 @@ class LifeKernel:
         if self._scale_state is None:
             self._scale_state = ScalePolicyState(current_scale_id="1x1")
         if self._msrc_controller is None:
+            # Con sensado activo y GPU real disponible, MSRC recibe la VRAM real;
+            # de lo contrario mantiene el NullVRAMSampler (byte-idéntico).
+            vram_sampler = NullVRAMSampler()
+            if self._vram_sampler is not None and self._resource_snapshot.get("gpu_available"):
+                vram_sampler = self._vram_sampler
             self._msrc_controller = MSRCController(
                 storage=self.storage,
-                vram_sampler=NullVRAMSampler(),
+                vram_sampler=vram_sampler,
             )
 
         episode = episode_result.get("episode") or {}

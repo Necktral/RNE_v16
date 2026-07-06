@@ -140,6 +140,7 @@ class OperationalConjunctionLayer:
         allow_external_reasoner: bool = False,
         max_compute_tier: ComputeTier = "tier_2_specialized",
         autonomy_policy: str = "bounded",
+        resource_snapshot: Dict[str, Any] | None = None,
     ) -> OperationalConjunctionResult:
         context = self._build_life_context(
             run_id=run_id,
@@ -152,6 +153,7 @@ class OperationalConjunctionLayer:
             allow_external_reasoner=allow_external_reasoner,
             max_compute_tier=max_compute_tier,
             autonomy_policy=autonomy_policy,
+            resource_snapshot=resource_snapshot,
         )
         return self.evaluate(context)
 
@@ -168,6 +170,7 @@ class OperationalConjunctionLayer:
         allow_external_reasoner: bool,
         max_compute_tier: ComputeTier,
         autonomy_policy: str,
+        resource_snapshot: Dict[str, Any] | None = None,
     ) -> OperationContext:
         action = str(getattr(decision, "action", "act"))
         task_type = self._task_type(action)
@@ -223,6 +226,8 @@ class OperationalConjunctionLayer:
         complexity = self._complexity_for(action=action, goals=goals)
         uncertainty = self._uncertainty(vitals=vitals, evidence=evidence)
         directives = getattr(decision, "directives", {}) or {}
+        snap = resource_snapshot or {}
+        gpu_available = bool(snap.get("gpu_available"))
         return OperationContext.create(
             run_id=run_id,
             user_intent="maintain_autonomous_life_cycle",
@@ -239,6 +244,10 @@ class OperationalConjunctionLayer:
             complexity_score=complexity,
             resource_pressure=resource_pressure,
             uncertainty_score=uncertainty,
+            gpu_available=gpu_available,
+            vram_pressure=float(snap.get("vram_pressure", 0.0) or 0.0),
+            vram_headroom=float(snap.get("vram_headroom", 0.0) or 0.0),
+            gpu_acceleration=float(snap.get("gpu_acceleration", 0.0) or 0.0),
             metadata={
                 "step_index": step_index,
                 "external_input": external_input,

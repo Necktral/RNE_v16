@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 *:Zone.Identifier
 .env
+.env.*
+!.env*.example
 .venv/
 venv/
 .mypy_cache/
