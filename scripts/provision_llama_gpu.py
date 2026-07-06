@@ -65,6 +65,8 @@ def _gpu_info() -> str | None:
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
+    if out.returncode != 0:
+        return None
     return (out.stdout or "").strip() or None
 
 
@@ -114,12 +116,32 @@ def cmd_check(models_root: Path) -> int:
     cli = _find_llama_cli(models_root)
     print(f"llama.cpp CUDA cli: {cli or 'FALTA -> ' + LLAMA_RELEASE_HINT}")
     paths = _paths(models_root)
-    for label, p in paths.items():
-        print(f"{label}: {'OK ' + str(p) if p.exists() else 'FALTA ' + str(p)}")
-    missing = [k for k, p in paths.items() if not p.exists()] + ([] if cli else ["llama_cli"])
+    reasoner_status = (
+        "OK " + str(paths["reasoner_gguf"])
+        if paths["reasoner_gguf"].exists()
+        else "FALTA " + str(paths["reasoner_gguf"])
+    )
+    print(f"reasoner_gguf: {reasoner_status}")
+    embedding_mode = os.environ.get("RNFE_MEMORY_EMBEDDINGS", "").strip().lower()
+    embedding_required = embedding_mode in {"llama", "llama_cpp", "gpu"}
+    embed_status = (
+        "OK " + str(paths["embed_gguf"])
+        if paths["embed_gguf"].exists()
+        else "FALTA " + str(paths["embed_gguf"])
+    )
+    if not embedding_required:
+        embed_status += " (opcional; RNFE_MEMORY_EMBEDDINGS no está en llama)"
+    print(f"embed_gguf: {embed_status}")
+    missing = []
+    if not paths["reasoner_gguf"].exists():
+        missing.append("reasoner_gguf")
+    if embedding_required and not paths["embed_gguf"].exists():
+        missing.append("embed_gguf")
+    if not cli:
+        missing.append("llama_cli")
     if missing:
         print(f"\nFaltan: {', '.join(missing)}")
-        print("Corré con --download para bajar los GGUF (necesita red y ~4.6GB).")
+        print("Corré con --download para bajar los artefactos requeridos (necesita red).")
         return 1
     print("\nTodo presente. Usá --write-env para generar el .env y --smoke para probar en GPU.")
     return 0
