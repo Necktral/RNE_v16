@@ -40,8 +40,14 @@ def test_legacy_scheduler_external_profiles_are_lab_only_and_blocked() -> None:
     lab_profiles = lab_only_profiles()
     assert "core_plus_external_reasoner" in lab_profiles
     assert "core_plus_external_reasoner_guarded" in lab_profiles
-    for profile_name in lab_profiles:
-        assert profile_uses_external_reasoner(profile_name)
+    # Los perfiles lab-only que USAN el razonador externo deben estar bloqueados en
+    # nominal. (Otros perfiles lab-only existen por razones no externas: p.ej.
+    # full_family_deep_v1, core_plus_imagination — no aplican a esta garantía.)
+    external_lab_profiles = [
+        name for name in lab_profiles if profile_uses_external_reasoner(name)
+    ]
+    assert external_lab_profiles  # al menos los legacy externos
+    for profile_name in external_lab_profiles:
         with pytest.raises(ValueError, match="external_reasoner_profile_not_nominal"):
             _select(profile_name)
 

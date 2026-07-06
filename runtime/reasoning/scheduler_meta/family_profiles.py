@@ -273,6 +273,17 @@ PROFILES: Dict[str, FamilyProfile] = {
         ),
         lab_only=True,
     ),
+    "core_plus_imagination": FamilyProfile(
+        name="core_plus_imagination",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["imagination"],
+        adaptive=False,
+        description=(
+            "Lab: core + imaginación A11 (previsión de consecuencia diferida). Advisory: "
+            "activa la variante deep con RNFE_IMAGINATION_DEEP; nunca decide por sí sola."
+        ),
+        lab_only=True,
+    ),
 }
 
 

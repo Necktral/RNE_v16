@@ -10,6 +10,7 @@ from .scenario import CognitiveScenario, ScenarioConfig
 from .thermal_scenario import ThermalScenario
 from .resource_scenario import ResourceScenario
 from .grid_thermal_scenario import GridThermalScenario
+from .deferred_load_scenario import DeferredLoadScenario
 
 
 # Registro de escenarios disponibles
@@ -17,6 +18,7 @@ SCENARIO_REGISTRY: Dict[str, Type[CognitiveScenario]] = {
     "thermal_homeostasis": ThermalScenario,
     "resource_management": ResourceScenario,
     "grid_thermal_5x5": GridThermalScenario,
+    "deferred_load_trap": DeferredLoadScenario,
 }
 
 # Alias no canónicos (compatibilidad externa)
