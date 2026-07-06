@@ -270,6 +270,10 @@ class OperationContext:
     complexity_score: float = 0.0
     resource_pressure: float = 0.0
     uncertainty_score: float = 0.0
+    gpu_available: bool = False
+    vram_pressure: float = 0.0
+    vram_headroom: float = 0.0
+    gpu_acceleration: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=utc_now_iso)
 
@@ -292,6 +296,10 @@ class OperationContext:
         complexity_score: float = 0.0,
         resource_pressure: float = 0.0,
         uncertainty_score: float = 0.0,
+        gpu_available: bool = False,
+        vram_pressure: float = 0.0,
+        vram_headroom: float = 0.0,
+        gpu_acceleration: float = 0.0,
         metadata: Dict[str, Any] | None = None,
     ) -> "OperationContext":
         return cls(
@@ -311,6 +319,10 @@ class OperationContext:
             complexity_score=round(clamp01(complexity_score), 4),
             resource_pressure=round(clamp01(resource_pressure), 4),
             uncertainty_score=round(clamp01(uncertainty_score), 4),
+            gpu_available=bool(gpu_available),
+            vram_pressure=round(clamp01(vram_pressure), 4),
+            vram_headroom=round(clamp01(vram_headroom), 4),
+            gpu_acceleration=round(clamp01(gpu_acceleration), 4),
             metadata=dict(metadata or {}),
         )
 
@@ -340,6 +352,7 @@ class ComputeRoute:
     reason: str
     estimated_cost: float = 0.0
     expected_quality: float = 0.0
+    gpu_backed: bool = False
     trace: tuple[Dict[str, Any], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:

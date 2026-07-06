@@ -13,7 +13,45 @@ from .family_profiles import (
     DELIBERATIVE_FAMILIES,
     EXT_OPEN_THINKER_ADMISSION,
     resolve_family_profile,
+    validate_external_reasoner_admission,
 )
+
+
+def _external_reasoner_runtime_enabled() -> bool:
+    """True si el razonador externo puede agendarse en runtime (opt-in).
+
+    Off por defecto: ``select_sequence`` sigue rechazando cualquier perfil con
+    ``ext_open_thinker`` (byte-idéntico). On, el perfil ADMITIDO puede pasar si
+    la admisión (régimen validado + gate/guard/schema/fallback) lo permite.
+    """
+    raw = os.environ.get("RNFE_EXTERNAL_REASONER_RUNTIME", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _external_runtime_admits(
+    profile: Any,
+    *,
+    features: Dict[str, float],
+    regime_hint: str | None,
+) -> bool:
+    """¿El perfil externo puede agendarse en runtime para este contexto?"""
+    if not _external_reasoner_runtime_enabled():
+        return False
+    if profile.name not in set(EXT_OPEN_THINKER_ADMISSION.admitted_lab_profiles):
+        return False
+    # La admisión valida contra el régimen del escenario (regime_hint), no contra
+    # la etiqueta gruesa de features: el régimen validado es
+    # 'causal_counterfactual_conflict', que llega como hint desde el runner.
+    regime = str(regime_hint or "").strip().lower()
+    admission = validate_external_reasoner_admission(
+        profile_name=profile.name,
+        regime=regime,
+        gate_present=True,
+        guard_present=True,
+        schema_present=True,
+        fallback_present=True,
+    )
+    return bool(admission.allowed)
 
 
 HARD_MAX_STEPS = 10
@@ -930,12 +968,28 @@ def select_sequence(
     active_mode = (mode or "fixed").strip().lower()
     profile = resolve_family_profile(profile_name, mode=active_mode)
     if "ext_open_thinker" in profile.optional_families:
-        raise ValueError(
-            "external_reasoner_profile_not_nominal:"
-            f"{profile.name}:"
-            f"status={EXT_OPEN_THINKER_ADMISSION.nominal_status}:"
-            "use core_plus_external_reasoner_gated_v1 only in lab benchmark"
-        )
+        flag_on = _external_reasoner_runtime_enabled()
+        is_admitted_profile = profile.name in set(EXT_OPEN_THINKER_ADMISSION.admitted_lab_profiles)
+        if not flag_on or not is_admitted_profile:
+            # Flag off (byte-idéntico) o perfil externo no admitido -> rechazo duro.
+            raise ValueError(
+                "external_reasoner_profile_not_nominal:"
+                f"{profile.name}:"
+                f"status={EXT_OPEN_THINKER_ADMISSION.nominal_status}:"
+                "use core_plus_external_reasoner_gated_v1 only in lab benchmark"
+            )
+        if not _external_runtime_admits(profile, features=features, regime_hint=regime_hint):
+            # Flag on + perfil admitido pero régimen NO validado: se degrada sin
+            # crashear (quita ext_open_thinker) en vez de agendar el razonador caro
+            # donde no está validado. El runner puede pedir el perfil sin riesgo.
+            import dataclasses
+
+            profile = dataclasses.replace(
+                profile,
+                optional_families=[
+                    fam for fam in profile.optional_families if fam != "ext_open_thinker"
+                ],
+            )
     regime_labels = resolve_regime_labels(regime_hint=regime_hint, features=features)
     requested_max_steps = max(1, int(_clamp(budget.get("max_steps", 6), 1.0, 32.0)))
 

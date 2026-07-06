@@ -198,6 +198,19 @@ PROFILES: Dict[str, FamilyProfile] = {
         description="Lab legacy: core + razonador externo experimental + guardia.",
         lab_only=True,
     ),
+    "core_plus_external_reasoner_gated_v1": FamilyProfile(
+        name="core_plus_external_reasoner_gated_v1",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["ext_open_thinker", "fal_guard"],
+        adaptive=False,
+        description=(
+            "Perfil ADMITIDO (conditional_lab): core + razonador externo gated + "
+            "guardia. Solo se agenda ext_open_thinker bajo RNFE_EXTERNAL_REASONER_RUNTIME, "
+            "régimen validado (causal_counterfactual_conflict) y admisión (gate/guard/"
+            "schema/fallback). Ver EXT_OPEN_THINKER_ADMISSION."
+        ),
+        lab_only=True,
+    ),
     "adaptive_family_ecology": FamilyProfile(
         name="adaptive_family_ecology",
         core_sequence=list(CORE_SEQUENCE),

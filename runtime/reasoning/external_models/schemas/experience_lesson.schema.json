@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "experience_lesson",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["avoid", "prefer", "lesson"],
+  "properties": {
+    "avoid": {
+      "type": "string",
+      "description": "The intervention that hurt and should be avoided in this situation.",
+      "maxLength": 64
+    },
+    "prefer": {
+      "type": "string",
+      "description": "A better intervention from the valid list to try instead.",
+      "maxLength": 64
+    },
+    "lesson": {
+      "type": "string",
+      "description": "One short sentence lesson.",
+      "maxLength": 200
+    }
+  }
+}

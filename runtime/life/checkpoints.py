@@ -75,7 +75,7 @@ class CheckpointManager:
                 "episode_count": organism_state.episode_count,
                 "total_steps": total_steps,
                 "mode": vital_signs.mode,
-                "healthy": vital_signs.is_stable,
+                "healthy": vital_signs.is_restorable,
             },
         )
         self.storage.append_event(
@@ -87,7 +87,7 @@ class CheckpointManager:
                 "artifact_id": artifact.artifact_id,
                 "episode_count": organism_state.episode_count,
                 "mode": vital_signs.mode,
-                "healthy": vital_signs.is_stable,
+                "healthy": vital_signs.is_restorable,
             },
         )
         return artifact
@@ -98,10 +98,13 @@ class CheckpointManager:
         run_id: str | None = None,
         healthy_only: bool = False,
     ) -> tuple[Dict[str, Any], ArtifactRecord] | None:
+        # Al buscar un REFUGIO sano (healthy_only) escaneamos mucho más hondo: tras un
+        # período largo dañado (cuarentena), el último yo sano puede estar lejos en el
+        # tiempo, y debe seguir siendo alcanzable — sobrevivir es condición de aprender.
         artifacts = self.storage.list_artifacts(
             run_id=run_id,
             kind=LIFE_CHECKPOINT_KIND,
-            limit=20,
+            limit=400 if healthy_only else 20,
         )
         for artifact in artifacts:
             if healthy_only and not bool((artifact.metadata or {}).get("healthy")):

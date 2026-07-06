@@ -55,6 +55,7 @@ class VitalSignsService:
         lineage: LineageState,
         mode: VitalMode = "normal",
         episode_result: Dict[str, Any] | None = None,
+        resource_snapshot: Dict[str, Any] | None = None,
     ) -> VitalSignsSnapshot:
         cert = self._latest_certificate(run_id=run_id, episode_result=episode_result)
         cert_meta = getattr(cert, "metadata", None) or {}
@@ -81,6 +82,11 @@ class VitalSignsService:
         )
         if resource_pressure <= 0.0:
             resource_pressure = _as_float((episode_result or {}).get("resource_pressure"), 0.0)
+        # Sensado real de host/GPU (opt-in): domina cuando está presente.
+        if resource_snapshot:
+            sensed = _as_float(resource_snapshot.get("hardware_pressure"), 0.0)
+            if sensed > 0.0:
+                resource_pressure = max(resource_pressure, sensed)
 
         reward = episode_result.get("reasoning_reward") if episode_result else None
         reward_scalar = _as_float((reward or {}).get("reward"), 0.0)
@@ -133,6 +139,7 @@ class VitalSignsService:
         run_id: str,
         organism_state: OrganismState,
         lineage: LineageState,
+        resource_snapshot: Dict[str, Any] | None = None,
     ) -> VitalSignsSnapshot:
         return self.from_state(
             run_id=run_id,
@@ -140,6 +147,7 @@ class VitalSignsService:
             lineage=lineage,
             mode="normal",
             episode_result=None,
+            resource_snapshot=resource_snapshot,
         )
 
     def _latest_certificate(self, *, run_id: str, episode_result: Dict[str, Any] | None):
