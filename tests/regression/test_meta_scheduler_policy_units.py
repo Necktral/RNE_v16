@@ -1,5 +1,6 @@
 from runtime.reasoning.scheduler_meta.budgeting import compute_budget
 from runtime.reasoning.scheduler_meta.context_features import extract_context_features
+from runtime.reasoning.scheduler_meta.degradation import build_degradation_plan
 from runtime.reasoning.scheduler_meta.fallbacks import (
     confidence_from_step,
     cost_from_step,
@@ -28,6 +29,69 @@ def test_context_features_extracts_bounded_values():
     assert features["causal_risk"] == 0.9
 
 
+def test_context_features_extracts_hardware_and_gpu_opportunity():
+    features = extract_context_features(
+        {
+            "cpu_load": 0.30,
+            "memory_load": 0.40,
+            "gpu_available": True,
+            "gpu_load": 0.10,
+            "vram_snapshot": {
+                "vram_headroom": 0.82,
+                "vram_pressure": 0.18,
+                "vram_opportunity_score": 0.86,
+            },
+        }
+    )
+    assert features["hardware_pressure_signal"] == 0.40
+    assert features["gpu_acceleration_signal"] >= 0.70
+    assert features["vram_favorable_signal"] >= 0.70
+
+
+def test_context_features_lift_risk_from_attestations():
+    features = extract_context_features(
+        {
+            "uncertainty": 0.1,
+            "contradiction_signal": 0.0,
+            "counterfactual_gap": 0.05,
+            "causal_attestation": {
+                "validation_status": "fail",
+                "degradation_level": "relation_mismatch",
+            },
+            "memory_rag_attestation": {
+                "validation_status": "warn",
+                "retrieval_purity": 0.60,
+            },
+        }
+    )
+    assert features["causal_risk"] >= 0.85
+    assert features["contradiction_signal"] >= 0.75
+    assert features["fragility_risk_signal"] >= 0.75
+
+
+def test_degradation_plan_combines_causal_memory_hardware_and_autonomy():
+    plan = build_degradation_plan(
+        features={
+            "hardware_pressure_signal": 0.88,
+            "gpu_acceleration_signal": 0.20,
+        },
+        sequence_validation={"validated_passed": True},
+        causal_attestation={"validation_status": "fail"},
+        memory_attestation={"validation_status": "warn", "retrieval_purity": 0.62},
+        autonomy_policy={
+            "requested_mode": "unlimited",
+            "active_mode": "bounded",
+            "policy_authorized": False,
+        },
+    )
+    assert plan["schema"] == "degradation_plan.v1"
+    assert plan["level"] == "causal_recovery"
+    assert plan["severity"] >= 0.90
+    assert "block_actuation_until_causal_revalidated" in plan["actions"]
+    assert "degrade_autonomy_scope" in plan["actions"]
+    assert plan["budget_multiplier"] <= 0.50
+
+
 def test_budgeting_respects_limits():
     budget = compute_budget(
         {
@@ -42,6 +106,31 @@ def test_budgeting_respects_limits():
     assert 0.0 <= budget["risk_budget"] <= 1.0
 
 
+def test_budgeting_uses_gpu_margin_and_hardware_pressure():
+    gpu_budget = compute_budget(
+        {
+            "uncertainty": 0.2,
+            "contradiction_signal": 0.0,
+            "causal_risk": 0.1,
+            "edge_pressure": 0.1,
+            "hardware_pressure_signal": 0.2,
+            "gpu_acceleration_signal": 0.85,
+        }
+    )
+    constrained_budget = compute_budget(
+        {
+            "uncertainty": 0.2,
+            "contradiction_signal": 0.0,
+            "causal_risk": 0.1,
+            "edge_pressure": 0.1,
+            "hardware_pressure_signal": 0.90,
+            "gpu_acceleration_signal": 0.85,
+        }
+    )
+    assert gpu_budget["max_steps"] == 7.0
+    assert constrained_budget["max_steps"] == 4.0
+
+
 def test_policy_selects_adversarial_guard_when_contradiction_is_high():
     features = {
         "uncertainty": 0.7,
@@ -53,6 +142,48 @@ def test_policy_selects_adversarial_guard_when_contradiction_is_high():
     sequence, _, _ = select_sequence(features=features, budget={"max_steps": 8.0})
     assert "dia_adv" in sequence
     assert "fal_guard" in sequence
+
+
+def test_policy_uses_gpu_opportunity_for_shadow_induction():
+    features = {
+        "uncertainty": 0.3,
+        "contradiction_signal": 0.1,
+        "continuity_recent": 0.8,
+        "edge_pressure": 0.1,
+        "causal_risk": 0.2,
+        "pattern_without_structure_signal": 0.55,
+        "gpu_acceleration_signal": 0.88,
+        "hardware_pressure_signal": 0.20,
+    }
+    sequence, _, _, meta = select_sequence(
+        features=features,
+        budget={"max_steps": 7.0},
+        mode="adaptive",
+        return_metadata=True,
+    )
+    assert "ind" in sequence
+    assert "IND" in meta["validated_sequence"]
+
+
+def test_policy_degrades_gpu_shadow_when_hardware_is_constrained():
+    features = {
+        "uncertainty": 0.3,
+        "contradiction_signal": 0.1,
+        "continuity_recent": 0.8,
+        "edge_pressure": 0.1,
+        "causal_risk": 0.2,
+        "pattern_without_structure_signal": 0.55,
+        "gpu_acceleration_signal": 0.88,
+        "hardware_pressure_signal": 0.90,
+    }
+    sequence, _, _, meta = select_sequence(
+        features=features,
+        budget={"max_steps": 7.0},
+        mode="adaptive",
+        return_metadata=True,
+    )
+    assert "ind" not in sequence
+    assert "IND" not in meta["validated_sequence"]
 
 
 def test_vram_favorable_inherits_floor_from_cognitive_regime():

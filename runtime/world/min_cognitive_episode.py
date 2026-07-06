@@ -17,7 +17,9 @@ from runtime.smg import SMGMin
 from runtime.storage import get_storage
 from runtime.symbolic.eml import EMLRunner
 from runtime.storage.records import utc_now_iso
+from runtime.world.causal_attestation import build_causal_attestation
 from runtime.world.cgwm_min import CGWMMin
+from runtime.world.registry import get_scenario
 
 
 class MinimalCognitiveEpisodeRunner:
@@ -115,6 +117,20 @@ class MinimalCognitiveEpisodeRunner:
             if factual["temperature"] <= counterfactual["temperature"]
             else "contradiction"
         )
+        try:
+            signature = get_scenario("thermal_homeostasis").causal_signature
+        except Exception:
+            signature = None
+        causal_attestation = build_causal_attestation(
+            scenario_name="thermal_homeostasis",
+            main_variable="temperature",
+            intervention=intervention,
+            observation=observation,
+            factual=factual,
+            counterfactual=counterfactual,
+            relation_kind=relation_kind,
+            signature=signature,
+        )
         relation = self.smg.link_signs(
             source_sign_id=sign_main.sign_id,
             target_sign_id=sign_intervention.sign_id,
@@ -125,22 +141,22 @@ class MinimalCognitiveEpisodeRunner:
             },
         )
 
-        reasoning = self.scheduler.run(
-            build_reasoning_context(
-                episode_id=episode_id,
-                run_id=self.run_id,
-                observation=observation,
-                intervention=intervention,
-                formula=formula,
-                memory_hits=memory_hits,
-                counterfactual=counterfactual,
-                updated_world=factual,
-                relation_kind=relation_kind,
-                scenario="thermal_homeostasis",
-                closure_profile=self.closure_profile,
-                reasoning_mode=self.reasoning_mode,
-            )
+        reasoning_context = build_reasoning_context(
+            episode_id=episode_id,
+            run_id=self.run_id,
+            observation=observation,
+            intervention=intervention,
+            formula=formula,
+            memory_hits=memory_hits,
+            counterfactual=counterfactual,
+            updated_world=factual,
+            relation_kind=relation_kind,
+            scenario="thermal_homeostasis",
+            closure_profile=self.closure_profile,
+            reasoning_mode=self.reasoning_mode,
+            extra_signals={"causal_attestation": causal_attestation},
         )
+        reasoning = self.scheduler.run(reasoning_context)
         episode_payload = {
             "episode_id": episode_id,
             "timestamp": utc_now_iso(),
@@ -151,6 +167,8 @@ class MinimalCognitiveEpisodeRunner:
                 "intervention": intervention,
                 "counterfactual": counterfactual,
                 "retrieved_memory": memory_hits,
+                "memory_rag_attestation": reasoning_context.get("memory_rag_attestation"),
+                "causal_attestation": causal_attestation,
                 "closure_profile": self.closure_profile,
             },
             "result": {

@@ -20,6 +20,7 @@ class OperationalValidatorStack:
         findings.extend(self._causal(context=context))
         findings.extend(self._constraints(context=context, route=route))
         findings.extend(self._risk(context=context))
+        findings.extend(self._autonomy_policy(context=context))
         findings.extend(self._agent_execution(context=context))
         if not findings:
             findings.append(
@@ -225,7 +226,7 @@ class OperationalValidatorStack:
                 )
             )
         step_count = int(context.metadata.get("agent_step_count", 0) or 0)
-        if step_count > policy.max_steps:
+        if policy.max_steps > 0 and step_count > policy.max_steps:
             out.append(
                 ValidationFinding(
                     code="agent_step_limit_exceeded",
@@ -280,6 +281,45 @@ class OperationalValidatorStack:
                         validator="agent_policy",
                         message="critical action requires a rollback plan",
                         details={"role": policy.role, "requested_action": context.requested_action},
+                    )
+                )
+        return out
+
+    def _autonomy_policy(self, *, context: OperationContext) -> list[ValidationFinding]:
+        out: list[ValidationFinding] = []
+        policy = context.autonomy_policy
+        if policy is None:
+            return out
+        if policy.active_mode == "governed_unbounded":
+            if context.agent_policy is None:
+                out.append(
+                    ValidationFinding(
+                        code="unbounded_autonomy_without_agent_policy",
+                        status="fail",
+                        validator="autonomy_policy",
+                        message="governed unbounded autonomy requires an agent policy",
+                    )
+                )
+            if not policy.policy_authorized:
+                out.append(
+                    ValidationFinding(
+                        code="unbounded_autonomy_not_authorized",
+                        status="fail",
+                        validator="autonomy_policy",
+                        message="unbounded autonomy is active without policy authorization",
+                        details=policy.to_dict(),
+                    )
+                )
+        requested = str(policy.requested_mode or "").strip().lower()
+        if requested in {"unlimited", "unbounded", "governed_unbounded", "policy_unbounded"}:
+            if policy.active_mode != "governed_unbounded":
+                out.append(
+                    ValidationFinding(
+                        code="autonomy_degraded_by_policy",
+                        status="warn",
+                        validator="autonomy_policy",
+                        message="requested unbounded autonomy was degraded by policy",
+                        details=policy.to_dict(),
                     )
                 )
         return out

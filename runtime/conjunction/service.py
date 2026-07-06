@@ -11,13 +11,14 @@ import json
 from dataclasses import replace
 from typing import Any, Dict, Iterable
 
-from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
+from runtime.memory.mfm_lite.retrieval import MemoryRetrieval, summarize_retrieval_hits
 from runtime.storage.records import utc_now_iso
 from runtime.world.registry import get_scenario
 
 from .compensations import CompensationMatrix
 from .contracts import (
     AgentPolicy,
+    AutonomyPolicy,
     CausalAssumption,
     CompensationAction,
     CompensationStatus,
@@ -80,6 +81,9 @@ class OperationalConjunctionLayer:
                 context.agent_policy.allows(context.requested_action)
                 if context.agent_policy else not context.is_critical_action()
             ),
+            "autonomy_policy": (
+                context.autonomy_policy.to_dict() if context.autonomy_policy else None
+            ),
             "automatic_execution_allowed": final_decision in {
                 "allow",
                 "allow_with_compensation",
@@ -135,6 +139,7 @@ class OperationalConjunctionLayer:
         external_input: float | None,
         allow_external_reasoner: bool = False,
         max_compute_tier: ComputeTier = "tier_2_specialized",
+        autonomy_policy: str = "bounded",
     ) -> OperationalConjunctionResult:
         context = self._build_life_context(
             run_id=run_id,
@@ -146,6 +151,7 @@ class OperationalConjunctionLayer:
             external_input=external_input,
             allow_external_reasoner=allow_external_reasoner,
             max_compute_tier=max_compute_tier,
+            autonomy_policy=autonomy_policy,
         )
         return self.evaluate(context)
 
@@ -161,6 +167,7 @@ class OperationalConjunctionLayer:
         external_input: float | None,
         allow_external_reasoner: bool,
         max_compute_tier: ComputeTier,
+        autonomy_policy: str,
     ) -> OperationContext:
         action = str(getattr(decision, "action", "act"))
         task_type = self._task_type(action)
@@ -184,6 +191,9 @@ class OperationalConjunctionLayer:
         )
         causal = self._causal_assumptions(scenario=scenario, evidence=evidence)
         resource_pressure = float(getattr(vitals, "resource_pressure", 0.0) or 0.0)
+        raw_risk = float(getattr(vitals, "risk_score", 0.0) or 0.0)
+        if int(getattr(vitals, "episode_count", 0) or 0) <= 0 and action == "act":
+            raw_risk = min(raw_risk, 0.50)
         constraints = OperationalConstraints(
             max_compute_tier=(
                 "tier_0_deterministic" if resource_pressure >= 0.90 else max_compute_tier
@@ -192,19 +202,26 @@ class OperationalConjunctionLayer:
             resource_pressure_limit=0.85,
             permitted_actions=self._permitted_actions(allow_external_reasoner),
         )
+        resolved_autonomy = AutonomyPolicy.resolve(
+            requested_mode=autonomy_policy,
+            risk_score=raw_risk,
+            resource_pressure=resource_pressure,
+            memory_purity=float(getattr(vitals, "memory_purity", 1.0) or 1.0),
+            agent_policy_present=True,
+            operational_conjunction_enabled=True,
+            resource_pressure_limit=0.85,
+        )
         agent_policy = AgentPolicy(
             role="life_kernel",
             allowed_actions=self._permitted_actions(allow_external_reasoner),
             prohibited_actions=() if allow_external_reasoner else ("consult_external",),
             budget_units=1.0,
+            max_steps=0 if resolved_autonomy.active_mode == "governed_unbounded" else 1,
             requires_plan_for_critical=True,
             rollback_required_for_critical=True,
         )
         complexity = self._complexity_for(action=action, goals=goals)
         uncertainty = self._uncertainty(vitals=vitals, evidence=evidence)
-        raw_risk = float(getattr(vitals, "risk_score", 0.0) or 0.0)
-        if int(getattr(vitals, "episode_count", 0) or 0) <= 0 and action == "act":
-            raw_risk = min(raw_risk, 0.50)
         directives = getattr(decision, "directives", {}) or {}
         return OperationContext.create(
             run_id=run_id,
@@ -217,6 +234,7 @@ class OperationalConjunctionLayer:
             causal_assumptions=causal,
             constraints=constraints,
             agent_policy=agent_policy,
+            autonomy_policy=resolved_autonomy,
             risk_score=raw_risk,
             complexity_score=complexity,
             resource_pressure=resource_pressure,
@@ -229,6 +247,7 @@ class OperationalConjunctionLayer:
                 "requested_tool": directives.get("requested_tool"),
                 "agent_step_count": int(directives.get("agent_step_count", 0) or 0),
                 "human_approved": bool(directives.get("human_approved")),
+                "autonomy_policy": resolved_autonomy.to_dict(),
             },
         )
 
@@ -476,6 +495,21 @@ class OperationalConjunctionLayer:
             directive["executed"] = True
             directive["execution"] = "agent_stop_condition_applied"
 
+        elif action.code == "degrade_autonomy_scope":
+            context = replace(
+                context,
+                metadata={
+                    **metadata,
+                    "autonomy_degraded": True,
+                    "autonomy_degradation_reason": directive.get("finding_details", {}).get(
+                        "degradation_reason",
+                        action.reason,
+                    ),
+                },
+            )
+            directive["executed"] = True
+            directive["execution"] = "autonomy_scope_degraded_to_bounded"
+
         else:
             context = replace(context, metadata={**metadata, "scope_reduced": True})
             directive["executed"] = True
@@ -508,6 +542,7 @@ class OperationalConjunctionLayer:
             if not hits:
                 return ()
             top = hits[0]
+            attestation = top.get("rag_attestation") if isinstance(top, dict) else None
             return (
                 EvidenceItem.create(
                     kind="memory_rag",
@@ -516,6 +551,7 @@ class OperationalConjunctionLayer:
                     payload={
                         "hit_count": len(hits),
                         "top": top,
+                        "rag_attestation": attestation,
                         "retrieval_strategy": [
                             "exact_event_search",
                             "structural_overlap",
@@ -616,7 +652,11 @@ class OperationalConjunctionLayer:
             ],
         ]
         hits.sort(key=lambda item: (bool(item.get("canonical")), float(item.get("score", 0.0))), reverse=True)
-        return hits[:5]
+        selected = hits[:5]
+        attestation = summarize_retrieval_hits(selected)
+        for hit in selected:
+            hit.setdefault("rag_attestation", attestation)
+        return selected
 
     def _exact_event_search(
         self,
@@ -889,6 +929,9 @@ class OperationalConjunctionLayer:
             "complexity_score": context.complexity_score,
             "resource_pressure": context.resource_pressure,
             "uncertainty_score": context.uncertainty_score,
+            "autonomy_policy": (
+                context.autonomy_policy.to_dict() if context.autonomy_policy else None
+            ),
         }
 
     def _persist_compensation_execution(

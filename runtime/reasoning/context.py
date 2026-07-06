@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, Mapping
 
+from runtime.memory.mfm_lite import summarize_retrieval_hits
+
 
 _CLOSURE_PROFILE_TO_MODE = {
     "baseline_fixed": "fixed",
@@ -53,6 +55,7 @@ def build_reasoning_context(
 ) -> Dict[str, Any]:
     """Construye el contexto canónico consumido por el scheduler."""
     memory = [_safe_copy(item) for item in list(memory_hits or [])]
+    memory_rag_attestation = summarize_retrieval_hits(memory)
     context: Dict[str, Any] = {
         "episode_id": episode_id,
         "run_id": run_id,
@@ -60,6 +63,8 @@ def build_reasoning_context(
         "intervention": intervention,
         "memory_hits": memory,
         "retrieved_memory": memory,
+        "memory_rag_attestation": memory_rag_attestation,
+        "memory_purity_confidence": memory_rag_attestation.get("retrieval_purity"),
         "closure_profile": closure_profile,
         "reasoning_mode": reasoning_mode or resolve_reasoning_mode(closure_profile),
     }

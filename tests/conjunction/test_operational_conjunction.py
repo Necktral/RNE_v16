@@ -2,6 +2,7 @@ from pathlib import Path
 
 from runtime.conjunction import (
     AgentPolicy,
+    AutonomyPolicy,
     CausalAssumption,
     EvidenceItem,
     OperationalConjunctionLayer,
@@ -142,6 +143,18 @@ def test_missing_memory_rag_executes_verified_recovery(tmp_path: Path):
         limit=5,
     )
     assert events
+    evaluated = storage.list_events(
+        run_id="op-memory-recovery",
+        event_types=["operational.conjunction.evaluated"],
+        limit=1,
+    )
+    memory_evidence = [
+        item
+        for item in evaluated[0].payload["context"]["available_evidence"]
+        if item["kind"] == "memory_rag"
+    ]
+    assert memory_evidence[0]["payload"]["rag_attestation"]["validation_status"] == "pass"
+    assert memory_evidence[0]["payload"]["rag_attestation"]["retrieval_purity"] == 1.0
 
 
 def test_contradictory_evidence_blocks_fusion():
@@ -250,6 +263,68 @@ def test_human_approval_required_blocks_critical_agent_action():
     assert any(item.code == "require_human_approval" for item in result.compensations)
 
 
+def test_governed_unbounded_autonomy_is_authorized_by_policy():
+    autonomy = AutonomyPolicy.resolve(
+        requested_mode="unlimited",
+        risk_score=0.20,
+        resource_pressure=0.10,
+        memory_purity=0.95,
+        agent_policy_present=True,
+    )
+    context = OperationContext.create(
+        run_id="op-autonomy-unbounded",
+        user_intent="maintain_unbounded_policy_runtime",
+        task_type="life_cycle",
+        requested_action="act",
+        available_evidence=[
+            EvidenceItem.create(kind="vital_signs", source="test", confidence=1.0)
+        ],
+        agent_policy=AgentPolicy(
+            role="life_kernel",
+            allowed_actions=("act",),
+            max_steps=0,
+        ),
+        autonomy_policy=autonomy,
+        metadata={"agent_step_count": 100},
+    )
+
+    result = OperationalConjunctionLayer().evaluate(context)
+
+    assert result.final_decision == "allow"
+    assert result.execution_permissions["autonomy_policy"]["active_mode"] == "governed_unbounded"
+    assert result.execution_permissions["autonomy_policy"]["policy_authorized"] is True
+    assert not any(item.code == "agent_step_limit_exceeded" for item in result.validation_findings)
+
+
+def test_unbounded_autonomy_degrades_under_resource_pressure():
+    autonomy = AutonomyPolicy.resolve(
+        requested_mode="unlimited",
+        risk_score=0.20,
+        resource_pressure=0.92,
+        memory_purity=0.95,
+        agent_policy_present=True,
+    )
+    context = OperationContext.create(
+        run_id="op-autonomy-degraded",
+        user_intent="maintain_unbounded_policy_runtime",
+        task_type="life_cycle",
+        requested_action="act",
+        available_evidence=[
+            EvidenceItem.create(kind="vital_signs", source="test", confidence=1.0)
+        ],
+        agent_policy=AgentPolicy(role="life_kernel", allowed_actions=("act",)),
+        autonomy_policy=autonomy,
+        resource_pressure=0.92,
+    )
+
+    result = OperationalConjunctionLayer().evaluate(context)
+
+    assert result.final_decision == "allow_with_compensation"
+    assert result.context_summary["autonomy_policy"]["active_mode"] == "bounded"
+    assert any(item.code == "degrade_autonomy_scope" for item in result.compensations)
+    assert any(item.code == "autonomy_degraded_by_policy" for item in result.validation_findings)
+
+
 def test_life_kernel_persists_operational_conjunction_trace(tmp_path: Path):
     storage = _storage(tmp_path)
     kernel = LifeKernel(
@@ -321,3 +396,24 @@ def test_life_kernel_can_disable_operational_conjunction(tmp_path: Path):
         limit=5,
     )
     assert events == []
+
+
+def test_life_kernel_propagates_governed_unbounded_autonomy_policy(tmp_path: Path):
+    storage = _storage(tmp_path)
+    kernel = LifeKernel(
+        config=LifeKernelConfig(
+            run_id="life-conjunction-unbounded",
+            scenarios=("thermal_homeostasis",),
+            restore=False,
+            enable_msrc=False,
+            autonomy_policy="unlimited",
+        ),
+        storage=storage,
+    )
+
+    result = kernel.step(external_input=0.05)
+
+    policy = result.operational["context_summary"]["autonomy_policy"]
+    assert policy["requested_mode"] == "unlimited"
+    assert policy["active_mode"] == "governed_unbounded"
+    assert policy["policy_authorized"] is True

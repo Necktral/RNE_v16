@@ -16,6 +16,7 @@ from .causal_signature import (
     InterventionEffect,
     ScenarioCausalSignature,
 )
+from .causal_attestation import build_causal_attestation
 from .alignment import (
     AlignmentPair,
     AlignmentResult,
@@ -64,6 +65,7 @@ __all__ = [
     "CausalEdge",
     "InterventionEffect",
     "ScenarioCausalSignature",
+    "build_causal_attestation",
     # Alignment
     "AlignmentPair",
     "AlignmentResult",

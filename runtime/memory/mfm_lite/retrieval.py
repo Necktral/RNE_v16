@@ -10,6 +10,47 @@ from runtime.storage import StorageFacade
 _CROSS_SCENARIO_PENALTY = 0.5
 
 
+def summarize_retrieval_hits(hits: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build a compact, JSON-friendly RAG attestation from retrieval hits."""
+    if not hits:
+        return {
+            "schema": "memory_rag_attestation.v1",
+            "returned_count": 0,
+            "retrieval_purity": None,
+            "validation_status": "warn",
+            "degradation_level": "no_memory",
+            "trace_memory_ids": [],
+        }
+    first_attestation = hits[0].get("rag_attestation")
+    if isinstance(first_attestation, dict):
+        return dict(first_attestation)
+
+    same = 0
+    cross = 0
+    trace_ids: list[str] = []
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        if hit.get("memory_id") is not None:
+            trace_ids.append(str(hit["memory_id"]))
+        if hit.get("analogical_source"):
+            cross += 1
+        else:
+            same += 1
+    total = same + cross
+    purity = (same / total) if total else None
+    return {
+        "schema": "memory_rag_attestation.v1",
+        "returned_count": total,
+        "returned_same_scenario_count": same,
+        "returned_cross_scenario_count": cross,
+        "retrieval_purity": round(purity, 4) if purity is not None else None,
+        "validation_status": "warn" if cross else "pass",
+        "degradation_level": "analogical_penalized" if cross else "strict_isolated",
+        "trace_memory_ids": trace_ids,
+    }
+
+
 class MemoryRetrieval:
     def __init__(self, *, storage: StorageFacade):
         self.storage = storage
@@ -50,8 +91,9 @@ class MemoryRetrieval:
             limit=max(20, limit * 4),
         )
 
-        same_scenario_count = 0
-        cross_scenario_count = 0
+        candidate_same_scenario_count = 0
+        candidate_cross_scenario_count = 0
+        filtered_cross_scenario_count = 0
         penalty_applied = False
 
         scored = []
@@ -73,11 +115,12 @@ class MemoryRetrieval:
                     is_same_scenario = item_version == scenario_version
 
                 if is_same_scenario:
-                    same_scenario_count += 1
+                    candidate_same_scenario_count += 1
                 else:
-                    cross_scenario_count += 1
+                    candidate_cross_scenario_count += 1
                     is_cross_scenario = True
                     if scenario_filter_mode == "strict_same_scenario":
+                        filtered_cross_scenario_count += 1
                         continue  # Discard cross-scenario memory
                     # Analogical mode: penalize but keep
                     score *= _CROSS_SCENARIO_PENALTY
@@ -88,6 +131,18 @@ class MemoryRetrieval:
         scored.sort(key=lambda pair: pair[0], reverse=True)
         out = []
         for score, item, is_cross in scored[:limit]:
+            meta = item.metadata or {}
+            scenario_metadata = meta.get("scenario_metadata", {})
+            item_scenario = (
+                scenario_metadata.get("scenario_name")
+                if isinstance(scenario_metadata, dict)
+                else None
+            ) or meta.get("scenario_name")
+            item_version = (
+                scenario_metadata.get("scenario_version")
+                if isinstance(scenario_metadata, dict)
+                else None
+            ) or meta.get("scenario_version")
             entry: Dict[str, Any] = {
                 "memory_id": item.memory_id,
                 "scale": item.scale,
@@ -95,20 +150,69 @@ class MemoryRetrieval:
                 "structure": item.structure_json,
                 "ioc_proxy": item.ioc_proxy,
                 "support_count": item.support_count,
+                "scenario_name": item_scenario,
+                "scenario_version": item_version,
+                "certificate_id": item.certificate_id,
             }
             if is_cross:
                 entry["analogical_source"] = True
             out.append(entry)
 
+        returned_same_scenario_count = sum(1 for entry in out if not entry.get("analogical_source"))
+        returned_cross_scenario_count = sum(1 for entry in out if entry.get("analogical_source"))
+        returned_count = len(out)
+        retrieval_purity = (
+            returned_same_scenario_count / returned_count
+            if returned_count
+            else None
+        )
+        if scenario_name is None:
+            validation_status = "pass"
+            degradation_level = "unfiltered"
+        elif returned_count == 0:
+            validation_status = "warn"
+            degradation_level = "no_memory"
+        elif scenario_filter_mode == "strict_same_scenario" and returned_cross_scenario_count:
+            validation_status = "fail"
+            degradation_level = "strict_policy_violation"
+        elif returned_cross_scenario_count:
+            validation_status = "warn"
+            degradation_level = "analogical_penalized"
+        else:
+            validation_status = "pass"
+            degradation_level = "strict_isolated"
+
         # Attach retrieval metrics to each result for observability
         retrieval_metrics = {
-            "retrieved_same_scenario_count": same_scenario_count,
-            "retrieved_cross_scenario_count": cross_scenario_count,
+            "retrieved_same_scenario_count": returned_same_scenario_count,
+            "retrieved_cross_scenario_count": returned_cross_scenario_count,
+            "candidate_same_scenario_count": candidate_same_scenario_count,
+            "candidate_cross_scenario_count": candidate_cross_scenario_count,
+            "filtered_cross_scenario_count": filtered_cross_scenario_count,
             "scenario_filter_mode": scenario_filter_mode,
             "cross_scenario_penalty_applied": penalty_applied,
+            "retrieval_purity": retrieval_purity,
+        }
+        rag_attestation = {
+            "schema": "memory_rag_attestation.v1",
+            "scenario_filter_mode": scenario_filter_mode,
+            "query_scenario": scenario_name,
+            "query_scenario_version": scenario_version,
+            "returned_count": returned_count,
+            "returned_same_scenario_count": returned_same_scenario_count,
+            "returned_cross_scenario_count": returned_cross_scenario_count,
+            "candidate_same_scenario_count": candidate_same_scenario_count,
+            "candidate_cross_scenario_count": candidate_cross_scenario_count,
+            "filtered_cross_scenario_count": filtered_cross_scenario_count,
+            "cross_scenario_penalty_applied": penalty_applied,
+            "retrieval_purity": round(retrieval_purity, 4) if retrieval_purity is not None else None,
+            "validation_status": validation_status,
+            "degradation_level": degradation_level,
+            "trace_memory_ids": [str(entry["memory_id"]) for entry in out],
         }
         for entry in out:
             entry["retrieval_metrics"] = retrieval_metrics
+            entry["rag_attestation"] = rag_attestation
 
         return out
 

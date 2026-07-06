@@ -7,6 +7,7 @@ cross-scenario y que en modo analógico se penalizan correctamente.
 from pathlib import Path
 
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
+from runtime.reasoning.context import build_reasoning_context
 from runtime.storage import StorageConfig, StorageFactory
 from runtime.world.scenario_runner import ScenarioEpisodeRunner
 
@@ -133,3 +134,73 @@ class TestMemoryScenarioFiltering:
         for hit in hits:
             assert hit.get("analogical_source") is not True
         storage.close()
+
+    def test_rag_attestation_separates_filtered_from_returned_cross_scenario(self, tmp_path: Path):
+        storage = _storage(tmp_path)
+        run_id = "run-rag-attestation"
+        storage.write_memory_record(
+            run_id=run_id,
+            episode_id="episode-thermal",
+            scale="micro",
+            structure_json={"proposition": "TEMP_HIGH", "alarm": True},
+            metadata={"scenario_name": "thermal_homeostasis"},
+            memory_id="mem-thermal",
+        )
+        storage.write_memory_record(
+            run_id=run_id,
+            episode_id="episode-resource",
+            scale="micro",
+            structure_json={"proposition": "TEMP_HIGH", "alarm": True},
+            metadata={"scenario_name": "resource_management"},
+            memory_id="mem-resource",
+        )
+
+        retrieval = MemoryRetrieval(storage=storage)
+        strict_hits = retrieval.retrieve(
+            run_id=run_id,
+            query={"proposition": "TEMP_HIGH", "alarm": True},
+            limit=10,
+            scenario_name="thermal_homeostasis",
+            scenario_filter_mode="strict_same_scenario",
+        )
+        strict_attestation = strict_hits[0]["rag_attestation"]
+        strict_metrics = strict_hits[0]["retrieval_metrics"]
+        assert strict_attestation["validation_status"] == "pass"
+        assert strict_attestation["retrieval_purity"] == 1.0
+        assert strict_metrics["retrieved_cross_scenario_count"] == 0
+        assert strict_metrics["filtered_cross_scenario_count"] == 1
+        assert strict_attestation["trace_memory_ids"] == ["mem-thermal"]
+
+        analog_hits = retrieval.retrieve(
+            run_id=run_id,
+            query={"proposition": "TEMP_HIGH", "alarm": True},
+            limit=10,
+            scenario_name="thermal_homeostasis",
+            scenario_filter_mode="analogical",
+        )
+        analog_attestation = analog_hits[0]["rag_attestation"]
+        assert analog_attestation["validation_status"] == "warn"
+        assert analog_attestation["retrieval_purity"] == 0.5
+        assert analog_attestation["returned_cross_scenario_count"] == 1
+        assert set(analog_attestation["trace_memory_ids"]) == {"mem-thermal", "mem-resource"}
+        storage.close()
+
+    def test_reasoning_context_propagates_memory_rag_attestation(self):
+        context = build_reasoning_context(
+            episode_id="episode-rag-context",
+            run_id="run-rag-context",
+            observation={"alarm": True},
+            intervention="activate_cooling",
+            memory_hits=[
+                {
+                    "memory_id": "mem-a",
+                    "rag_attestation": {
+                        "schema": "memory_rag_attestation.v1",
+                        "returned_count": 2,
+                        "retrieval_purity": 0.5,
+                    },
+                }
+            ],
+        )
+        assert context["memory_purity_confidence"] == 0.5
+        assert context["memory_rag_attestation"]["returned_count"] == 2

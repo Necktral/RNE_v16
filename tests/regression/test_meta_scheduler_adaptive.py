@@ -95,3 +95,80 @@ def test_meta_scheduler_adaptive_trace_contains_selection_metadata():
     assert "early_stop" in first["detail"]
     assert any(step["family"] == "DIA_ADV" for step in result["trace"])
     assert any(step["family"] == "FAL_GUARD" for step in result["trace"])
+
+
+def test_meta_scheduler_reports_gpu_governance_and_degradation():
+    scheduler = MetaScheduler(mode="adaptive")
+    result = scheduler.run(
+        {
+            "run_id": "run-gpu-governance",
+            "uncertainty": 0.3,
+            "counterfactual_gap": 0.2,
+            "pattern_without_structure_signal": 0.55,
+            "gpu_available": True,
+            "gpu_load": 0.1,
+            "vram_headroom": 0.85,
+            "vram_opportunity_score": 0.90,
+            "autonomy_policy": "unlimited",
+            "retrieved_memory": [
+                {"scenario_name": "grid_thermal"},
+                {"metadata": {"scenario_name": "grid_thermal"}},
+            ],
+            "scenario_name": "grid_thermal",
+        }
+    )
+
+    governance = result["governance"]
+    assert governance["schema"] == "reasoning_governance.v1"
+    assert governance["memory_rag"]["retrieved_count"] == 2
+    assert governance["memory_rag"]["purity"] == 1.0
+    assert governance["hardware"]["gpu_acceleration"] >= 0.70
+    assert governance["hardware"]["gpu_budget_bonus"] is True
+    assert governance["graceful_degradation"]["level"] == "nominal"
+    assert governance["autonomy"]["mode"] == "governed_unbounded"
+    assert result["trace"][0]["detail"]["governance"] == governance
+
+
+def test_meta_scheduler_respects_central_autonomy_policy_degradation():
+    scheduler = MetaScheduler(mode="adaptive")
+    result = scheduler.run(
+        {
+            "run_id": "run-autonomy-central-policy",
+            "uncertainty": 0.2,
+            "counterfactual_gap": 0.1,
+            "autonomy_policy": {
+                "requested_mode": "unlimited",
+                "active_mode": "bounded",
+                "policy_authorized": False,
+                "degradation_reason": "resource_pressure_limit",
+            },
+        }
+    )
+
+    autonomy = result["governance"]["autonomy"]
+    assert autonomy["source"] == "operational_conjunction"
+    assert autonomy["requested"] == "unlimited"
+    assert autonomy["mode"] == "bounded"
+    assert autonomy["policy_authorized"] is False
+
+
+def test_meta_scheduler_degradation_plan_reacts_to_causal_failure():
+    scheduler = MetaScheduler(mode="adaptive")
+    result = scheduler.run(
+        {
+            "run_id": "run-causal-degradation-plan",
+            "uncertainty": 0.1,
+            "counterfactual_gap": 0.05,
+            "causal_attestation": {
+                "schema": "causal_attestation.v1",
+                "validation_status": "fail",
+                "degradation_level": "relation_mismatch",
+            },
+        }
+    )
+
+    plan = result["governance"]["degradation_plan"]
+    assert plan["level"] == "causal_recovery"
+    assert plan["severity"] >= 0.90
+    assert "force_causal_counterfactual_recheck" in plan["actions"]
+    assert result["governance"]["graceful_degradation"]["level"] == "causal_recovery"
