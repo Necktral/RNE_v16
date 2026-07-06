@@ -24,8 +24,10 @@ from runtime.reality.belief_state import BeliefState, build_belief_state
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
 from runtime.storage.records import utc_now_iso
+from runtime.reasoning.families import a12 as a12_family
 from runtime.world.intervention_override import (
     OverrideDecision,
+    evaluate_foresight_override,
     evaluate_override,
     is_actuation_enabled,
     outcome_effectiveness,
@@ -219,6 +221,31 @@ class ScenarioEpisodeRunner:
             direction = str(self.scenario.causal_signature.optimization_direction)
         except Exception:
             direction = "minimize"
+        allowed = list(self.scenario.config.interventions)
+
+        # 1) Override de PREVISIÓN (A11+A12): guard de horizonte, corre primero. A12
+        # ya integró toda la evidencia (no-monotonía + Bayes-factor + ACT) y A11
+        # certificó el breach diferido del greedy; el guard de un paso lo vetaría.
+        #
+        # El decisor A12 debe usar la traza COMPLETA. El scheduler puede ejecutarlo
+        # antes que otras familias; para la ACTUACIÓN lo recomputamos sobre el estado
+        # final (ya con todas las claves: imagination_*/ctf/cau/ded/prob). Gated
+        # internamente por RNFE_A12_DEEP (idle ⇒ sin claves ⇒ no dispara).
+        a12_delta = a12_family.execute(reasoning_state).get("state_delta", {})
+        foresight_state = {**reasoning_state, **a12_delta} if a12_delta else reasoning_state
+        foresight = evaluate_foresight_override(
+            reasoning_state=foresight_state,
+            allowed_interventions=allowed,
+            greedy_intervention=greedy_intervention,
+        )
+        if foresight.fired:
+            candidate = self.scenario.factual_transition(
+                intervention=foresight.to_intervention, external_input=external_input
+            )
+            return foresight, candidate
+
+        # 2) Override greedy guardado de UN paso (existente): conflicto estructural +
+        # familia deliberativa (opt/plan/ind) + mejora inmediata certificada.
         sim_cache: Dict[str, Any] = {}
 
         def simulate_value(intervention: str) -> float:

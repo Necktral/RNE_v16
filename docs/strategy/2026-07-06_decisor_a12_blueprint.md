@@ -103,7 +103,21 @@ Entregado: [`runtime/reasoning/families/a12/__init__.py`](../../runtime/reasonin
 
 **Composición A11→A12 end-to-end** (escenario real → A11 real → A12 real, 25 pasos): A12 adopta `shed` leyendo la previsión de A11 y **evita la trampa (0 breaches)** — la misma ganancia que A11, ahora tomada como *decisión lógica* integrando toda la evidencia, no como una regla directa.
 
-**Pendiente (Fase 3):** cablear `a12_decision` a `intervention_override.py` (gated por `RNFE_REASONING_ACTUATES` + checkpoint sano + riesgo bajo) para actuar en la decisión viva.
+### Resultado Fase 3 — cableado a la decisión VIVA (2026-07-06) ✅
+
+Entregado:
+- **Override de previsión** `evaluate_foresight_override()` en [`intervention_override.py`](../../runtime/world/intervention_override.py): guard de **horizonte** (no de un paso — el guard miope vetaría la acción previsora). Dispara si A12 adoptó una alternativa y A11 certificó el breach diferido del greedy.
+- **Cableado en el runner** [`scenario_runner._maybe_override_intervention`](../../runtime/world/scenario_runner.py): corre PRIMERO (antes del override greedy), gated por `RNFE_REASONING_ACTUATES` (sombra OFF ⇒ byte-idéntico). Como el scheduler puede ejecutar A12 antes que otras familias, **A12 se recomputa sobre el estado final completo** en el punto de actuación (robusto a cualquier orden).
+- **ACT extendido**: A12 hace *commit* también cuando A11 **certifica por horizonte** (predijo el breach y recomienda la candidata) — un rollout multi-paso determinista, no una conjetura probabilística.
+
+**Cableado vivo, demostrado end-to-end** (`ScenarioEpisodeRunner` real sobre `deferred_load_trap`, perfil `core_plus_imagination_a12`, flags ON):
+```
+override: fired=True  driver=a12  boost_throughput → shed_load  guard=foresight_horizon
+intervención aplicada: shed_load
+```
+El greedy elige `boost` (trampa); A11 predice el breach; A12 retracta y adopta `shed` por Bayes-factor; el override lo aplica **en vida**. Con actuación OFF (sombra) el episodio aplica el greedy (`boost`) — byte-idéntico. Tests: cableado (13) + episodio vivo (2) verde; override greedy existente intacto.
+
+**Nota:** la traza advisory `a12_*` puede quedar stale si el scheduler corre A12 temprano; la ACTUACIÓN usa el recómputo sobre el estado final. La protección R1 (checkpoint sano / riesgo) la aporta el `OperationalConjunction` que envuelve el life-step.
 
 ---
 

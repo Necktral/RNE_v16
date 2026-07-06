@@ -81,9 +81,17 @@ def decide(*, default: Optional[str], witnesses: Dict[str, Optional[str]],
         log_bf *= dc.clamp(0.5 + prob_point, 0.0, 1.5)
     bf = math.exp(log_bf) if candidate is not None else 1.0
 
-    # ACT: commit si hay confianza calibrada + evidencia, o si el BF es decisivo.
+    # ACT: commit si hay confianza calibrada + evidencia, si el BF es decisivo, o si
+    # A11 CERTIFICA por horizonte (predijo el breach del default y recomienda la
+    # candidata) — un rollout multi-paso determinista, no una conjetura probabilística.
     evidence_count = len(active_defeaters) + candidate_support
-    confident = (prob_lcb >= _LCB_FLOOR and evidence_count >= _MIN_EVIDENCE) or (bf >= _BF_DECISIVE)
+    foresight_certified = bool(
+        defeaters.get("imagination_breach")
+        and candidate is not None
+        and witnesses.get("imagination") == candidate
+    )
+    confident = ((prob_lcb >= _LCB_FLOOR and evidence_count >= _MIN_EVIDENCE)
+                 or (bf >= _BF_DECISIVE) or foresight_certified)
     act = "commit" if confident else "abstain"
 
     adopt = bool(default_defeated and candidate is not None and bf >= _TAU_BF and act == "commit")

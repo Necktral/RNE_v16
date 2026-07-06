@@ -137,6 +137,44 @@ def guard_candidate(
     return True, "guard_passed", gain
 
 
+def evaluate_foresight_override(
+    *,
+    reasoning_state: Mapping[str, Any],
+    allowed_interventions: Sequence[str],
+    greedy_intervention: str,
+) -> OverrideDecision:
+    """Override guiado por PREVISIÓN (A11) + decisión lógica (A12).
+
+    A diferencia del override greedy (guard de UN paso, que vetaría una acción
+    previsora peor-ahora-mejor-después), aquí el guard es el HORIZONTE:
+      - A12 ya adoptó una alternativa (no-monotonía + Bayes-factor + ACT), y
+      - A11 certifica que la elección greedy cruza la alarma en el horizonte
+        (``imagination_chosen_breaches_at`` no es None).
+    Se adopta la decisión de A12. Sin simulación de un paso (el guard es el rollout
+    multi-paso de A11, no un margen inmediato). Honesto: sin adopción de A12 ni
+    certificación de breach de A11, no dispara.
+    """
+    if reasoning_state.get("a12_adopted_alternative") is not True:
+        return OverrideDecision(fired=False, guard_reason="a12_no_adoption")
+    allowed = {_norm(i): i for i in allowed_interventions}
+    norm = _norm(reasoning_state.get("a12_decision"))
+    if not norm or norm not in allowed:
+        return OverrideDecision(fired=False, guard_reason="a12_decision_not_allowed")
+    if norm == _norm(greedy_intervention):
+        return OverrideDecision(fired=False, guard_reason="a12_matches_greedy")
+    if reasoning_state.get("imagination_chosen_breaches_at") is None:
+        return OverrideDecision(fired=False, guard_reason="no_foresight_breach", conflict=True)
+    return OverrideDecision(
+        fired=True,
+        driver_family="a12",
+        from_intervention=greedy_intervention,
+        to_intervention=allowed[norm],
+        guard_reason="foresight_horizon",
+        margin_gain=0.0,
+        conflict=True,
+    )
+
+
 def evaluate_override(
     *,
     reasoning_state: Mapping[str, Any],

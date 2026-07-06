@@ -252,9 +252,11 @@ class DeferredLoadScenario(CognitiveScenario):
         return self._config.formula_template
 
     def select_intervention(self, observation: ScenarioObservation) -> str:
-        # Política ingenua (víctima de la trampa): ante carga alta, el arreglo inmediato
-        # más fuerte es boost. El organismo previsor debe aprender a preferir shed.
-        if observation.alarm or observation.state.get("load", 0.0) >= 0.75:
+        # Política reactiva ingenua (víctima de la trampa): ante carga elevada elige el
+        # arreglo inmediato más fuerte (boost, el de mayor Δ lineal) — que rebota vía
+        # deuda. El organismo previsor debe aprender a preferir shed; lo hace vía el
+        # override de previsión A11+A12 (bajo RNFE_REASONING_ACTUATES).
+        if observation.state.get("load", 0.0) >= 0.6:
             return "boost_throughput"
         return "shed_load"
 
