@@ -284,6 +284,28 @@ PROFILES: Dict[str, FamilyProfile] = {
         ),
         lab_only=True,
     ),
+    "core_plus_a12": FamilyProfile(
+        name="core_plus_a12",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["a12"],
+        adaptive=False,
+        description=(
+            "Lab: core + decisor A12 (no-monotonía + Bayes-factor + ACT). Advisory: "
+            "activa la variante deep con RNFE_A12_DEEP; nunca decide por sí sola."
+        ),
+        lab_only=True,
+    ),
+    "core_plus_imagination_a12": FamilyProfile(
+        name="core_plus_imagination_a12",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["imagination", "a12"],  # A11 antes que A12: el decisor lee la previsión
+        adaptive=False,
+        description=(
+            "Lab: core + A11 imaginación + A12 decisor. Composición: A11 imagina, A12 "
+            "decide con lógica sobre esa previsión. Advisory (RNFE_IMAGINATION_DEEP + RNFE_A12_DEEP)."
+        ),
+        lab_only=True,
+    ),
 }
 
 
