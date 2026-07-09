@@ -43,3 +43,6 @@ aeon_event_log.db
 rnfe_artifacts/
 data/artifacts/
 data/tmp/
+
+# Scratch de scripts de corrida (sqlite + artefactos por episodio, regenerable)
+data/reports/**/_work/

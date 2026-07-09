@@ -95,15 +95,19 @@ def main(argv=None) -> int:
     parser.add_argument("--steps", type=int, default=15)
     parser.add_argument("--initial-load", type=float, default=0.70)
     parser.add_argument("--output-root", default="data/reports/live_agents_trap")
+    # Almacenamiento de trabajo (sqlite + artefactos por episodio): scratch regenerable.
+    # Va bajo data/tmp/ (gitignored) para no ensuciar la evidencia versionada.
+    parser.add_argument("--work-root", default="data/tmp/live_agents_trap")
     parser.add_argument("--stamp", default=None)
     args = parser.parse_args(argv)
 
     root = Path(args.output_root)
+    work_root = Path(args.work_root)
     results = {}
     for name, cfg in _CONFIGS.items():
         results[name] = run_config(
             name, cfg, steps=args.steps,
-            storage_dir=root / "_work" / name, initial_load=args.initial_load,
+            storage_dir=work_root / name, initial_load=args.initial_load,
         )
 
     print(f"\nCorrida viva A11+A12 @ deferred_load_trap ({args.steps} episodios)\n")
