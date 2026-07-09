@@ -1,0 +1,177 @@
+{
+  "scenario": "deferred_load_trap",
+  "steps": 25,
+  "initial_loads": [
+    0.6,
+    0.65,
+    0.7,
+    0.75
+  ],
+  "generated_at": "2026-07-06T13:53:22.941438",
+  "results": {
+    "baseline_gate_closed": {
+      "config": {
+        "gate_open": false,
+        "checkpoint_healthy": false,
+        "risk": 0.2
+      },
+      "episodes": [
+        {
+          "initial_load": 0.6,
+          "breaches": 22,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.956
+        },
+        {
+          "initial_load": 0.65,
+          "breaches": 22,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9636
+        },
+        {
+          "initial_load": 0.7,
+          "breaches": 23,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9696
+        },
+        {
+          "initial_load": 0.75,
+          "breaches": 23,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9756
+        }
+      ],
+      "total_breaches": 90,
+      "total_steps": 100,
+      "total_overrides": 0,
+      "mean_load": 0.9662
+    },
+    "gated_checkpoint_healthy": {
+      "config": {
+        "gate_open": true,
+        "checkpoint_healthy": true,
+        "risk": 0.2
+      },
+      "episodes": [
+        {
+          "initial_load": 0.6,
+          "breaches": 0,
+          "overrides": 25,
+          "final_load": 0.35,
+          "mean_load": 0.47
+        },
+        {
+          "initial_load": 0.65,
+          "breaches": 0,
+          "overrides": 25,
+          "final_load": 0.4,
+          "mean_load": 0.52
+        },
+        {
+          "initial_load": 0.7,
+          "breaches": 0,
+          "overrides": 25,
+          "final_load": 0.45,
+          "mean_load": 0.57
+        },
+        {
+          "initial_load": 0.75,
+          "breaches": 0,
+          "overrides": 25,
+          "final_load": 0.5,
+          "mean_load": 0.62
+        }
+      ],
+      "total_breaches": 0,
+      "total_steps": 100,
+      "total_overrides": 100,
+      "mean_load": 0.545
+    },
+    "gated_but_no_checkpoint": {
+      "config": {
+        "gate_open": true,
+        "checkpoint_healthy": false,
+        "risk": 0.2
+      },
+      "episodes": [
+        {
+          "initial_load": 0.6,
+          "breaches": 22,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.956
+        },
+        {
+          "initial_load": 0.65,
+          "breaches": 22,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9636
+        },
+        {
+          "initial_load": 0.7,
+          "breaches": 23,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9696
+        },
+        {
+          "initial_load": 0.75,
+          "breaches": 23,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9756
+        }
+      ],
+      "total_breaches": 90,
+      "total_steps": 100,
+      "total_overrides": 0,
+      "mean_load": 0.9662
+    },
+    "gated_but_high_risk": {
+      "config": {
+        "gate_open": true,
+        "checkpoint_healthy": true,
+        "risk": 0.9
+      },
+      "episodes": [
+        {
+          "initial_load": 0.6,
+          "breaches": 22,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.956
+        },
+        {
+          "initial_load": 0.65,
+          "breaches": 22,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9636
+        },
+        {
+          "initial_load": 0.7,
+          "breaches": 23,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9696
+        },
+        {
+          "initial_load": 0.75,
+          "breaches": 23,
+          "overrides": 0,
+          "final_load": 1.0,
+          "mean_load": 0.9756
+        }
+      ],
+      "total_breaches": 90,
+      "total_steps": 100,
+      "total_overrides": 0,
+      "mean_load": 0.9662
+    }
+  }
+}

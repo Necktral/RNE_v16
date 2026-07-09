@@ -1,0 +1,20 @@
+{
+  "campaign_id": "aeon_graded_deep_v1",
+  "generated_at": "2026-07-06T12:19:50.333531",
+  "prompt_1": {
+    "campaign_id": "aeon_graded_deep_v1_prompt1",
+    "root_dir": "data/benchmarks/cognitive_gain/aeon_graded_deep_v1_prompt1",
+    "block_metrics_path": "data/benchmarks/cognitive_gain/aeon_graded_deep_v1_prompt1/block_metrics.jsonl",
+    "regime_cognitive_verdicts_path": "data/benchmarks/cognitive_gain/aeon_graded_deep_v1_prompt1/regime_cognitive_verdicts.json",
+    "cognitive_gain_report_path": "data/benchmarks/cognitive_gain/aeon_graded_deep_v1_prompt1/cognitive_gain_report.md",
+    "primary_verdict": "no hay ganancia cognitiva suficiente",
+    "should_run_family_causal": false
+  },
+  "prompt_2": null,
+  "prompt_3": {
+    "campaign_id": "aeon_graded_deep_v1_prompt3",
+    "intelligence_verdict_path": "data/reports/intelligence_verdict/aeon_graded_deep_v1_prompt3/intelligence_verdict.json",
+    "intelligence_verdict_md_path": "data/reports/intelligence_verdict/aeon_graded_deep_v1_prompt3/intelligence_verdict.md",
+    "dictamen_principal": "hubo mejora estructural pero no cognitiva"
+  }
+}

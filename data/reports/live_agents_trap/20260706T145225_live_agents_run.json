@@ -1,0 +1,22 @@
+{
+  "scenario": "deferred_load_trap",
+  "steps": 15,
+  "initial_load": 0.7,
+  "generated_at": "2026-07-06T14:52:25.485778",
+  "results": {
+    "baseline_core_only": {
+      "breaches": 13,
+      "overrides": 0,
+      "steps": 15,
+      "final_load": 1.0,
+      "mean_load": 0.9493
+    },
+    "agents_live_a11_a12": {
+      "breaches": 0,
+      "overrides": 10,
+      "steps": 15,
+      "final_load": 0.55,
+      "mean_load": 0.62
+    }
+  }
+}
