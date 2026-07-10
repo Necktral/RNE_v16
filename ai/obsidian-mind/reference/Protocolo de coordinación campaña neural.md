@@ -11,6 +11,9 @@ tags:
 
 Regla permanente para el orquestador mientras la **campaña neural** (Codex, N0→N6) corra en paralelo a la reparación ([[RNFE v16 — Backlog de Reparación]]).
 
+> [!abstract] Principio rector — un organismo integral y simbiótico
+> RNFE es UN organismo (axioma **A-M0** de la cúspide `RNFE_canon_matematico_f2_4_v3_0.md`). Reparación y campaña neural no son proyectos separados por un muro: son **funciones simbióticas de un mismo cuerpo**, integradas con sinergia. Esta partición es división del trabajo, no una frontera adversarial; las dependencias de sustrato (§2) son la simbiosis misma. **Ninguna optimización local de una zona es válida si rompe la sinergia del todo.**
+
 ## 1. Partición por zona
 
 - **Reparación (dueña):** kernel/gate, storage, experience/memoria-sustrato, contracts, canon.
