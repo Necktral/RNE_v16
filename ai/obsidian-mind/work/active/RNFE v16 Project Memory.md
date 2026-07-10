@@ -36,6 +36,8 @@ Obsidian Mind is persistent memory for development agents. It does not replace R
 
 ## Related
 
+- [[RNFE v16 — Backlog de Reparación]]
+- [[Cierre de adjudicación y reconciliación externa 2026-07-10]]
 - [[Memories]]
 - [[Key Decisions]]
 - [[Gotchas]]
