@@ -8,6 +8,20 @@ based_on:
   - "RNFE_canon_matematico_f2_4_v3_0.md"
   - "CANON_RNFE_v3_2_rc1.md"
   - "ROADMAP_RNFE_v2.md"
+a14_promotions:
+  ratified: 2026-07-10
+  canonical_home: RNFE_canon_matematico_f2_4_v3_0.md
+  to_normative:
+    - "C^cont (continuidad identitaria) -> axioma A-M5 / criterio C-AC4"
+    - "CVaR_alpha (riesgo de cola) -> axioma A-M6 / criterio C-AC2"
+  to_provisional:
+    - "IoC_star / Omega (cierre estructural con coherencia global)"
+    - "B_safe (barrera unificada de seguridad)"
+    - "recompensa semi-Markov r^(o) (scheduler de razonamientos)"
+  retained_experimental:
+    - "V (kernel de viabilidad)"
+    - "rho_t (morfogenesis tipada) -- normativizar con A5"
+    - "mu_t (ley de linajes) -- ausente en runtime"
 ---
 
 # RNFE — Blueprint Matemático Unificado en LaTeX
