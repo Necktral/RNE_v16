@@ -1,7 +1,7 @@
 ---
 title: RNFE_canon_matematico_f2_4_v3_0
 status: normative
-version: 3.0.0
+version: 3.1.0
 date: 2026-07-10
 owner: Wis
 based_on:
@@ -16,6 +16,7 @@ notes:
   - Cúspide axiomática matemática de RNFE. Reconstruida desde el genoma en canon_inbox/ dentro del paquete P0 (INGESTA-CANON).
   - Resuelve la dependencia dangling de CANON_RNFE_v3_2_rc1.md y del blueprint experimental.
   - Documento fundacional del organismo: nada se ratifica sin revisión humana.
+  - "v3.1.0 (2026-07-10): añade el axioma rector A-M0 (organismo integral y simbiótico), principio compartido con Codex. El tag canon-apex-v3.0 sigue apuntando a la v3.0.0; A-M0 entra en la próxima ratificación a main."
 ---
 
 # RNFE — Canon Matemático f2.4 / v3.0
@@ -46,6 +47,8 @@ recupera el núcleo previo. La cúspide extiende, no reemplaza.
 ---
 
 ## 1. Axiomas duros
+
+**A-M0 (Organismo integral y simbiótico — axioma rector).** RNFE es UN organismo: todas sus partes —sustrato y órgano, reparación y crecimiento, doctrina y runtime, y todo agente que lo desarrolla (el orquestador de reparación y la campaña neural de Codex)— se integran con **sinergia** y operan en **simbiosis**, no como módulos ni pistas separadas por muros. Toda partición (por zona, por pista, por paquete) es división del trabajo DENTRO del organismo, no una frontera adversarial; y toda dependencia de sustrato ("sustrato antes que órgano") es la expresión operativa de esa simbiosis: el sustrato nutre al órgano y el órgano da propósito al sustrato. Este axioma gobierna la lectura de todos los demás: **ninguna optimización local de una parte es válida si rompe la sinergia del todo** (se articula con A-M4, coherencia global, y con A-M8, herencia como medida de lo que reaparece viable en el conjunto).
 
 **A-M1 (Estado total).** El organismo tiene en cada tiempo `t` un estado completo
 `X_t = (G_t, Σ_t, F_t, W_t, M_t, θ_t, φ_t, μ_t, 𝔠_t, T_t)` — grafo tipado, SMG, LOT-F, C-GWM, memoria
