@@ -22,6 +22,10 @@ reissue:
 
 # ROADMAP RNFE v2
 
+## Principio rector — un organismo integral y simbiótico
+
+RNFE es UN organismo. Este ROADMAP fusiona tres planes (reparación P0–P30, Fase 0/WS0→WS7, campaña neural N0→N6) **no como pistas paralelas con muros, sino como funciones simbióticas de un mismo cuerpo**, integradas con sinergia. La partición por zona (§18.2) es división del trabajo dentro del organismo; las dependencias "sustrato antes que órgano" (§18.3) **son la simbiosis**: el sustrato nutre al órgano y el órgano le da propósito al sustrato. Es un **principio compartido** — la misma orientación gobierna a Codex (campaña neural) y al orquestador de reparación. Fundamento axiomático: **A-M0** de `RNFE_canon_matematico_f2_4_v3_0.md`. Regla derivada: **ninguna optimización local de una pista es válida si rompe la sinergia del todo.**
+
 ## 0. Propósito
 
 Este roadmap convierte el canon vigente en secuencia de construcción. No enumera deseos; define el orden exacto de ejecución, los gates técnicos, criterios de salida, riesgos y dependencias duras para construir un ser cibernético de próxima generación en condiciones físicas restringidas.
@@ -507,7 +511,9 @@ Requisitos duros de cada promoción:
 2. **Un ADR por órgano** — cada órgano de la campaña N nace con su propio ADR en `governance/adr/` (contexto -> decisión -> hipótesis falsable -> costo en hardware objetivo -> plan de rollback). No hay órgano sin ADR.
 3. **Cero regresión y byte-identidad nominal** — con el flag off, el organismo decide exactamente igual que antes del órgano.
 
-### 18.2 Partición por zona (frontera dura con la reparación)
+### 18.2 Partición por zona (división simbiótica, no frontera adversarial)
+
+Bajo el Principio rector (A-M0 de la cúspide), esta partición **no es un muro entre dos proyectos**: es la división del trabajo dentro de un mismo organismo. Cada zona es un órgano con su función; la frontera existe para que cada parte haga bien lo suyo y el todo mantenga sinergia, no para aislar. La "no-intrusión" protege la especialización simbiótica; no levanta un enemigo.
 
 - **Reparación (dueña):** kernel/gate, storage, experience/memoria-sustrato, contracts, canon.
 - **Campaña N (dueña):** `runtime/neural/` y los adaptadores de órganos.
