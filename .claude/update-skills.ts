@@ -1,0 +1,1 @@
+../ai/obsidian-mind/.claude/update-skills.ts

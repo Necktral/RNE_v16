@@ -1,0 +1,55 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CODEX_PROJECT_DIR:-.}/ai/obsidian-mind\" && CODEX_PROJECT_DIR=\"$PWD\" node --disable-warning=ExperimentalWarning --experimental-strip-types \".claude/scripts/session-start.ts\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CODEX_PROJECT_DIR:-.}/ai/obsidian-mind\" && CODEX_PROJECT_DIR=\"$PWD\" node --disable-warning=ExperimentalWarning --experimental-strip-types \".claude/scripts/classify-message.ts\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CODEX_PROJECT_DIR:-.}/ai/obsidian-mind\" && CODEX_PROJECT_DIR=\"$PWD\" node --disable-warning=ExperimentalWarning --experimental-strip-types \".claude/scripts/validate-write.ts\"",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CODEX_PROJECT_DIR:-.}/ai/obsidian-mind\" && CODEX_PROJECT_DIR=\"$PWD\" node --disable-warning=ExperimentalWarning --experimental-strip-types \".claude/scripts/qmd-refresh.ts\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CODEX_PROJECT_DIR:-.}/ai/obsidian-mind\" && CODEX_PROJECT_DIR=\"$PWD\" node --disable-warning=ExperimentalWarning --experimental-strip-types \".claude/scripts/stop-checklist.ts\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
