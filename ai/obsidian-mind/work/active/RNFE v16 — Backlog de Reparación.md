@@ -75,7 +75,8 @@ Fuentes autoritativas (fuera del vault): `RNE_v16_analysis/reparacion/adjudicaci
 | **P20** | Migración del ledger core↔storage | código/profundo | B11 | — |
 | **P21** | Flujo de datos experiencia/maestro (auditoría externa) | código/profundo | B42, B43, B44, B45 | — |
 | **P22** | Canal de configuración explícito de ecology | código/profundo | B34 | P16 |
-| **P23** | Identidad e invariante de bloqueo del life kernel | código/profundo | B39, B48, B41 | — |
+| **P23** | Invariante de bloqueo + identidad causal del gate | código/profundo | B39, B48 | — |
+| **P-CADENA-CAUSAL** | Sobre de correlación causal (`CausalContext`) = WS3 | código/profundo | B41 | — |
 | **P24** | Alcanzar tier_3 externo por la vía gobernada | código/profundo | B40 | P14 |
 | **P25** | Telemetría al camino vivo | código/profundo | B12 | — |
 | **P26** | Exocortex al camino vivo | código/profundo | B35 | — |
@@ -105,12 +106,17 @@ Regla permanente: ver [[Protocolo de coordinación campaña neural]]. Partición
 
 **Sustrato antes que órgano — dependencias DURAS de aterrizaje:**
 - **B48 + B39 (gate)** ⟶ prerequisito de **N1**. Se adelanta como **P-SEG** antes de los storage backends: tocan `kernel.py:455-513`; B39 replica el patrón correcto de la rama de paso (500-513) en las 3 ramas transformadoras; B48 = invariante total de bloqueo + `validation_tier`/`execution_tier`. Separar limpio de B41. Tests del hueco H5. `auditor-reparacion` al cierre.
-- **B41 + B42–B45 (identidad y experiencia)** ⟶ prerequisito de **N3**. Se adelantan.
+- **B41 + B42–B45 (identidad y experiencia)** ⟶ prerequisito de **N3**. Se adelantan. B41 vive ahora en **P-CADENA-CAUSAL** (WS3), no en P23.
 
-### Encolado — P1 ampliado a FUSIÓN DE TRES PLANES  [NO despachar hasta que lo pidas]
-- **P1 = B → `ejecutor-profundo`, escritura en `canon/provisional`.** Re-emitir el ROADMAP fusionando **tres** planes en uno solo activo: **P0–P30** (reparación), **Fase 0/WS0→WS7** (docs/strategy) y la **campaña neural N0→N6** (Codex). Tabla de correspondencia de **tres columnas** (WS↔P↔N): WS3≈CADENA-CAUSAL · WS1/WS2≈storage B3/B38 · N3/N5≈A9-engines-plena (P30→coordinación) · N6-EVO≈converge con P29/A5 (sandbox con `apply_fn`). La campaña N entra como **track de crecimiento oficial** con disciplina de promoción propia (experimental→shadow→provisional, benchmarks reproducibles, ADR por órgano). Fase vigente: `PENDIENTE-HUMANO`. Más A19 (thermal_homeostasis = PMV) y A17 (escenarios + morfismos reales a SCENARIO_CONTRACTS). PAUSA con el documento.
+> [!success] P1 — RE-EMISIÓN DEL ROADMAP: **RATIFICADO, en `feat`** (2026-07-10)
+> `ROADMAP_RNFE_v2.md` v3.0.0 (fusión de 3 planes P0–P30 / WS0→WS7 / N0→N6, tabla WS↔P↔N, campaña N como track de crecimiento con promoción experimental→shadow→provisional + ADR por órgano) y `SCENARIO_CONTRACTS_v1.md` v1.1.0 (A17: 4 escenarios + 5 morfismos). A19: PMV = `thermal_homeostasis`.
 
-**Foco de revisión al volver P0:** cómo resolvió la **doble capa de A1** (certificado MIDE C^cont / promoción GATEA) — de ahí cuelga toda la doctrina posterior.
+**Deltas de la ratificación de P1:**
+- **`FASE_VIGENTE = 1`** (Infraestructura basal) — **propuesto por el orquestador, PENDIENTE DE CONFIRMACIÓN HUMANA**. Fase 0 se da por cumplida con `canon-apex-v3.0`. Hasta que se confirme, P1 **no pasa a `main`**.
+- **`P-CADENA-CAUSAL`** (nuevo paquete-P profundo, WS3): construye `CausalContext` + cadena por IDs; **B41 se movió aquí desde P23**. Prereq de todo N. *(Su posición de secuencia — foundational WS3 vs. el slot fase-4 que tenía B41 — queda por revisar.)*
+- **N0/N2/N4** + scope fino de N1/N3/N5/N6 = `PENDIENTE-CODEX` (no hay spec en el repo; Codex en pausa).
+
+**Estado git:** P1 committeado en `feat` (canon), **NO en `main`** — `main` queda en `canon-apex-v3.0` (`34cd3a3`) hasta que el número de fase se confirme. La memoria de coordinación se queda en `feat`, fuera de `main`, hasta nuevo aviso.
 
 ## Related
 
