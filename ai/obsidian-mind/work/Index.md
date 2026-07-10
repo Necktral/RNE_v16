@@ -40,7 +40,7 @@ Incident docs live in `work/incidents/`. See `Incidents.base` for overview.
 
 ## Reference
 
--
+- [[Protocolo de coordinación campaña neural]] — partición por zona, sustrato-antes-que-órgano y cadencia de sync con la campaña neural de Codex.
 
 ## Decisions Log
 
