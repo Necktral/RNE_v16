@@ -5,7 +5,7 @@ version: 2.0.0
 date: 2026-03-17
 owner: Wis
 depends_on:
-  - CANON_RNFE_v3_1.md
+  - CANON_RNFE_v3_2_rc1.md
   - SSOT_RAZONAMIENTOS_RNFE_v1.md
 supersedes:
   - RNFE_manual_construccion_por_etapas_v1.md (orden fino)

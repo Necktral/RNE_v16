@@ -6,7 +6,7 @@ date: "2026-03-20"
 author: "OpenAI / ChatGPT"
 based_on:
   - "RNFE_canon_matematico_f2_4_v3_0.md"
-  - "CANON_RNFE_v3_1.md"
+  - "CANON_RNFE_v3_2_rc1.md"
   - "ROADMAP_RNFE_v2.md"
 ---
 
@@ -34,7 +34,7 @@ La intención no es producir un paper decorativo, sino una **base formal de inge
 Este blueprint se subordina explícitamente al tronco normativo vigente:
 
 1. `RNFE_canon_matematico_f2_4_v3_0.md`
-2. `CANON_RNFE_v3_1.md`
+2. `CANON_RNFE_v3_2_rc1.md`
 3. `SSOT_RAZONAMIENTOS_RNFE_v1.md`
 
 Por tanto:

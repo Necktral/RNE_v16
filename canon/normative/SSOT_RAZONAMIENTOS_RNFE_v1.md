@@ -5,7 +5,7 @@ version: 1.0.0
 date: 2026-03-17
 owner: Wis
 depends_on:
-  - CANON_RNFE_v3_1.md
+  - CANON_RNFE_v3_2_rc1.md
 primary_sources:
   - Tipos de Razonamiento Humano y su Replicación en IA.pdf
   - Mejoras en taxonomía de razonamientos.txt
