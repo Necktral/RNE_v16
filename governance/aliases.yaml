@@ -1,4 +1,11 @@
 aliases:
+  # B33 (2026-07-10): CANON §13 exige `roadmap/`. Su función vigente (CANON §12:
+  # "instrumento ejecutivo dependiente del canon, no fuente de axiomas") ya la
+  # cumplen docs/strategy (blueprints/planos ejecutivos) + governance/backlog
+  # (checklists ejecutivos); se registra la equivalencia en vez de duplicar.
+  # `ingest/` (también CANON §13) no tenía equivalente y se creó como directorio
+  # real en la raíz (ver ingest/README.md).
+  roadmap: docs/strategy + governance/backlog
   doc: canon + governance/adr + archive/deprecated/docs
   hnet: engines/hnet
   configs: engines/hnet/configs
