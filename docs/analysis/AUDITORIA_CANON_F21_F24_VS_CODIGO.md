@@ -1,4 +1,28 @@
+---
+status: partially-superseded
+date: 2026-07-10
+tags: [analysis, auditoria, canon, superseded, reasoning-families]
+description: >-
+  Auditoría canon f2.1–f2.4 vs código vivo (snapshot 2026-06-10). Parcialmente
+  superseded (B37): IND/PLAN/OPT computan real y NESY/EVO_SEARCH computan real
+  en modo deep; claims caducos marcados inline.
+superseded_on: 2026-07-10
+superseded_by: B37 (higiene documental, repair/P3)
+superseded_claims:
+  - "Familias IND/PLAN/OPT/NESY/EVO = STUB PURO (hoy computan real; NESY/EVO_SEARCH en deep opt-in)"
+---
+
 # Auditoría: canon matemático RNFE (f2.1–f2.4) ↔ código vivo
+
+> ⚠️ **PARCIALMENTE SUPERSEDED (2026-07-10, higiene B37).** El veredicto "STUB PURO" para
+> IND/PLAN/OPT/NESY/EVO_SEARCH quedó contradicho por el código posterior: IND (inducción con
+> soporte + LCB Agresti-Coull), PLAN (búsqueda hacia adelante sobre el modelo de efectos) y
+> OPT (argmin explicable) computan real siempre; NESY (coherencia símbolo↔número) y
+> EVO_SEARCH (GA determinista sembrado por estado) computan real en modo deep opt-in
+> (`RNFE_REASONING_DEEP`/flags por familia; OFF = idle byte-idéntico). Ver
+> `runtime/reasoning/families/{ind,plan,opt,nesy,evo_search}/__init__.py` y
+> [[18_core_families_real]]. Los claims afectados están marcados inline. El resto del
+> documento sigue vigente como snapshot; ante discrepancia, manda el código.
 
 **Fecha:** 2026-06-10 · **Rama auditada:** `work/external-reasoner-latency-checkpoint` (post-unificación de arquitecturas, storage en PostgreSQL).
 
@@ -61,7 +85,7 @@
 | Perceptores fractales | f2.3 | ❌ NO‑EXISTE | — |
 | Política fractal de modos πₜ(r) | f2.3 | ❌ NO‑EXISTE | `runtime/organism/regime_renormalization.py` |
 | Familias DED/ABD/ANA/CAU/CTF/PROB | doc 1 | ✅ REAL (DED con Z3) | `runtime/reasoning/families/` |
-| Familias IND/PLAN/OPT/NESY/EVO | doc 1 | 🏷️ STUB PURO | `families/{ind,plan,opt,nesy,evo_search}/__init__.py:7` |
+| Familias IND/PLAN/OPT/NESY/EVO | doc 1 | ~~🏷️ STUB PURO~~ **[SUPERSEDED · B37]** hoy ✅ REALES (NESY/EVO_SEARCH en deep opt-in) | `families/{ind,plan,opt,nesy,evo_search}/__init__.py:7` |
 | Motores externos (DoWhy, pgmpy, networkx, causal‑learn) | doc 1 | 🏷️ DEPS FANTASMA (0 imports) | `requirements.reasoning-core-causal.txt` |
 | Razonador LLM gated | — | ✅ REAL (advisory, opt‑in) | `runtime/reasoning/external_models/gating.py` |
 
@@ -270,7 +294,7 @@ Hallazgo notable: **la matemática de f2.2 sí está implementada**, fielmente, 
 | **PROB** | Fusión de evidencia ponderada + **LCB Agresti‑Coull** — [core_inference.py:311-374](../../runtime/reasoning/families/core_inference.py#L311-L374) | ✅ REAL (propio) |
 | HEUR / FAL_GUARD / DIA_ADV | Heurísticas de 1‑2 umbrales (triage, riesgo de falacia, desafío adversarial) | 🟡 overlays mínimos |
 | EML_SR | Regresión simbólica real (tree search prof.≤3 + R² + estabilidad + validez de dominio) en shadow opt‑in — [runtime/symbolic/eml/](../../runtime/symbolic/eml/) | ✅ REAL (shadow) |
-| **IND, PLAN, OPT, NESY, EVO_SEARCH** | `{"status": "idle", "confidence": 0.0}` — [families/ind/__init__.py:7-9](../../runtime/reasoning/families/ind/__init__.py#L7-L9) e idénticos | 🏷️ STUB PURO |
+| **IND, PLAN, OPT, NESY, EVO_SEARCH** | `{"status": "idle", "confidence": 0.0}` — [families/ind/__init__.py:7-9](../../runtime/reasoning/families/ind/__init__.py#L7-L9) e idénticos | ~~🏷️ STUB PURO~~ **[SUPERSEDED · B37]** IND/PLAN/OPT ✅ reales (inducción con LCB / búsqueda hacia adelante / argmin explicable); NESY/EVO_SEARCH ✅ reales en modo deep opt-in (OFF = idle) |
 
 ### 5.2 Deps fantasma — el catálogo está "instalado" pero no conectado
 
@@ -288,7 +312,7 @@ Hallazgo notable: **la matemática de f2.2 sí está implementada**, fielmente, 
 
 ## §6 — Veredicto: ¿es ya el ser del canon?
 
-**No todavía — y la distancia está medida.** Lo que existe hoy es un **organismo certificador determinista de lazo episódico**: percibe → razona (6 familias reales, una con Z3) → interviene → simula contrafactual → se certifica (posterior bayesiano) → transiciona un estado constitucional con viabilidad y linaje. Eso ya es cibernética genuina y es la parte del canon mejor servida (≈ el esqueleto de Xₜ, C^cont, 𝔠ₜ, S‑I‑E aproximado).
+**No todavía — y la distancia está medida.** Lo que existe hoy es un **organismo certificador determinista de lazo episódico**: percibe → razona (6 familias reales, una con Z3 — **[SUPERSEDED · B37]** hoy son más: +IND/PLAN/OPT siempre, +NESY/EVO_SEARCH en deep) → interviene → simula contrafactual → se certifica (posterior bayesiano) → transiciona un estado constitucional con viabilidad y linaje. Eso ya es cibernética genuina y es la parte del canon mejor servida (≈ el esqueleto de Xₜ, C^cont, 𝔠ₜ, S‑I‑E aproximado).
 
 Lo que el canon llama "estar vivo" y "autoevolucionar" está ausente o dormido, en cuatro carencias estructurales:
 
@@ -319,6 +343,9 @@ Orden elegido por dependencias: *primero el gate matemático que hace segura la 
 ### R3 — Scheduler semi‑Markov + familias stub con motores reales
 - Recompensa r = ΔIoC − λE·coste − λB·B_safe estimable offline desde los traces ya persistidos; primero como *scoring* de secuencias (bandit/semi‑Markov tabular), no deep RL.
 - Implementar IND/PLAN/OPT con los motores ya declarados en requirements (pgmpy para inducción de estructura, networkx para matching/planning ligero; OR‑Tools opcional para OPT) — convertir las deps fantasma en deps reales o quitarlas.
+  **[SUPERSEDED parcial · B37]** IND/PLAN/OPT ya se implementaron (motores simbólicos propios
+  en `core_inference.py`, no los del catálogo); las deps fantasma (dowhy/pgmpy/networkx sin
+  imports) siguen siendo un pendiente real.
 
 ### R4 — Edge 2.1/RQA + Dₜ medida
 - RR/DET/dimensión fractal sobre `OrganismTrajectory` (promover el box‑counting de tests a runtime); ρ(J) por diferencias finitas sobre la dinámica del mundo/estado.
