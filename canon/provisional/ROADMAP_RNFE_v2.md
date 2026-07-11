@@ -38,7 +38,7 @@ El corazón de la fusión es la **tabla de correspondencia de tres columnas `WS 
 
 ## 0.2 FASE VIGENTE (campo de gobierno — lo fija el humano)
 
-**`FASE_VIGENTE: 1`** — Fase 1 (Infraestructura basal y observabilidad, §4). Valor **propuesto por el orquestador, sujeto a confirmación humana**: Fase 0 (gobernanza/congelación) se considera cumplida con `canon-apex-v3.0` (canon congelado, SSOT/contratos/aliases establecidos); la reparación foundacional en curso es infraestructura basal. Mantiene en efecto la prohibición de autoevolución de A5 ("no antes de cerrar Fase 5"). El humano confirma o corrige este número antes de que P1 pase a `main`.
+**`FASE_VIGENTE: 1`** — Fase 1 (Infraestructura basal y observabilidad, §4). **CONFIRMADO por el humano (2026-07-10).** Criterio aplicado: la fase más alta cuyos prerequisitos ya están reparados, no la que se aspira. Fase 0 (gobernanza/congelación) queda cumplida con `canon-apex-v3.0` (canon congelado, SSOT/contratos/aliases establecidos); la reparación foundacional en curso es infraestructura basal. Lo central: mantiene viva la prohibición de autoevolución de A5 ("no antes de cerrar Fase 5"), que se **ganará con P29/A5** (gate por veredicto + sandbox que simula), no por decreto.
 
 Esta declaración es la que **desbloquea la adjudicación limpia de A5/J5**: la prohibición de autoevolución legítima está indexada a fase (§13, "no antes de cerrar Fase 5"); sin fase vigente declarada, esa prohibición no tiene contra qué adjudicarse y A5 queda cojo (A20). Fijar el número aquí es prerequisito doctrinal de la corrección de A5.
 
