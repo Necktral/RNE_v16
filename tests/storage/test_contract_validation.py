@@ -294,3 +294,41 @@ def test_non_active_event_types_are_not_validated(storage):
         payload={"cualquier": "cosa"},
     )
     assert storage.list_events(run_id="run-1", event_types=["smg.sign_created"], limit=5)
+
+
+# --------------------------------------------------------------------------- #
+# TRIPWIRE (B60): el mapa EVENT_CONTRACTS está deliberadamente INCOMPLETO.
+# --------------------------------------------------------------------------- #
+
+
+def test_nonconforming_writers_are_not_mapped_as_active_contracts() -> None:
+    """No "completes" EVENT_CONTRACTS: hay writers de rollback/propuesta que NO conforman.
+
+    El contrato de rollback se hace cumplir hoy en 1 de 4 caminos de rollback vivos. Los
+    otros 3 (más un segundo writer de propuesta) emiten payloads que NO cumplen su schema.
+    Mapearlos en ``EVENT_CONTRACTS`` sin arreglar ANTES su payload los haría levantar
+    ``ContractViolationError`` bajo el modo ``strict`` (el default).
+
+    El caso grave es ``life.rollback`` (``runtime/life/kernel.py:677``): su ``append_event``
+    **no está envuelto en try/except**, así que mapearlo **mata al organismo justo en la
+    decisión de rollback** — el camino de refugio que más se necesita.
+
+    Si este test falla: NO saques la entrada del set para "arreglarlo". Arreglá primero el
+    payload del writer para que cumpla su schema (ese trabajo es B60), y recién entonces
+    mapealo en ``EVENT_CONTRACTS`` y sacalo de ``NONCONFORMING_EVENT_TYPES``.
+    """
+    colisiones = cv.NONCONFORMING_EVENT_TYPES & set(cv.EVENT_CONTRACTS)
+    assert not colisiones, (
+        f"event_type(s) {sorted(colisiones)} fueron mapeados como contrato activo, pero su "
+        "writer NO produce un payload conforme: bajo RNFE_CONTRACT_VALIDATION=strict van a "
+        "levantar ContractViolationError. Hay que arreglar el payload del writer primero (B60). "
+        "Caso crítico: 'life.rollback' (runtime/life/kernel.py:677) no tiene try/except -> "
+        "mapearlo mata al organismo en la decisión de rollback."
+    )
+
+
+def test_nonconforming_event_types_are_documented_and_nonempty() -> None:
+    # El set es la documentación ejecutable de la deuda B60: si alguien hace conformar a un
+    # writer y lo mapea, debe sacarlo de acá (y este test lo obliga a mantenerlo coherente).
+    assert cv.NONCONFORMING_EVENT_TYPES, "el set no debe vaciarse sin cerrar B60"
+    assert "life.rollback" in cv.NONCONFORMING_EVENT_TYPES

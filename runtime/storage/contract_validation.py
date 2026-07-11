@@ -57,6 +57,36 @@ EVENT_CONTRACTS: Mapping[str, str] = {
     "life.rollback.restored_checkpoint": "rollback",  # runtime/life/kernel.py
 }
 
+#: PELIGRO — NO "completes" ``EVENT_CONTRACTS`` con estos ``event_type``.
+#:
+#: Hay más writers vivos que emiten eventos de rollback/propuesta, pero HOY **no
+#: conforman** su schema. Mapearlos arriba sin corregir ANTES su payload los haría
+#: levantar ``ContractViolationError`` bajo el modo ``strict`` (el default):
+#:
+#:   - ``life.rollback`` (``runtime/life/kernel.py:677``, ``event_type=f"life.{action}"``):
+#:     su payload no tiene NINGUNO de los 4 ``required`` del rollback, y ese
+#:     ``append_event`` **no está envuelto en try/except**. Mapearlo **mata al organismo
+#:     justo en la decisión de rollback** — el camino de refugio que más se necesita.
+#:   - ``autoevolution.rollback`` (``runtime/organism/autoevolution.py``): faltan
+#:     ``target`` y ``timestamp``.
+#:   - ``msrc.rollback`` (``runtime/control/msrc/scale_audit_logger.py``): faltan
+#:     ``rollback_id``, ``target`` y ``reason``.
+#:   - ``autoevolution.proposal`` (``runtime/organism/autoevolution.py``): usa
+#:     ``changes``/``risk_level`` en vez de ``change``/``risk``, y no emite ``origin``.
+#:
+#: El trabajo de hacerlos conformar —y recién entonces mapearlos— es **B60**. Hasta
+#: entonces, el "contrato activo" de rollback se hace cumplir en 1 de 4 caminos.
+#: ``tests/storage/test_contract_validation.py`` tiene un tripwire que falla si alguien
+#: agrega alguno de estos al mapa.
+NONCONFORMING_EVENT_TYPES = frozenset(
+    {
+        "life.rollback",
+        "autoevolution.rollback",
+        "msrc.rollback",
+        "autoevolution.proposal",
+    }
+)
+
 
 class ContractViolationError(ValueError):
     """El payload no cumple el contrato activo de CANON §13 y no se persiste."""
