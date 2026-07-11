@@ -1,7 +1,7 @@
 ---
 title: ADR_NEURAL_N1_ROUTER
 status: experimental
-version: 1.0.0
+version: 1.1.0
 date: 2026-07-10
 owner: Codex
 ---
@@ -13,6 +13,9 @@ owner: Codex
 Usar un MLP compacto con catálogo versionado y hard masks para proponer familias
 opcionales. Nunca altera backbone ni elude validadores. Sólo se entrena con pares
 contrafactuales reales, separados por generador y semilla.
+Ranking, activación y presupuesto son salidas distintas. Catálogo v2 incorpora
+NESY, EVO_SEARCH, IMAGINATION y A12. Sin utilidad positiva, calibración válida o
+incertidumbre aceptable, la decisión obligatoria es `ABSTAIN`.
 
 ## Hipótesis y coste
 

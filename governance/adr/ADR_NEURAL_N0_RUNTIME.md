@@ -1,7 +1,7 @@
 ---
 title: ADR_NEURAL_N0_RUNTIME
 status: experimental
-version: 1.0.0
+version: 1.1.0
 date: 2026-07-10
 owner: Codex
 ---
@@ -18,6 +18,8 @@ fallos silenciosos de modelos. `lab_only` era metadato, no un gate general.
 Crear `runtime/neural/` puro Python con modos off→experimental→shadow→provisional,
 manifiestos SHA-256, registro lazy, presupuestos físicos, fallback y eventos.
 Todo backend devuelve propuestas; el gate RNFE conserva autoridad.
+Los eventos `neural-events-v1` se bufferizan de forma acotada si storage falla;
+el health expone pérdidas, descartes y recuperación, sin tumbar la inferencia.
 
 ## Hipótesis falsable y coste
 
