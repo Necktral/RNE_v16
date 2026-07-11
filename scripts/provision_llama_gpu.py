@@ -38,6 +38,13 @@ REASONER_SHA256 = "0b7344e4bf1c68fc40c4a10b14b9bd51f367423b8453d83544ea5bdbe08e7
 # GGUF de embeddings (pequeño, ~80MB).
 EMBED_REPO = "nomic-ai/nomic-embed-text-v1.5-GGUF"
 EMBED_FILE = "nomic-embed-text-v1.5.Q4_K_M.gguf"
+# SHA-256 del embed. VACÍO a propósito: no se conoce el hash real sin una
+# descarga verificada previa y NO se inventa un valor. Semántica en
+# `_verify_or_fail`: si está seteado -> fail-closed (igual que el razonador);
+# si está vacío -> advertencia UNVERIFIED explícita (no falla).
+# Para pinnearlo: bajá una vez, verificá el origen del artefacto, y copiá el
+# `sha256=<...>` que imprime la advertencia UNVERIFIED en esta constante.
+EMBED_SHA256 = ""
 
 # llama.cpp NO publica binario CUDA para Linux; el camino que usa la GPU sin toolkit
 # es el backend VULKAN (el RTX 2070 es un dispositivo Vulkan vía el driver NVIDIA).
@@ -84,6 +91,47 @@ def _find_llama_cli(models_root: Path) -> Path | None:
     return Path(found) if found else None
 
 
+def _is_within(base: Path, target: Path) -> bool:
+    """True si `target` (ya resuelto) queda dentro del árbol de `base` (resuelto)."""
+    try:
+        target.relative_to(base)
+        return True
+    except ValueError:
+        return False
+
+
+def _safe_extractall(tf, dest_dir: Path) -> None:
+    """Extracción endurecida de un tar: bloquea tar-slip / Zip-Slip.
+
+    Rechaza, ANTES de escribir nada:
+      - miembros cuya ruta resuelta cae fuera de `dest_dir` (``../`` o rutas absolutas),
+      - symlinks/hardlinks cuyo destino apunta fuera de `dest_dir`.
+
+    En Python 3.12+ aplica además el filtro 'data' de la stdlib como defensa en
+    profundidad; el validador manual garantiza el comportamiento seguro también
+    en <3.12 (donde `extractall(..., filter=...)` no existe).
+    """
+    base = dest_dir.resolve()
+    for member in tf.getmembers():
+        target = (base / member.name).resolve()
+        if not _is_within(base, target):
+            raise ValueError(
+                f"tar inseguro: miembro fuera del destino: {member.name!r}"
+            )
+        if member.issym() or member.islnk():
+            link_target = (target.parent / member.linkname).resolve()
+            if not _is_within(base, link_target):
+                raise ValueError(
+                    f"tar inseguro: link fuera del destino: "
+                    f"{member.name!r} -> {member.linkname!r}"
+                )
+    try:
+        tf.extractall(dest_dir, filter="data")  # type: ignore[call-arg]
+    except TypeError:
+        # Python <3.12: sin kwarg 'filter'. Ya validamos todos los miembros arriba.
+        tf.extractall(dest_dir)  # noqa: S202
+
+
 def _download_llama_vulkan(models_root: Path) -> Path | None:
     import tarfile
     import urllib.request
@@ -95,7 +143,7 @@ def _download_llama_vulkan(models_root: Path) -> Path | None:
     try:
         urllib.request.urlretrieve(LLAMA_VULKAN_URL, tar_path)
         with tarfile.open(tar_path, "r:gz") as tf:
-            tf.extractall(dest_dir)
+            _safe_extractall(tf, dest_dir)
     except Exception as exc:  # noqa: BLE001
         print(f"  ERROR bajando llama.cpp: {type(exc).__name__}: {exc}")
         return None
@@ -167,17 +215,56 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+class IntegrityError(RuntimeError):
+    """Fallo de integridad de un artefacto descargado (fail-closed)."""
+
+
+def _verify_or_fail(path: Path, expected_sha: str, label: str) -> None:
+    """Verifica el SHA-256 de `path` contra `expected_sha`. Fail-closed.
+
+    - `expected_sha` seteado y NO coincide -> borra el artefacto corrupto del
+      disco y lanza ``IntegrityError`` (un mismatch de integridad es un fallo de
+      seguridad, no un warning).
+    - `expected_sha` seteado y coincide     -> OK.
+    - `expected_sha` vacío ("")             -> advertencia UNVERIFIED explícita y
+      NO falla. Espeja el guard ``if REASONER_SHA256 and ...`` original pero es
+      estrictamente mejor que el no-check silencioso: avisa e imprime el hash
+      observado para poder pinnearlo.
+    """
+    expected = (expected_sha or "").strip().lower()
+    if not expected:
+        print(
+            f"  UNVERIFIED [{label}] — sin hash pinneado, no se puede verificar "
+            "integridad; pinnear tras la primera descarga verificada "
+            f"(sha256={_sha256(path)})."
+        )
+        return
+    digest = _sha256(path).lower()
+    if digest != expected:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise IntegrityError(
+            f"[{label}] SHA256 no coincide: {digest} != {expected}. "
+            "Artefacto corrupto borrado del disco (fail-closed)."
+        )
+    print(f"  OK [{label}] SHA256 verificado.")
+
+
 def cmd_download(models_root: Path, *, embeddings: bool) -> int:
     print("== Descarga de artefactos (red) ==")
     paths = _paths(models_root)
     try:
         if not paths["reasoner_gguf"].exists():
             _hf_download(REASONER_REPO, REASONER_FILE, paths["reasoner_gguf"])
-            digest = _sha256(paths["reasoner_gguf"])
-            if REASONER_SHA256 and digest != REASONER_SHA256:
-                print(f"  ADVERTENCIA: SHA256 no coincide ({digest} != {REASONER_SHA256})")
+            _verify_or_fail(paths["reasoner_gguf"], REASONER_SHA256, "reasoner_gguf")
         if embeddings and not paths["embed_gguf"].exists():
             _hf_download(EMBED_REPO, EMBED_FILE, paths["embed_gguf"])
+            _verify_or_fail(paths["embed_gguf"], EMBED_SHA256, "embed_gguf")
+    except IntegrityError as exc:
+        print(f"  ERROR de integridad: {exc}")
+        return 1
     except Exception as exc:  # noqa: BLE001 - reporte claro al usuario
         print(f"  ERROR de descarga: {type(exc).__name__}: {exc}")
         return 1
@@ -192,7 +279,7 @@ def cmd_download(models_root: Path, *, embeddings: bool) -> int:
     return 0
 
 
-def cmd_write_env(models_root: Path, out: Path) -> int:
+def cmd_write_env(models_root: Path, out: Path, *, vk_device: str = "1") -> int:
     cli = _find_llama_cli(models_root)
     paths = _paths(models_root)
     cli_path = str(cli or models_root / "tools/llama.cpp/build-vulkan/llama-cli")
@@ -200,22 +287,33 @@ def cmd_write_env(models_root: Path, out: Path) -> int:
         f'export RNFE_MODELS_ROOT="{models_root}"',
         f'export RNFE_REASONING_GGUF="{paths["reasoner_gguf"]}"',
         f"export RNFE_EXPECTED_GGUF_SHA256={REASONER_SHA256}",
-        # El binario es Vulkan; el config lo usa como "cli cuda" (único camino con -ngl>0).
+        # DEUDA DE NOMENCLATURA (intencional, NO renombrar): el binario es Vulkan,
+        # pero el config del organismo lee estas claves con nombre "CUDA"
+        # (RNFE_LLAMA_CLI_CUDA / RNFE_EXTERNAL_REASONER_BACKEND=cuda) como el único
+        # camino con offload -ngl>0. Renombrarlas ROMPE el contrato config<->script.
+        # La deuda vive en el config, no acá; ver informe (candidata a backlog).
+        "# backend real: vulkan (nombre CUDA por contrato del config)",
         f'export RNFE_LLAMA_CLI_CUDA="{cli_path}"',
         f'export RNFE_LLAMA_CLI_CPU="{cli_path}"',
         "export RNFE_EXTERNAL_REASONER_BACKEND=cuda",
         "export RNFE_EXTERNAL_REASONER_NGL=99",
-        # Aísla el RTX 2070 del iGPU Intel (ajustá el índice si tu layout difiere).
-        "export GGML_VK_VISIBLE_DEVICES=1",
+        # Aísla el RTX 2070 del iGPU Intel. Configurable vía --vk-device o la env
+        # GGML_VK_VISIBLE_DEVICES (ajustá el índice si tu layout difiere; default 1).
+        f"export GGML_VK_VISIBLE_DEVICES={vk_device}",
         "export RNFE_EXTERNAL_REASONER_RUNTIME=1",
         "export RNFE_CONJUNCTION_ROUTING_ENFORCED=1",
+        # Gobernanza del razonador externo: sin estas dos el 7B recién provisto es
+        # inalcanzable. Las lee el launcher scripts/life_kernel.py -> config del
+        # kernel -> router (allow_external + techo tier_3_external). Ver informe (f).
+        "export RNFE_ALLOW_EXTERNAL_REASONER=1",
+        "export RNFE_MAX_COMPUTE_TIER=tier_3_external",
         "export RNFE_HOST_SENSING=1",
         # 'hashed' (CPU): este release de llama.cpp no trae llama-embedding. Para
         # embeddings en GPU: llama-server --embedding (seguimiento aparte).
         "export RNFE_MEMORY_EMBEDDINGS=hashed",
     ]
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Escrito {out}. Cargalo con:  source {out}")
+    print(f"Escrito {out} (GGML_VK_VISIBLE_DEVICES={vk_device}). Cargalo con:  source {out}")
     return 0
 
 
@@ -246,6 +344,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--download", action="store_true", help="Descargar GGUFs (necesita red).")
     parser.add_argument("--no-embeddings", action="store_true", help="No bajar el GGUF de embeddings.")
     parser.add_argument("--write-env", metavar="PATH", help="Escribir un .env con las rutas.")
+    parser.add_argument(
+        "--vk-device",
+        default=os.environ.get("GGML_VK_VISIBLE_DEVICES", "1"),
+        help="índice de GPU Vulkan para GGML_VK_VISIBLE_DEVICES en el .env "
+        "(default 1; overridea con este flag o la env GGML_VK_VISIBLE_DEVICES).",
+    )
     parser.add_argument("--smoke", action="store_true", help="Correr una inferencia de prueba en GPU.")
     args = parser.parse_args(argv)
 
@@ -254,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.download:
         return cmd_download(models_root, embeddings=not args.no_embeddings)
     if args.write_env:
-        return cmd_write_env(models_root, Path(args.write_env))
+        return cmd_write_env(models_root, Path(args.write_env), vk_device=args.vk_device)
     if args.smoke:
         return cmd_smoke(models_root)
     return cmd_check(models_root)
