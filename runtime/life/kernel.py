@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence
+from uuid import uuid4
 
 from runtime.organism.identity import (
     CausalContext,
@@ -869,11 +870,22 @@ class LifeKernel:
         self.scenario_episode_index = int(payload.get("scenario_episode_index", 0))
         self._runner = None
         self._runner_key = None
+        # B18: el payload del rollback se emite con la FORMA de `contracts/rollback.schema.json`
+        # (rollback_id/target/reason/timestamp/artifacts). Antes solo llevaba
+        # `checkpoint_artifact_id`, que se conserva como clave aditiva por back-compat
+        # (el schema declara additionalProperties: true).
         self.storage.append_event(
             event_type="life.rollback.restored_checkpoint",
             run_id=self.run_id,
             source="life_kernel",
-            payload={"checkpoint_artifact_id": artifact.artifact_id},
+            payload={
+                "rollback_id": f"rollback-{uuid4()}",
+                "target": str(artifact.artifact_id),
+                "reason": "restore_latest_healthy_checkpoint",
+                "timestamp": utc_now_iso(),
+                "artifacts": [str(artifact.artifact_id)],
+                "checkpoint_artifact_id": artifact.artifact_id,
+            },
         )
         return True
 
