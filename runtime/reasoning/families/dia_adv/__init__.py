@@ -8,8 +8,9 @@ intervención elegida (tesis), enumera **objeciones** desde la evidencia
 sobrevive. Determinista.
 
 Nota: `cognitive_self_challenge.py` de este paquete es legacy AEON (numpy/random,
-muta pesos, dependencias inexistentes) y NO se usa — no es determinista ni encaja
-en el contrato de familia.
+muta pesos) y NO participa del contrato de familia (no es determinista). Su único
+consumidor es el training loop legacy (`runtime/legacy/training_loop.py`), cableado
+tras guard en la reparación B9/B13.
 """
 
 from runtime.reasoning.families import core_inference as ci
