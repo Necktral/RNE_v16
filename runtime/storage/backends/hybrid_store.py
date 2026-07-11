@@ -314,9 +314,12 @@ class HybridStorageBackend(StorageBackend):
         )
 
     def purge_expired_memory_records(self) -> int:
-        # B2 - Purga en ambos stores; devuelve el total de filas borradas.
+        # B2 - Purga en AMBOS stores (borrado físico en cada backend), pero devuelve la
+        # cuenta LÓGICA (la del primary), no la suma: bajo dual-write cada memoria vive
+        # en ambos stores, así que sumar contaría dos veces cada memoria lógica. El
+        # fallback se purga igual (efecto físico); solo se descarta su conteo.
         deleted = self.primary.purge_expired_memory_records()
-        deleted += self.fallback.purge_expired_memory_records()
+        self.fallback.purge_expired_memory_records()
         return deleted
 
     def write_transfer_assessment(

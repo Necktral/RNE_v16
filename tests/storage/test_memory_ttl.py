@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from runtime.storage import StorageConfig, StorageFactory
+from runtime.storage.backends.hybrid_store import HybridStorageBackend
 
 
 def _iso(dt: datetime) -> str:
@@ -110,3 +111,31 @@ def test_purge_deletes_only_expired(tmp_path: Path) -> None:
         assert storage.purge_expired_memory_records() == 0
     finally:
         storage.close()
+
+
+class _PurgeCountStore:
+    """Stub que reporta un conteo fijo de purga y registra que se lo invocó."""
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        self.purged = False
+
+    def purge_expired_memory_records(self) -> int:
+        self.purged = True
+        return self.count
+
+
+def test_hybrid_purge_returns_logical_count_not_sum() -> None:
+    # Bajo dual-write cada memoria lógica vive en AMBOS stores; el hybrid debe
+    # devolver la cuenta LÓGICA (la del primary), no la suma (que contaría 2x cada
+    # memoria), y aun así purgar físicamente ambos backends.
+    primary = _PurgeCountStore(1)
+    fallback = _PurgeCountStore(1)
+    hybrid = HybridStorageBackend(
+        primary=primary, fallback=fallback, strict_dual_write=False
+    )
+
+    deleted = hybrid.purge_expired_memory_records()
+
+    assert deleted == 1  # cuenta lógica (primary), no 2
+    assert primary.purged and fallback.purged  # ambos purgados físicamente
