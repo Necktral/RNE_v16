@@ -113,3 +113,111 @@ def test_env_organism_id_used_when_no_config(tmp_path: Path, monkeypatch):
         storage=storage,
     )
     assert kernel.organism_id == "org-env-genome"
+
+
+def test_restore_scopes_to_organism(tmp_path: Path):
+    """Re-keying del restore: organism_id persiste, run_id cambia, memoria intacta.
+
+    Dos organismos (org-A, org-B) en el MISMO storage con run_id efímero: al restaurar
+    org-A se recupera SU checkpoint (no el de org-B), el organism_id se mantiene como
+    clave persistente y el run_id se re-acuña nuevo.
+    """
+    storage = _storage(tmp_path)
+
+    # org-A vive DOS pasos; org-B vive UNO (para distinguir qué genoma se restaura).
+    a1 = LifeKernel(
+        config=LifeKernelConfig(
+            organism_id="org-A", scenarios=("thermal_homeostasis",),
+            restore=False, enable_msrc=False,
+        ),
+        storage=storage,
+    )
+    a1.step(external_input=0.05)
+    a1.step(external_input=0.04)
+    a1_run_id = a1.run_id
+    a1_episodes = a1.organism_state.episode_count
+
+    b1 = LifeKernel(
+        config=LifeKernelConfig(
+            organism_id="org-B", scenarios=("thermal_homeostasis",),
+            restore=False, enable_msrc=False,
+        ),
+        storage=storage,
+    )
+    b1.step(external_input=0.05)
+
+    # run_id efímero: la corrida A tiene su propia marca (no colapsa con el genoma).
+    assert a1_run_id.startswith(RUN_ID_PREFIX)
+    assert a1_run_id != "org-A"
+
+    # Restaurar org-A: nueva corrida, mismo genoma.
+    a2 = LifeKernel(
+        config=LifeKernelConfig(
+            organism_id="org-A", scenarios=("thermal_homeostasis",),
+            restore=True, enable_msrc=False,
+        ),
+        storage=storage,
+    )
+
+    # organism_id PERSISTE como clave; run_id CAMBIA (re-acuñado, efímero).
+    assert a2.organism_id == "org-A"
+    assert a2.run_id != a1_run_id
+    # Se restauró el genoma de A (2 episodios), NO el de B (1 episodio) ⇒ scoping correcto.
+    assert a2.organism_state.episode_count == a1_episodes == 2
+    assert a2.total_steps == 2
+
+    # Memoria/estado intactos: un paso más continúa la vida de A sin discontinuidad.
+    result = a2.step(external_input=0.04)
+    assert result.step_index == 3
+    assert a2.organism_state.episode_count == a1_episodes + 1
+
+    # El evento life.identity.restored carga la genealogía de corridas (organism_id +
+    # run_id anterior + run_id nuevo).
+    events = storage.list_events(
+        run_id=a2.run_id, event_types=["life.identity.restored"], limit=5
+    )
+    assert events
+    payload = events[0].payload
+    assert payload["organism_id"] == "org-A"
+    assert payload["previous_run_id"] == a1_run_id
+    assert payload["run_id"] == a2.run_id
+    assert payload["previous_run_id"] != payload["run_id"]
+
+
+def test_cross_run_experience_via_organism_id(tmp_path: Path, monkeypatch):
+    """Dos vidas (run_id distinto) con el MISMO organism_id comparten experiencia."""
+    monkeypatch.setenv("RNFE_EXPERIENCE", "1")
+    storage = _storage(tmp_path)
+
+    life_a = LifeKernel(
+        config=LifeKernelConfig(
+            organism_id="org-shared", run_id="life-a",
+            scenarios=("thermal_homeostasis",), restore=False, enable_msrc=False,
+        ),
+        storage=storage,
+    )
+    life_a.step(external_input=0.05)
+
+    life_b = LifeKernel(
+        config=LifeKernelConfig(
+            organism_id="org-shared", run_id="life-b",
+            scenarios=("thermal_homeostasis",), restore=False, enable_msrc=False,
+        ),
+        storage=storage,
+    )
+    life_b.step(external_input=0.05)
+
+    from runtime.organism.experience import ExperienceStore
+
+    store = ExperienceStore(storage=storage)
+    shared = store.recall(organism_id="org-shared")
+    # Ambas vidas grabaron bajo el mismo genoma ⇒ la experiencia es compartida.
+    assert len(shared) >= 2
+
+    # Aislamiento: otro genoma no ve nada de esta experiencia.
+    assert store.recall(organism_id="org-other") == []
+
+    # La procedencia de corrida difiere (run_id distinto) bajo el mismo namespace de genoma.
+    records = storage.retrieve_memory_records(run_id="org-shared", scales=["experience"])
+    run_ids = {(r.metadata or {}).get("run_id") for r in records}
+    assert {"life-a", "life-b"} <= run_ids
