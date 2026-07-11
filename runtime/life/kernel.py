@@ -7,6 +7,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, Sequence
 from uuid import uuid4
 
+from runtime.organism.identity import (
+    CausalContext,
+    causal_context_enabled,
+    mint_lineage_id,
+    mint_organism_id,
+    mint_run_id,
+    resolve_organism_id,
+)
 from runtime.organism.lineage import LineageState
 from runtime.organism.state import IdentityState, OrganismState
 from runtime.conjunction import OperationalConjunctionLayer
@@ -39,6 +47,10 @@ NON_EPISODE_ACTIONS = frozenset({"shutdown", "sleep", "quarantine", "rollback"})
 @dataclass(frozen=True, slots=True)
 class LifeKernelConfig:
     run_id: str | None = None
+    # B41: genoma persistente a vincular (resume/bind de un organismo conocido, p. ej.
+    # aeon-01). None ⇒ el kernel resuelve por RNFE_ORGANISM_ID o acuña un genoma genuino.
+    # Config gana sobre entorno (precedencia de génesis, §1.2).
+    organism_id: str | None = None
     scenarios: Sequence[str] = ("thermal_homeostasis", "resource_management")
     block_size: int = 8
     interval_s: float = 0.0
@@ -83,7 +95,14 @@ class LifeKernel:
             if self.config.enable_operational_conjunction
             else None
         )
-        self.run_id = self.config.run_id or f"life-{uuid4().hex[:12]}"
+        # B41 — tres ejes de identidad distintos (canon f2.4 A-M5/A-M8/A-M10):
+        #   run_id      : la corrida (EFÍMERO; re-acuñado cada proceso salvo config).
+        #   organism_id : el genoma (PERSISTE entre corridas; namespace de memoria M_t).
+        #   lineage_id  : el linaje evolutivo μ_t (abarca varios organismos).
+        # run_id ya NO es fuente de identidad persistente: solo marca esta ejecución.
+        self.run_id = self.config.run_id or mint_run_id()
+        self.organism_id: str = ""
+        self.lineage_id: str = ""
         self.total_steps = 0
         self.scenario_index = 0
         self.scenario_episode_index = 0
@@ -679,14 +698,20 @@ class LifeKernel:
             self._scale_state = self._scale_state_from_payload(scale_state)
 
     def _genesis(self) -> None:
+        # organism_id (genoma) por precedencia: config gana sobre entorno →
+        # RNFE_ORGANISM_ID → ancestro (stub) → génesis genuina org-{uuid4}.
+        self.organism_id = resolve_organism_id(self.config.organism_id) or mint_organism_id()
+        # lineage_id (linaje μ_t): génesis genuina ⇒ linaje nuevo con un solo organismo.
+        # Distinto del run_id (ya no se deriva de la corrida).
+        self.lineage_id = mint_lineage_id()
         self.organism_state = OrganismState(
-            state_id=f"state-0-{self.run_id}",
+            state_id=f"state-0-{self.organism_id}",
             timestamp=utc_now_iso(),
             active_regime="genesis",
             episode_count=0,
-            identity=IdentityState(lineage_id=f"lineage-{self.run_id}"),
+            identity=IdentityState(lineage_id=self.lineage_id),
         )
-        self.lineage = LineageState(lineage_id=f"lineage-{self.run_id}")
+        self.lineage = LineageState(lineage_id=self.lineage_id)
         from runtime.organism.constitution import OrganismConstitution
 
         self.lineage.record_genesis(OrganismConstitution(), timestamp=utc_now_iso())
@@ -700,6 +725,7 @@ class LifeKernel:
             run_id=self.run_id,
             source="life_kernel",
             payload={
+                "organism_id": self.organism_id,
                 "organism_state_id": self.organism_state.state_id,
                 "lineage_id": self.lineage.lineage_id,
                 "goals": [goal.to_dict() for goal in self.goal_manager.goals],
