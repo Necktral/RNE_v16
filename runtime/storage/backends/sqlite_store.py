@@ -945,14 +945,30 @@ class SQLiteStorageBackend(StorageBackend):
     def write_transfer_assessment(
         self, assessment: TransferAssessmentRecord,
     ) -> TransferAssessmentRecord:
+        # B46 - Semantica de created_at: es el TIEMPO DE CREACION del assessment,
+        # por lo que se PRESERVA en un re-write del mismo assessment_id (igual que
+        # el backend Postgres). Antes se usaba `INSERT OR REPLACE`, que borra la
+        # fila e inserta una nueva (pisando created_at con el valor entrante).
+        # Ahora usamos upsert (SQLite >= 3.24): actualiza TODAS las columnas
+        # EXCEPTO created_at, que conserva el valor original de la fila existente.
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO transfer_assessments
+                INSERT INTO transfer_assessments
                 (assessment_id, run_id, episode_id, source_scenario, target_scenario,
                  compatibility_class, transfer_verdict, memory_purity_score,
                  transition_stability_score, metadata, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(assessment_id) DO UPDATE SET
+                    run_id=excluded.run_id,
+                    episode_id=excluded.episode_id,
+                    source_scenario=excluded.source_scenario,
+                    target_scenario=excluded.target_scenario,
+                    compatibility_class=excluded.compatibility_class,
+                    transfer_verdict=excluded.transfer_verdict,
+                    memory_purity_score=excluded.memory_purity_score,
+                    transition_stability_score=excluded.transition_stability_score,
+                    metadata=excluded.metadata
                 """,
                 (
                     assessment.assessment_id,
