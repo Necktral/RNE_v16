@@ -22,6 +22,7 @@ from .contracts import (
 )
 from .registry import BackendRegistryError, LazyBackendRegistry
 from .runtime import NeuralRuntime
+from .observability import TraceHealthSnapshot, TracePersistenceMonitor
 
 __all__ = [
     "AdmissionDecision",
@@ -45,6 +46,8 @@ __all__ = [
     "OrganismImpactReport",
     "OrganismImpactVector",
     "ResourceSnapshot",
+    "TraceHealthSnapshot",
+    "TracePersistenceMonitor",
     "build_impact_report",
     "expected_calibration_error",
 ]

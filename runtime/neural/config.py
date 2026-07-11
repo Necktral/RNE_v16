@@ -27,6 +27,7 @@ class NeuralRuntimeConfig:
     unload_vram_pressure: float = 0.85
     max_gpu_temperature_c: float = 82.0
     max_latency_ms: float = 5_000.0
+    trace_buffer_size: int = 128
     require_causal_for_provisional: bool = True
     allow_runtime_downloads: bool = False
 
@@ -46,6 +47,8 @@ class NeuralRuntimeConfig:
             raise ValueError("invalid_vram_pressure_thresholds")
         if self.max_latency_ms <= 0.0:
             raise ValueError("max_latency_ms_must_be_positive")
+        if self.trace_buffer_size <= 0:
+            raise ValueError("trace_buffer_size_must_be_positive")
 
     @classmethod
     def from_env(cls) -> "NeuralRuntimeConfig":
@@ -69,4 +72,8 @@ class NeuralRuntimeConfig:
             unload_vram_pressure=_float_env("RNFE_NEURAL_UNLOAD_VRAM_PRESSURE", 0.85),
             max_gpu_temperature_c=_float_env("RNFE_NEURAL_MAX_GPU_TEMP_C", 82.0),
             max_latency_ms=_float_env("RNFE_NEURAL_MAX_LATENCY_MS", 5_000.0),
+            trace_buffer_size=max(
+                1,
+                int(_float_env("RNFE_NEURAL_TRACE_BUFFER_SIZE", 128.0)),
+            ),
         )

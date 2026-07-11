@@ -20,6 +20,7 @@ from .contracts import (
 )
 from .registry import LazyBackendRegistry
 from .resources import select_device, should_unload
+from .observability import BufferedTraceEvent, TraceHealthSnapshot, TracePersistenceMonitor
 
 
 AdmissionGate = Callable[[Any, NeuralInferenceRequest], AdmissionDecision]
@@ -36,6 +37,10 @@ class NeuralRuntime:
         self.config = config
         self.registry = registry
         self.storage = storage
+        self._trace_monitor = TracePersistenceMonitor(
+            storage_configured=storage is not None,
+            max_buffered_events=config.trace_buffer_size,
+        )
 
     def infer(
         self,
@@ -55,6 +60,18 @@ class NeuralRuntime:
                 reason="neural_mode_off",
                 emit_event=False,
             )
+        self._persist_event(
+            "neural.inference.requested",
+            payload={
+                "inference_id": request.inference_id,
+                "organ": request.organ,
+                "capability": request.capability,
+                "requested_mode": requested_mode.value,
+                "manifest_sha256": manifest.manifest_sha256,
+                "causal_linkage": request.causal_linkage.value,
+            },
+            run_id=request.run_id,
+        )
         if request.organ != manifest.organ or request.capability != manifest.capability:
             return self._fallback(
                 request,
@@ -216,7 +233,62 @@ class NeuralRuntime:
             trace=output.trace,
         )
         self._emit("neural.inference.completed", result)
+        if result.effective_mode is NeuralMode.SHADOW:
+            self._persist_event(
+                "neural.organ.shadow_evaluated",
+                payload={
+                    "inference_id": result.inference_id,
+                    "organ": result.organ,
+                    "manifest_sha256": result.manifest_sha256,
+                    "candidate_present": result.candidate_output is not None,
+                    "authoritative_output_preserved": result.decision_influence
+                    is DecisionInfluence.NONE,
+                    "fallback_reason": result.fallback_reason,
+                },
+                run_id=result.run_id,
+            )
         return result
+
+    @property
+    def trace_health(self) -> TraceHealthSnapshot:
+        return self._trace_monitor.snapshot()
+
+    def flush_trace_buffer(self) -> int:
+        if self.storage is None:
+            return 0
+        pending = self._trace_monitor.pending()
+        if not pending:
+            return 0
+        health = self._trace_monitor.snapshot()
+        summary = self._trace_monitor.new_event(
+            event_type="neural.trace.persistence_failed",
+            payload={
+                "schema_version": "neural-events-v1",
+                "persistence_failures": health.persistence_failures,
+                "pending_events": health.pending_events,
+                "dropped_events": health.dropped_events,
+                "last_error": health.last_error,
+                "last_failure_at": health.last_failure_at,
+                "recovery": "storage_available",
+            },
+            run_id=pending[-1].run_id,
+        )
+        try:
+            self._append_trace_event(summary)
+        except Exception as exc:
+            self._trace_monitor.record_flush_failure(exc)
+            return 0
+        flushed = 0
+        for event in pending:
+            try:
+                self._append_trace_event(event)
+            except Exception as exc:
+                self._trace_monitor.mark_flushed(flushed)
+                self._trace_monitor.record_flush_failure(exc)
+                return flushed
+            flushed += 1
+        self._trace_monitor.mark_flushed(flushed)
+        return flushed
 
     def persist_manifest(self, manifest: NeuralModelManifest, *, run_id: str | None = None) -> Any:
         if self.storage is None:
@@ -250,20 +322,16 @@ class NeuralRuntime:
                 "promotion_eligible": report.promotion_eligible(),
             },
         )
-        try:
-            self.storage.append_event(
-                event_type="neural.promotion.evaluated",
-                payload={
-                    "organ": report.organ,
-                    "model_id": report.model_id,
-                    "promotion_eligible": report.promotion_eligible(),
-                    "artifact_sha256": artifact.sha256,
-                },
-                run_id=run_id,
-                source="runtime.neural",
-            )
-        except Exception:
-            pass
+        self._persist_event(
+            "neural.organ.promotion_evaluated",
+            payload={
+                "organ": report.organ,
+                "model_id": report.model_id,
+                "promotion_eligible": report.promotion_eligible(),
+                "artifact_sha256": artifact.sha256,
+            },
+            run_id=run_id,
+        )
         return artifact
 
     def _fallback(
@@ -306,12 +374,22 @@ class NeuralRuntime:
             trace=tuple(trace),
         )
         if emit_event:
+            self._persist_event(
+                "neural.inference.rejected",
+                payload={
+                    "inference_id": result.inference_id,
+                    "organ": result.organ,
+                    "capability": result.capability,
+                    "reason": result.fallback_reason,
+                    "device": result.device,
+                    "manifest_sha256": result.manifest_sha256,
+                },
+                run_id=result.run_id,
+            )
             self._emit("neural.inference.fallback", result)
         return result
 
     def _emit(self, event_type: str, result: NeuralInferenceResult) -> None:
-        if self.storage is None:
-            return
         payload = {
             "inference_id": result.inference_id,
             "organ": result.organ,
@@ -326,16 +404,7 @@ class NeuralRuntime:
             "decision_influence": result.decision_influence.value,
             "causal_linkage": result.causal_linkage.value,
         }
-        try:
-            self.storage.append_event(
-                event_type=event_type,
-                payload=payload,
-                run_id=result.run_id,
-                source="runtime.neural",
-            )
-        except Exception:
-            # Observabilidad no puede convertir una propuesta en un fallo del organismo.
-            return
+        self._persist_event(event_type, payload=payload, run_id=result.run_id)
 
     def _emit_model_event(
         self,
@@ -346,24 +415,51 @@ class NeuralRuntime:
         device: str,
         reason: str | None = None,
     ) -> None:
+        self._persist_event(
+            event_type,
+            payload={
+                "inference_id": request.inference_id,
+                "organ": manifest.organ,
+                "model_id": manifest.model_id,
+                "manifest_sha256": manifest.manifest_sha256,
+                "device": device,
+                "reason": reason,
+            },
+            run_id=request.run_id,
+        )
+
+    def _persist_event(
+        self,
+        event_type: str,
+        *,
+        payload: dict[str, Any],
+        run_id: str | None,
+    ) -> bool:
         if self.storage is None:
-            return
+            return False
+        event = self._trace_monitor.new_event(
+            event_type=event_type,
+            payload={"schema_version": "neural-events-v1", **payload},
+            run_id=run_id,
+        )
         try:
-            self.storage.append_event(
-                event_type=event_type,
-                payload={
-                    "inference_id": request.inference_id,
-                    "organ": manifest.organ,
-                    "model_id": manifest.model_id,
-                    "manifest_sha256": manifest.manifest_sha256,
-                    "device": device,
-                    "reason": reason,
-                },
-                run_id=request.run_id,
-                source="runtime.neural",
-            )
-        except Exception:
-            return
+            self._append_trace_event(event)
+        except Exception as exc:
+            # La inferencia continua, pero la perdida queda visible y recuperable.
+            self._trace_monitor.record_failure(event, exc)
+            return False
+        if self._trace_monitor.pending():
+            self.flush_trace_buffer()
+        return True
+
+    def _append_trace_event(self, event: BufferedTraceEvent) -> Any:
+        return self.storage.append_event(
+            event_type=event.event_type,
+            payload=event.payload,
+            timestamp=event.timestamp,
+            run_id=event.run_id,
+            source=event.source,
+        )
 
 
 def _is_oom(exc: BaseException) -> bool:

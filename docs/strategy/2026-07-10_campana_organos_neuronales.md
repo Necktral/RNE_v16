@@ -1,7 +1,7 @@
 ---
 title: Campaña de órganos neuronales N0-N6
 status: active
-version: 1.0.0
+version: 1.1.0
 date: 2026-07-10
 owner: Codex
 principle: A-M0
@@ -34,12 +34,12 @@ producen fallback explícito; el runtime no descarga nada.
 
 | Paquete | Implementado en la campaña | Condición pendiente para frontera viva |
 |---|---|---|
-| N0 | Contratos, manifiesto/hash, registro lazy, recursos, modos, eventos y reporte A-M0 | Extensión P25/B47 para telemetría GPU absoluta |
-| N1 | MLP JSON reproducible, catálogo v1, hard masks, admisión y dataset contrafactual | P23 para aterrizaje; P19 + causalidad para influencia; dataset diverso para entrenar |
+| N0 | Contratos, manifiesto/hash, registro lazy, recursos, modos, eventos v1, buffer/health de persistencia y reporte A-M0 | Extensión P25/B47 para telemetría GPU absoluta y caller vivo coordinado |
+| N1 | MLP JSON reproducible, catálogo v2, `ABSTAIN`, hard masks, ranking/activación/presupuesto separados y dataset contrafactual | Hook scheduler coordinado; dataset diverso, entrenador y artefacto calibrado |
 | N2 | Recurrencia compartida 4–16 pasos y verificación DED+LOTF por candidato | Hook NESY coordinado y benchmark retenido |
 | N3 | Puerto SSM, backend de referencia con estado por organismo/escenario y autoridad MFM | P-CADENA/P21; revisión/licencia/dependencias Mamba2 |
 | N4 | Message passing de tres capas, predicción sin mutación del grafo | Dataset causal atestado y hook world coordinado |
-| N5 | Chunker Unicode, puerto H-Net y caller real hacia sinks SMG/MFM | Revisión/pesos H-Net y puertos vivos de Fable |
+| N5 | Chunker Unicode, contrato byte/codepoint/token, conversión UTF-8 segura, puerto H-Net byte-level y caller hacia sinks | Revisión/pesos H-Net y adaptadores SMG/MFM vivos de Fable |
 | N6 | KAN exportable, LTC y gate estructural con whitelist/rollback | P29 con `apply_fn` real y certificación de sandbox |
 
 Un backend de referencia valida matemáticamente el contrato, pero no se confunde
@@ -58,6 +58,17 @@ model card y reporte, no pesos grandes. Cada promoción exige tres semillas, CI9
 positivo, pérdida de cierre no mayor a 1 punto porcentual, ECE <= 0.10, cero
 violaciones y `OrganismImpactReport` favorable. Tras cada órgano se versiona y
 recalibra el catálogo N1; nunca se agregan salidas silenciosamente.
+
+El catálogo N1 v2 cubre HEUR, DIA_ADV, FAL_GUARD, IND, EML_SR, PLAN, OPT,
+NESY, EVO_SEARCH, IMAGINATION y A12. El softmax sólo ordena: activar exige
+utilidad esperada positiva, probabilidad y calibración válidas e incertidumbre
+admitida. Si no, N1 emite `ABSTAIN` y conserva el scheduler autoritativo.
+
+H-Net opera nativamente con probabilidades por byte UTF-8. N5 registra unidad y
+semántica del offset y sólo convierte límites que coinciden con una frontera de
+codepoint; un límite dentro de un carácter multibyte se rechaza sin redondeo.
+Las trazas N0 usan `neural-events-v1`; si storage falla, un buffer acotado conserva
+eventos y publica `neural.trace.persistence_failed` al recuperarse.
 
 ## 5. Coordinación y secuencia
 
