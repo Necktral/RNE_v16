@@ -349,6 +349,9 @@ class PostgresStorageBackend(StorageBackend):
     def upsert_session_bridge(
         self, record: SessionBridgeRecord
     ) -> SessionBridgeRecord:
+        """Capacidad reservada: implementada en toda la capa de storage pero SIN
+        productores/consumidores en el runtime actual (B23). No remover sin
+        decision de producto."""
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -374,6 +377,9 @@ class PostgresStorageBackend(StorageBackend):
         return record
 
     def get_session_bridge(self, session_id: str) -> SessionBridgeRecord | None:
+        """Capacidad reservada: implementada en toda la capa de storage pero SIN
+        productores/consumidores en el runtime actual (B23). No remover sin
+        decision de producto."""
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(
                 """

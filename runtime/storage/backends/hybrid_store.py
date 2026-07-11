@@ -183,9 +183,15 @@ class HybridStorageBackend(StorageBackend):
     def upsert_session_bridge(
         self, record: SessionBridgeRecord
     ) -> SessionBridgeRecord:
+        """Capacidad reservada: implementada en toda la capa de storage pero SIN
+        productores/consumidores en el runtime actual (B23). No remover sin
+        decision de producto."""
         return self._dual_write("upsert_session_bridge", record)  # type: ignore[return-value]
 
     def get_session_bridge(self, session_id: str) -> SessionBridgeRecord | None:
+        """Capacidad reservada: implementada en toda la capa de storage pero SIN
+        productores/consumidores en el runtime actual (B23). No remover sin
+        decision de producto."""
         first = self.primary if self.prefer_primary_reads else self.fallback
         second = self.fallback if self.prefer_primary_reads else self.primary
         first_label = "primary" if self.prefer_primary_reads else "fallback"

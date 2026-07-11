@@ -214,6 +214,9 @@ class StorageFacade:
         timestamp: str | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> SessionBridgeRecord:
+        """Capacidad reservada: implementada en toda la capa de storage pero SIN
+        productores/consumidores en el runtime actual (B23). No remover sin
+        decision de producto."""
         record = SessionBridgeRecord(
             session_id=session_id,
             episode_id=episode_id,
@@ -224,6 +227,9 @@ class StorageFacade:
         return self.backend.upsert_session_bridge(record)
 
     def get_session_bridge(self, session_id: str) -> SessionBridgeRecord | None:
+        """Capacidad reservada: implementada en toda la capa de storage pero SIN
+        productores/consumidores en el runtime actual (B23). No remover sin
+        decision de producto."""
         return self.backend.get_session_bridge(session_id)
 
     def write_reality_assessment(
