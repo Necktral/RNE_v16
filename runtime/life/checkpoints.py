@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict
 from uuid import uuid4
 
+from runtime.core.checkpoint_kinds import LIFE_CHECKPOINT_KIND
 from runtime.organism.lineage import LineageState
 from runtime.organism.state import OrganismState
 from runtime.storage.records import ArtifactRecord, utc_now_iso
@@ -15,7 +16,6 @@ from .contracts import AutonomyDecision, GoalState, VitalSignsSnapshot
 from .serialization import jsonable, lineage_to_payload, organism_to_payload
 
 
-LIFE_CHECKPOINT_KIND = "life_checkpoint"
 LIFE_CHECKPOINT_VERSION = "1.0.0"
 
 

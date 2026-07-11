@@ -775,7 +775,7 @@ class OperationalConjunctionLayer:
         if self.storage is None:
             return None
         try:
-            from runtime.life.checkpoints import LIFE_CHECKPOINT_KIND
+            from runtime.core.checkpoint_kinds import LIFE_CHECKPOINT_KIND
 
             artifacts = self.storage.list_artifacts(
                 run_id=run_id,
