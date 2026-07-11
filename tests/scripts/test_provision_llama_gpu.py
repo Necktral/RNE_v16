@@ -260,3 +260,64 @@ def test_main_write_env_uses_env_vk_device(
     rc = prov.main(["--write-env", str(out), "--models-root", str(tmp_path / "models")])
     assert rc == 0
     assert "export GGML_VK_VISIBLE_DEVICES=7" in out.read_text(encoding="utf-8").splitlines()
+
+
+# --------------------------------------------------------------------------- #
+# (must-fix 2) Integridad del BINARIO llama.cpp Vulkan (no solo del GGUF).
+# --------------------------------------------------------------------------- #
+
+
+def test_llama_vulkan_sha256_empty_by_default() -> None:
+    # La constante existe con la misma semántica que EMBED_SHA256 (vacía = UNVERIFIED).
+    assert prov.LLAMA_VULKAN_SHA256 == ""
+
+
+def test_download_llama_vulkan_fail_closed_on_bad_binary_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Con LLAMA_VULKAN_SHA256 pinneado que NO coincide -> fail-closed: el tar se
+    # borra y NO se extrae el binario (espejo del GGUF).
+    import urllib.request
+
+    models_root = tmp_path / "models"
+
+    def fake_urlretrieve(url: str, dest: str) -> None:
+        _tar_with_member(Path(dest), "build/bin/llama-cli", payload=b"native-binary")
+
+    monkeypatch.setattr(urllib.request, "urlretrieve", fake_urlretrieve)
+    monkeypatch.setattr(prov, "LLAMA_VULKAN_SHA256", "0" * 64)
+
+    cli = prov._download_llama_vulkan(models_root)
+
+    assert cli is None
+    dest_dir = models_root / "tools" / "llama.cpp" / "build-vulkan"
+    # El tar manipulado se borró (unlink de _verify_or_fail) y NO se extrajo el binario.
+    assert not (dest_dir / prov.LLAMA_VULKAN_ASSET).exists()
+    assert not list(dest_dir.rglob("llama-cli"))
+
+
+def test_download_llama_vulkan_unverified_binary_warns_but_extracts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Con LLAMA_VULKAN_SHA256 vacío (default) -> UNVERIFIED explícito pero sigue:
+    # extrae y encuentra el llama-cli (mismo comportamiento honesto que el embed).
+    import urllib.request
+
+    monkeypatch.delenv("RNFE_LLAMA_CLI_CUDA", raising=False)
+    models_root = tmp_path / "models"
+
+    def fake_urlretrieve(url: str, dest: str) -> None:
+        _tar_with_member(Path(dest), "build/bin/llama-cli", payload=b"native-binary")
+
+    monkeypatch.setattr(urllib.request, "urlretrieve", fake_urlretrieve)
+    # LLAMA_VULKAN_SHA256 queda en su default vacío.
+
+    cli = prov._download_llama_vulkan(models_root)
+
+    out = capsys.readouterr().out
+    assert "UNVERIFIED" in out
+    assert "llama.cpp Vulkan" in out
+    assert cli is not None
+    assert cli.name == "llama-cli"

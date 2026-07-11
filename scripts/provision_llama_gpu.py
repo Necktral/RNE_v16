@@ -58,6 +58,16 @@ LLAMA_RELEASE_HINT = (
     "<models-root>/tools/llama.cpp/build-vulkan (backend Vulkan, offload a la GPU con -ngl)."
 )
 
+# SHA-256 del BINARIO llama.cpp Vulkan. VACÍO a propósito, con la MISMA semántica
+# que EMBED_SHA256: no tenemos el binario verificado, así que NO se inventa un valor.
+# El runtime EJECUTA este binario como código nativo -> su integridad importa tanto
+# como la del GGUF (dato). En `_verify_or_fail`: si está seteado -> fail-closed (borra
+# el tar + aborta la extracción); si está vacío -> advertencia UNVERIFIED explícita.
+# Para pinnearlo (deuda ya ruteada a backlog B56): bajá el asset del release `b9874`
+# (LLAMA_VULKAN_ASSET), verificá su origen, y copiá acá el `sha256=<...>` que imprime
+# la advertencia UNVERIFIED.
+LLAMA_VULKAN_SHA256 = ""
+
 
 def _gpu_info() -> str | None:
     if shutil.which("nvidia-smi") is None:
@@ -142,6 +152,10 @@ def _download_llama_vulkan(models_root: Path) -> Path | None:
     print(f"  bajando {LLAMA_VULKAN_ASSET} ...")
     try:
         urllib.request.urlretrieve(LLAMA_VULKAN_URL, tar_path)
+        # Integridad del BINARIO antes de extraer/ejecutar: mismo helper fail-closed
+        # que el GGUF (dato). Con LLAMA_VULKAN_SHA256 vacío es UNVERIFIED (advierte y
+        # sigue); una vez pinneado, un mismatch borra el tar y aborta la extracción.
+        _verify_or_fail(tar_path, LLAMA_VULKAN_SHA256, "binario llama.cpp Vulkan")
         with tarfile.open(tar_path, "r:gz") as tf:
             _safe_extractall(tf, dest_dir)
     except Exception as exc:  # noqa: BLE001
