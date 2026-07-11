@@ -1,7 +1,7 @@
 ---
 title: ADR_NEURAL_N4_CAUSAL_GRAPH
 status: experimental
-version: 2.0.0
+version: 2.1.0
 date: 2026-07-11
 owner: Codex
 ---
@@ -70,11 +70,17 @@ del hash de artefacto y manifiesto. El artefacto incluido en tests es `reference
 no entrenado, congelado y experimental; no se presenta como GNN entrenada.
 
 El contrato v0 permanece únicamente como adaptador de fixtures LAB, marcado
-`legacy_reference_v0`; se rechaza en frontera LIVE y no constituye integración.
+`legacy_reference_v0`; se rechaza en frontera LIVE, declara el mismo techo tipado
+`SHADOW` y no constituye integración.
 
 ## Autoridad y admisión
 
-La salida estricta no contiene mutaciones, acciones ni intervención seleccionada.
+La salida estricta no contiene mutaciones, acciones, autorizaciones, certificados,
+decisiones de cierre, salida efectiva ni intervención seleccionada. Una propuesta
+N4 puede ser estructuralmente válida sin adquirir autoridad: toda admisión válida,
+estricta o legacy, declara `effective_mode_ceiling=NeuralMode.SHADOW`. N0 aplica el
+techo antes de producir cualquier salida efectiva o influencia.
+
 La admisión puede rechazar una forma inválida, registrar shadow, marcar desacuerdo
 y reducir confianza. No puede:
 
@@ -85,8 +91,11 @@ y reducir confianza. No puede:
 - modificar memoria, estado del organismo o scheduler.
 
 Aunque el runtime genérico disponga de modo `provisional`, N4 permanece limitado a
-laboratorio/shadow por este ADR hasta una ratificación posterior. Sin causalidad
-enlazada, el runtime degrada provisional a shadow automáticamente.
+laboratorio/shadow por contrato ejecutable. Incluso con contexto causal LIVE
+completo y una propuesta admitida, N0 conserva el fallback, influencia `NONE` y
+modo efectivo `SHADOW`. Cambiar una variable de entorno, aportar otro modelo o
+reducir ECE no eleva ese techo: una promoción futura requiere modificar y revisar
+el contrato versionado.
 
 ## Presupuesto físico
 
@@ -98,18 +107,30 @@ sintéticos; N0 conserva además los gates físicos globales.
 
 ## Evidencia y promoción
 
-`runtime/neural/lab/n4_benchmark.py` cubre, con al menos tres semillas: efecto
-positivo, efecto negativo, cadena, collider, confusor ambiguo, contradicción, firma
-canónica ausente, morfismo entre escenarios, desacuerdo factual/contrafactual y OOD.
-Reporta precisión del signo, error de magnitud/siguiente estado, precisión/recall
-de desacuerdo, calibración, rechazo de grafos malformados, latencia, RAM, VRAM y
-fallback.
+`runtime/neural/lab/n4_benchmark.py` cubre efecto positivo, efecto negativo, cadena,
+collider, confusor ambiguo, contradicción, firma canónica ausente, morfismo entre
+escenarios, desacuerdo factual/contrafactual y OOD. Repite cada caso tres veces para
+comprobar reproducibilidad determinista; esas repeticiones no son modelos
+independientes ni evidencia de generalización multisemilla.
 
-La promoción futura requiere además los gates generales N0/A-M0: cero violaciones
-de autoridad, intervalo bootstrap positivo, no regresión global mayor a un punto,
-ECE menor o igual a 0.10 cuando exista probabilidad, presupuesto físico satisfecho
-y `OrganismImpactReport` sin daño significativo. Este backend de referencia no
-cumple por sí solo evidencia de entrenamiento ni de promoción.
+El reporte `n4-contract-benchmark-v2` separa:
+
+- `contract_metrics`: consistencia del signo ya codificado, reglas de desacuerdo,
+  rechazo malformado, invariantes de autoridad, repetibilidad, fallback y trazas;
+- `predictive_metrics`: aprendizaje de efectos, generalización causal, predicción
+  retenida y generalización externa quedan `not_evaluated`; la ECE observada se
+  conserva sin suavizar y `promotion_eligible` es siempre `false` para este backend.
+
+La consistencia del signo no demuestra predicción causal: tanto la dirección del
+backend de referencia como la expectativa contractual provienen de
+`signed_strength`. El benchmark reporta además identidad/hash de artefacto,
+latencia, asignación Python pico, RAM/VRAM estimadas y cero influencia operacional.
+
+La promoción futura requiere ratificación explícita del cambio de techo, integración
+causal revisada, benchmark externo con modelos/semillas realmente independientes,
+los gates generales N0/A-M0, ECE admisible y `OrganismImpactReport` sin daño
+significativo. Este backend de referencia no aporta aprendizaje causal, evidencia
+externa, calibración suficiente ni autoridad de promoción.
 
 ## Rollback
 

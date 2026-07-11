@@ -1,8 +1,8 @@
 ---
 title: Campaña de órganos neuronales N0-N6
 status: active
-version: 1.1.0
-date: 2026-07-10
+version: 1.2.0
+date: 2026-07-11
 owner: Codex
 principle: A-M0
 ---
@@ -26,6 +26,11 @@ autoridad. `off` no abre artefactos ni emite eventos; `experimental` es de
 laboratorio; `shadow` observa la frontera viva sin cambiarla; `provisional`
 requiere gate, presupuesto y enlace causal.
 
+La autoridad máxima es parte del contrato tipado de admisión. N0 aplica el techo
+del órgano antes de producir una salida efectiva: una propuesta puede ser válida y
+trazable sin obtener influencia. N4 declara actualmente techo `SHADOW`; ni un modo
+`provisional` configurado ni un contexto causal enlazado pueden elevarlo.
+
 La ausencia de P-CADENA no bloquea investigación: marca la inferencia como
 `unlinked` y degrada provisional a shadow. Pesos o dependencias ausentes siempre
 producen fallback explícito; el runtime no descarga nada.
@@ -38,13 +43,15 @@ producen fallback explícito; el runtime no descarga nada.
 | N1 | MLP JSON reproducible, catálogo v2, `ABSTAIN`, hard masks, ranking/activación/presupuesto separados y dataset contrafactual | Hook scheduler coordinado; dataset diverso, entrenador y artefacto calibrado |
 | N2 | Recurrencia compartida 4–16 pasos y verificación DED+LOTF por candidato | Hook NESY coordinado y benchmark retenido |
 | N3 | Puerto SSM, backend de referencia con estado por organismo/escenario y autoridad MFM | P-CADENA/P21; revisión/licencia/dependencias Mamba2 |
-| N4 | Message passing de tres capas, predicción sin mutación del grafo | Dataset causal atestado y hook world coordinado |
+| N4 | Grafo causal tipado, efectos firmados, desacuerdo explícito y techo ejecutable `SHADOW`; backend de referencia solo valida contrato | Modelo entrenado/calibrado, evidencia externa, ratificación del techo e integración causal coordinada |
 | N5 | Chunker Unicode, contrato byte/codepoint/token, conversión UTF-8 segura, puerto H-Net byte-level y caller hacia sinks | Revisión/pesos H-Net y adaptadores SMG/MFM vivos de Fable |
 | N6 | KAN exportable, LTC y gate estructural con whitelist/rollback | P29 con `apply_fn` real y certificación de sandbox |
 
 Un backend de referencia valida matemáticamente el contrato, pero no se confunde
 con el modelo objetivo. En particular, el SSM de referencia no se declara Mamba2;
 `Mamba2Backend` mantiene un stop condition explícito hasta resolver procedencia.
+El benchmark N4 repite casos deterministas: no presenta esas repeticiones como
+robustez multisemilla ni su consistencia de signo como aprendizaje causal.
 
 ## 4. Datos, artefactos y promoción
 
@@ -54,8 +61,9 @@ como etiquetas causales. Train/validation/test se agrupan por generador+semilla.
 El umbral mínimo inicial es 300 pares, 50 contextos, 3 generadores y 3 familias.
 
 Pesos viven bajo `RNFE_ARTIFACT_ROOT/neural/`; el repositorio conserva manifiesto,
-model card y reporte, no pesos grandes. Cada promoción exige tres semillas, CI95
-positivo, pérdida de cierre no mayor a 1 punto porcentual, ECE <= 0.10, cero
+model card y reporte, no pesos grandes. Cada promoción exige tres semillas o
+modelos realmente independientes cuando corresponda, CI95 positivo, pérdida de
+cierre no mayor a 1 punto porcentual, ECE <= 0.10, cero
 violaciones y `OrganismImpactReport` favorable. Tras cada órgano se versiona y
 recalibra el catálogo N1; nunca se agregan salidas silenciosamente.
 

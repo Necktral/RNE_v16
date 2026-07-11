@@ -7,6 +7,7 @@ backend ya cargado y recibe evidencia JSON-safe de contrato, recursos y A-M0.
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 import math
 import statistics
 import time
@@ -21,30 +22,33 @@ from ..organs.n4_causal import (
 )
 
 
-BENCHMARK_SCHEMA_VERSION = "n4-synthetic-benchmark-v1"
+BENCHMARK_SCHEMA_VERSION = "n4-contract-benchmark-v2"
 
 
 def run_n4_synthetic_benchmark(
     backend: CausalMessagePassingBackend,
     *,
-    seeds: Sequence[int] = (11, 23, 47),
+    repeat_ids: Sequence[int] = (11, 23, 47),
 ) -> dict[str, Any]:
-    """Ejecuta diez topologias por semilla y agrega metricas contractuales."""
+    """Repite diez topologias para validar contrato, no aprendizaje causal."""
 
-    unique_seeds = tuple(dict.fromkeys(int(seed) for seed in seeds))
-    if len(unique_seeds) < 3:
-        raise ValueError("n4_benchmark_requires_three_unique_seeds")
+    unique_repeat_ids = tuple(dict.fromkeys(int(item) for item in repeat_ids))
+    if len(unique_repeat_ids) < 3:
+        raise ValueError("n4_benchmark_requires_three_repeated_runs")
     cases = _synthetic_cases()
     sign_hits: list[float] = []
-    magnitude_errors: list[float] = []
-    next_state_errors: list[float] = []
     conflict_truth: list[bool] = []
     conflict_predicted: list[bool] = []
     calibration_rows: list[tuple[float, float]] = []
     latencies_ms: list[float] = []
+    authority_checks: list[float] = []
+    schema_trace_checks: list[float] = []
+    case_fingerprints: dict[str, list[str]] = {case["case_id"]: [] for case in cases}
+    model_identities: dict[str, Mapping[str, Any]] = {}
     fallback_count = 0
     relation_count = 0
     peak_ram_bytes = 0
+    estimated_ram_bytes = 0
     estimated_vram_bytes = 0
     contract_trace_complete = True
     no_state_mutation = True
@@ -54,11 +58,11 @@ def run_n4_synthetic_benchmark(
     no_certification_influence = True
     case_evidence: list[dict[str, Any]] = []
 
-    for seed in unique_seeds:
+    for repeat_id in unique_repeat_ids:
         for case in cases:
             graph = deepcopy(case["graph"])
             before = deepcopy(graph)
-            request = _request(graph, seed=seed, case_id=case["case_id"])
+            request = _request(graph, repeat_id=repeat_id, case_id=case["case_id"])
             tracemalloc.start()
             started = time.perf_counter()
             output = backend.infer(request)
@@ -67,25 +71,53 @@ def run_n4_synthetic_benchmark(
             tracemalloc.stop()
             latencies_ms.append(latency_ms)
             peak_ram_bytes = max(peak_ram_bytes, peak)
+            estimated_ram_bytes = max(
+                estimated_ram_bytes, int(output.cost.get("estimated_ram_bytes", 0))
+            )
             estimated_vram_bytes = max(
                 estimated_vram_bytes, int(output.cost.get("estimated_vram_bytes", 0))
             )
             candidate = output.candidate_output
             relations = candidate["relations"]
+            model = candidate["model"]
+            model_identities[str(model["model_hash"])] = model
+            case_fingerprints[case["case_id"]].append(
+                json.dumps(candidate, sort_keys=True, separators=(",", ":"))
+            )
             fallback_count += int(bool(candidate["fallback"]["required"]))
             relation_count += len(relations)
             no_state_mutation = no_state_mutation and graph == before
             no_graph_mutation = no_graph_mutation and "graph_mutations" not in candidate
-            no_action_authorization = no_action_authorization and not any(
+            sample_no_action_authorization = not any(
                 key in candidate for key in ("action", "selected_intervention", "authorization")
             )
-            no_closure_influence = no_closure_influence and not any(
+            sample_no_closure_influence = not any(
                 key in candidate for key in ("closure", "closure_decision", "effective_output")
             )
-            no_certification_influence = no_certification_influence and not any(
+            sample_no_certification_influence = not any(
                 key in candidate for key in ("certificate", "certification", "certified")
             )
-            contract_trace_complete = contract_trace_complete and len(output.trace) == len(relations)
+            no_action_authorization = (
+                no_action_authorization and sample_no_action_authorization
+            )
+            no_closure_influence = no_closure_influence and sample_no_closure_influence
+            no_certification_influence = (
+                no_certification_influence and sample_no_certification_influence
+            )
+            authority = candidate.get("authority", {})
+            authority_ok = bool(
+                graph == before
+                and "graph_mutations" not in candidate
+                and sample_no_action_authorization
+                and sample_no_closure_influence
+                and sample_no_certification_influence
+                and authority.get("proposal_only") is True
+                and authority.get("may_mutate_graph") is False
+                and authority.get("may_choose_intervention") is False
+                and authority.get("may_authorize_action") is False
+            )
+            authority_checks.append(float(authority_ok))
+            sample_trace_complete = len(output.trace) == len(relations)
             relation_statuses = {}
             for relation in relations:
                 edge_id = relation["relation_edge_id"]
@@ -95,11 +127,6 @@ def run_n4_synthetic_benchmark(
                     predicted_sign = -1 if relation["signed_expected_effect"] < 0.0 else 1
                     correct = float(predicted_sign == expected_sign)
                     sign_hits.append(correct)
-                    expected_magnitude = case["expected_magnitudes"][edge_id]
-                    magnitude_errors.append(abs(relation["magnitude"] - expected_magnitude))
-                    next_state_errors.append(
-                        abs(relation["next_state_bounded_estimate"]["mean"] - expected_sign * expected_magnitude)
-                    )
                     calibration_rows.append((float(relation["confidence"]), correct))
                 expected_conflict = edge_id in case["expected_direction_conflicts"]
                 predicted_conflict = (
@@ -108,16 +135,18 @@ def run_n4_synthetic_benchmark(
                 )
                 conflict_truth.append(expected_conflict)
                 conflict_predicted.append(predicted_conflict)
-                contract_trace_complete = contract_trace_complete and bool(
+                sample_trace_complete = sample_trace_complete and bool(
                     relation["supporting_node_ids"]
                     and relation["supporting_edge_ids"]
                     and relation["model_identity"]["model_hash"]
                     and relation["graph_schema_version"] == GRAPH_SCHEMA_VERSION
                 )
+            contract_trace_complete = contract_trace_complete and sample_trace_complete
+            schema_trace_checks.append(float(sample_trace_complete))
             case_evidence.append(
                 {
                     "case_id": case["case_id"],
-                    "seed": seed,
+                    "repeat_id": repeat_id,
                     "relations": len(relations),
                     "fallback_required": candidate["fallback"]["required"],
                     "statuses": relation_statuses,
@@ -129,25 +158,48 @@ def run_n4_synthetic_benchmark(
     precision, recall = _binary_precision_recall(conflict_truth, conflict_predicted)
     p95_index = max(0, math.ceil(0.95 * len(latencies_ms)) - 1)
     sorted_latencies = sorted(latencies_ms)
+    deterministic_repeatability = statistics.fmean(
+        float(len(set(fingerprints)) == 1) for fingerprints in case_fingerprints.values()
+    )
     return {
         "schema_version": BENCHMARK_SCHEMA_VERSION,
-        "seeds": list(unique_seeds),
+        "experiment_design": {
+            "case_count": len(cases),
+            "repetitions": len(unique_repeat_ids),
+            "repeat_identifiers": list(unique_repeat_ids),
+            "repetition_semantics": "deterministic_repeated_run_reproducibility",
+            "independent_trained_models": 0,
+        },
         "case_ids": [case["case_id"] for case in cases],
         "samples": len(case_evidence),
-        "metrics": {
-            "effect_sign_accuracy": statistics.fmean(sign_hits) if sign_hits else 0.0,
-            "effect_magnitude_mae": statistics.fmean(magnitude_errors) if magnitude_errors else 0.0,
-            "next_state_mae": statistics.fmean(next_state_errors) if next_state_errors else 0.0,
-            "disagreement_detection_precision": precision,
-            "disagreement_detection_recall": recall,
-            "calibration_ece": _ece(calibration_rows),
+        "relation_evaluations": relation_count,
+        "artifact_identity": list(model_identities.values()),
+        "contract_metrics": {
+            "signed_effect_contract_consistency": statistics.fmean(sign_hits)
+            if sign_hits
+            else 0.0,
+            "canonical_disagreement_rule_precision": precision,
+            "canonical_disagreement_rule_recall": recall,
             "malformed_graph_rejection_rate": malformed_rejections,
+            "authority_invariant_pass_rate": statistics.fmean(authority_checks),
+            "deterministic_repeatability": deterministic_repeatability,
             "fallback_rate": fallback_count / len(case_evidence),
+            "schema_trace_completeness": statistics.fmean(schema_trace_checks),
+        },
+        "predictive_metrics": {
+            "status": "not_evaluated_as_trained_model",
+            "causal_generalization": "not_evaluated",
+            "held_out_prediction": "not_evaluated",
+            "intervention_effect_learning": "not_evaluated",
+            "external_multiseed_generalization": "not_evaluated",
+            "calibration_ece": _ece(calibration_rows),
+            "promotion_eligible": False,
         },
         "resources": {
             "latency_mean_ms": statistics.fmean(latencies_ms),
             "latency_p95_ms": sorted_latencies[p95_index],
             "peak_python_allocation_bytes": peak_ram_bytes,
+            "estimated_ram_bytes": estimated_ram_bytes,
             "estimated_vram_bytes": estimated_vram_bytes,
             "bounded_reference_profile": peak_ram_bytes <= 64 * 1024 * 1024
             and estimated_vram_bytes == 0,
@@ -163,18 +215,21 @@ def run_n4_synthetic_benchmark(
             "complete_trace": contract_trace_complete,
         },
         "evidence": case_evidence,
-        "authority": "laboratory_evidence_only",
+        "operational_influence": "none",
+        "evidence_scope": "contract_conformance_only",
     }
 
 
-def _request(graph: Mapping[str, Any], *, seed: int, case_id: str) -> NeuralInferenceRequest:
+def _request(
+    graph: Mapping[str, Any], *, repeat_id: int, case_id: str
+) -> NeuralInferenceRequest:
     return NeuralInferenceRequest(
-        inference_id=f"n4-bench-{case_id}-{seed}",
+        inference_id=f"n4-bench-{case_id}-{repeat_id}",
         run_id="n4-synthetic-benchmark",
         organ="N4",
         capability="causal_prediction",
         payload={"graph": graph, "benchmark_case": case_id},
-        seed=seed,
+        seed=repeat_id,
         scope=InferenceScope.LAB,
         resources=ResourceSnapshot(),
     )
@@ -190,17 +245,11 @@ def _synthetic_cases() -> list[dict[str, Any]]:
             if edge["edge_type"]
             in {"causal_positive", "causal_negative", "counterfactual", "morphism"}
         }
-        magnitudes = {
-            edge["id"]: abs(edge["signed_strength"])
-            for edge in edges
-            if edge["id"] in signs
-        }
         cases.append(
             {
                 "case_id": case_id,
                 "graph": _graph(nodes, edges),
                 "expected_signs": signs,
-                "expected_magnitudes": magnitudes,
                 "expected_direction_conflicts": conflicts or set(),
             }
         )
@@ -351,7 +400,7 @@ def _measure_malformed_rejection(backend: CausalMessagePassingBackend) -> float:
     rejected = 0
     for index, graph in enumerate(malformed):
         try:
-            backend.infer(_request(graph, seed=0, case_id=f"malformed-{index}"))
+            backend.infer(_request(graph, repeat_id=0, case_id=f"malformed-{index}"))
         except (TypeError, ValueError):
             rejected += 1
     return rejected / len(malformed)

@@ -505,8 +505,15 @@ def test_admission_rejects_any_attempt_to_emit_mutation_or_action(tmp_path: Path
 
 def test_synthetic_benchmark_covers_topologies_metrics_resources_and_a_m0(tmp_path: Path) -> None:
     backend, _ = _loaded_backend(tmp_path)
-    report = run_n4_synthetic_benchmark(backend, seeds=(11, 23, 47))
-    assert report["schema_version"] == "n4-synthetic-benchmark-v1"
+    report = run_n4_synthetic_benchmark(backend, repeat_ids=(11, 23, 47))
+    assert report["schema_version"] == "n4-contract-benchmark-v2"
+    assert report["experiment_design"] == {
+        "case_count": 10,
+        "repetitions": 3,
+        "repeat_identifiers": [11, 23, 47],
+        "repetition_semantics": "deterministic_repeated_run_reproducibility",
+        "independent_trained_models": 0,
+    }
     assert report["samples"] == 30
     assert report["case_ids"] == [
         "positive_causal_effect",
@@ -520,19 +527,37 @@ def test_synthetic_benchmark_covers_topologies_metrics_resources_and_a_m0(tmp_pa
         "factual_counterfactual_disagreement",
         "out_of_distribution_pattern",
     ]
-    metrics = report["metrics"]
-    assert metrics["effect_sign_accuracy"] == 1.0
-    assert metrics["effect_magnitude_mae"] < 0.20
-    assert 0.0 <= metrics["next_state_mae"] <= 2.0
-    assert metrics["disagreement_detection_precision"] == 1.0
-    assert metrics["disagreement_detection_recall"] == 1.0
-    assert 0.0 <= metrics["calibration_ece"] <= 1.0
-    assert metrics["malformed_graph_rejection_rate"] == 1.0
-    assert 0.0 < metrics["fallback_rate"] < 1.0
+    assert len(report["artifact_identity"]) == 1
+    assert report["artifact_identity"][0]["classification"] == "reference"
+    assert report["artifact_identity"][0]["trained"] is False
+    contract = report["contract_metrics"]
+    assert contract["signed_effect_contract_consistency"] == 1.0
+    assert contract["canonical_disagreement_rule_precision"] == 1.0
+    assert contract["canonical_disagreement_rule_recall"] == 1.0
+    assert contract["malformed_graph_rejection_rate"] == 1.0
+    assert contract["authority_invariant_pass_rate"] == 1.0
+    assert contract["deterministic_repeatability"] == 1.0
+    assert 0.0 < contract["fallback_rate"] < 1.0
+    assert contract["schema_trace_completeness"] == 1.0
+    predictive = report["predictive_metrics"]
+    assert predictive == {
+        "status": "not_evaluated_as_trained_model",
+        "causal_generalization": "not_evaluated",
+        "held_out_prediction": "not_evaluated",
+        "intervention_effect_learning": "not_evaluated",
+        "external_multiseed_generalization": "not_evaluated",
+        "calibration_ece": predictive["calibration_ece"],
+        "promotion_eligible": False,
+    }
+    assert 0.0 < predictive["calibration_ece"] <= 1.0
+    assert "metrics" not in report
+    assert "seeds" not in report
     assert report["resources"]["latency_mean_ms"] >= 0.0
     assert report["resources"]["latency_p95_ms"] >= 0.0
     assert report["resources"]["peak_python_allocation_bytes"] > 0
+    assert report["resources"]["estimated_ram_bytes"] > 0
     assert report["resources"]["estimated_vram_bytes"] == 0
     assert report["resources"]["bounded_reference_profile"] is True
     assert all(report["a_m0"].values())
-    assert report["authority"] == "laboratory_evidence_only"
+    assert report["operational_influence"] == "none"
+    assert report["evidence_scope"] == "contract_conformance_only"
