@@ -194,6 +194,86 @@ def test_linked_provisional_only_exposes_admitted_bounded_proposal(tmp_path: Pat
     assert result.fallback_used is False
 
 
+def test_linked_provisional_honors_typed_shadow_authority_ceiling(tmp_path: Path) -> None:
+    counters: dict[str, int] = {}
+    runtime, _, manifest = _runtime(tmp_path, NeuralMode.PROVISIONAL, counters)
+    fallback = {"families": ["DED"]}
+    result = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=lambda candidate, request: AdmissionDecision(
+            True,
+            candidate,
+            "semantically_valid_but_shadow_only",
+            effective_mode_ceiling=NeuralMode.SHADOW,
+        ),
+    )
+    assert result.effective_mode is NeuralMode.SHADOW
+    assert result.decision_influence is DecisionInfluence.NONE
+    assert result.effective_output == fallback
+    assert result.candidate_output == {"families": ["IND"], "seed": 11}
+    assert result.fallback_used is True
+    assert result.fallback_reason == "admission_authority_ceiling:shadow"
+
+
+def test_rejected_or_invalid_admission_contract_fails_closed(tmp_path: Path) -> None:
+    counters: dict[str, int] = {}
+    runtime, _, manifest = _runtime(tmp_path, NeuralMode.PROVISIONAL, counters)
+    fallback = {"families": ["DED"]}
+    rejected = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=lambda candidate, request: AdmissionDecision(
+            False, reason="policy_rejected"
+        ),
+    )
+    assert rejected.effective_output == fallback
+    assert rejected.decision_influence is DecisionInfluence.NONE
+    assert rejected.fallback_reason == "policy_rejected"
+
+    def invalid_ceiling(candidate, request):
+        return AdmissionDecision(
+            True,
+            candidate,
+            "invalid_fixture",
+            effective_mode_ceiling="shadow",  # type: ignore[arg-type]
+        )
+
+    invalid = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=invalid_ceiling,
+    )
+    assert invalid.effective_mode is NeuralMode.SHADOW
+    assert invalid.effective_output == fallback
+    assert invalid.decision_influence is DecisionInfluence.NONE
+    assert invalid.fallback_used is True
+    assert "admission_effective_mode_ceiling_must_be_neural_mode" in (
+        invalid.fallback_reason or ""
+    )
+
+    incompatible = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=lambda candidate, request: AdmissionDecision(
+            True,
+            candidate,
+            "experimental_is_not_a_live_authority_ceiling",
+            effective_mode_ceiling=NeuralMode.EXPERIMENTAL,
+        ),
+    )
+    assert incompatible.effective_mode is NeuralMode.SHADOW
+    assert incompatible.effective_output == fallback
+    assert incompatible.decision_influence is DecisionInfluence.NONE
+    assert incompatible.fallback_reason == (
+        "admission_authority_ceiling_invalid:experimental"
+    )
+
+
 def test_hash_mismatch_and_oom_are_explicit_fallbacks(tmp_path: Path) -> None:
     counters: dict[str, int] = {}
     runtime, _, manifest = _runtime(tmp_path, NeuralMode.SHADOW, counters)

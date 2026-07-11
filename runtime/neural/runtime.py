@@ -193,14 +193,35 @@ class NeuralRuntime:
                 effective_mode = NeuralMode.SHADOW
                 fallback_reason = "missing_admission_gate"
             else:
-                decision = admission_gate(output.candidate_output, request)
-                if decision.accepted:
-                    effective_output = (
-                        decision.output if decision.output is not None else output.candidate_output
-                    )
-                    influence = DecisionInfluence.BOUNDED_PROPOSAL
-                    fallback_used = False
-                else:
+                try:
+                    decision = admission_gate(output.candidate_output, request)
+                except Exception as exc:
+                    decision = None
+                    effective_mode = NeuralMode.SHADOW
+                    fallback_reason = f"admission_gate_failed:{_exception_reason(exc)}"
+                if decision is not None and not isinstance(decision, AdmissionDecision):
+                    effective_mode = NeuralMode.SHADOW
+                    fallback_reason = "admission_contract_invalid"
+                elif decision is not None and decision.accepted:
+                    ceiling = decision.effective_mode_ceiling
+                    if ceiling is NeuralMode.SHADOW:
+                        effective_mode = NeuralMode.SHADOW
+                        fallback_reason = "admission_authority_ceiling:shadow"
+                    elif ceiling is not None and not isinstance(ceiling, NeuralMode):
+                        effective_mode = NeuralMode.SHADOW
+                        fallback_reason = "admission_authority_ceiling_invalid:type"
+                    elif ceiling not in {None, NeuralMode.PROVISIONAL}:
+                        effective_mode = NeuralMode.SHADOW
+                        fallback_reason = f"admission_authority_ceiling_invalid:{ceiling.value}"
+                    else:
+                        effective_output = (
+                            decision.output
+                            if decision.output is not None
+                            else output.candidate_output
+                        )
+                        influence = DecisionInfluence.BOUNDED_PROPOSAL
+                        fallback_used = False
+                elif decision is not None:
                     fallback_reason = decision.reason or "admission_rejected"
         elif effective_mode is NeuralMode.SHADOW:
             fallback_reason = (

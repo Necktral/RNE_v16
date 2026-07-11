@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from runtime.neural import InferenceScope, NeuralInferenceRequest, NeuralModelManifest, ResourceSnapshot
+from runtime.neural import (
+    InferenceScope,
+    NeuralInferenceRequest,
+    NeuralMode,
+    NeuralModelManifest,
+    ResourceSnapshot,
+)
 from runtime.neural.organs import (
     CausalMessagePassingBackend,
     CausalPredictionAdmission,
@@ -292,5 +298,7 @@ def test_n4_message_passing_returns_predictions_without_graph_mutation(tmp_path:
     )
     output = backend.infer(request)
     assert set(output.candidate_output["predictions"]) == {"a", "b"}
-    assert output.candidate_output["graph_mutations"] == []
-    assert CausalPredictionAdmission()(output.candidate_output, request).accepted is True
+    assert "graph_mutations" not in output.candidate_output
+    admission = CausalPredictionAdmission()(output.candidate_output, request)
+    assert admission.accepted is True
+    assert admission.effective_mode_ceiling is NeuralMode.SHADOW

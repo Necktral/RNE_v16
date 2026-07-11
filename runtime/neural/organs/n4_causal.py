@@ -14,7 +14,14 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping, Sequence
 
-from ..contracts import AdmissionDecision, BackendOutput, InferenceScope, NeuralInferenceRequest, NeuralModelManifest
+from ..contracts import (
+    AdmissionDecision,
+    BackendOutput,
+    InferenceScope,
+    NeuralInferenceRequest,
+    NeuralMode,
+    NeuralModelManifest,
+)
 from ._math import matrix, matvec, sigmoid, tanh_vector, vector
 
 
@@ -574,7 +581,6 @@ class CausalMessagePassingBackend:
         return BackendOutput(
             candidate_output={
                 "predictions": predictions,
-                "graph_mutations": [],
                 "input_compatibility": "legacy_reference_v0",
                 "model": self._model_identity(),
                 "authority": "CAU+CTF+C-GWM",
@@ -595,7 +601,9 @@ class CausalPredictionAdmission:
         if not isinstance(candidate, Mapping):
             return AdmissionDecision(False, reason="n4_prediction_schema_invalid")
         if candidate.get("input_compatibility") == "legacy_reference_v0":
-            if request.scope is not InferenceScope.LAB or candidate.get("graph_mutations") != []:
+            if request.scope is not InferenceScope.LAB or _contains_forbidden_authority_output(
+                candidate
+            ):
                 return AdmissionDecision(False, reason="n4_legacy_contract_lab_only")
             if not isinstance(candidate.get("predictions"), Mapping):
                 return AdmissionDecision(False, reason="n4_prediction_schema_invalid")
@@ -607,8 +615,9 @@ class CausalPredictionAdmission:
                     "admission_scope": "lab_shadow_logging_only",
                 },
                 reason="n4_legacy_reference_shadow_only",
+                effective_mode_ceiling=NeuralMode.SHADOW,
             )
-        if "graph_mutations" in candidate or "action" in candidate or "selected_intervention" in candidate:
+        if _contains_forbidden_authority_output(candidate):
             return AdmissionDecision(False, reason="n4_forbidden_authority_output")
         if candidate.get("schema_version") != OUTPUT_SCHEMA_VERSION:
             return AdmissionDecision(False, reason="n4_prediction_schema_invalid")
@@ -671,6 +680,7 @@ class CausalPredictionAdmission:
                 },
             },
             reason="n4_typed_prediction_shadow_only",
+            effective_mode_ceiling=NeuralMode.SHADOW,
         )
 
 
@@ -683,6 +693,23 @@ def _validated_enum_values(raw: Any, enum_type: type[Enum], label: str) -> froze
     if unknown:
         raise ValueError(f"n4_unknown_supported_{label}_type:{sorted(unknown)[0]}")
     return frozenset(values)
+
+
+_FORBIDDEN_AUTHORITY_OUTPUTS = frozenset(
+    {
+        "action",
+        "authorization",
+        "certificate",
+        "closure_decision",
+        "effective_output",
+        "graph_mutations",
+        "selected_intervention",
+    }
+)
+
+
+def _contains_forbidden_authority_output(candidate: Mapping[str, Any]) -> bool:
+    return not _FORBIDDEN_AUTHORITY_OUTPUTS.isdisjoint(candidate)
 
 
 def _edge_message_sign(edge: CausalEdge) -> float:

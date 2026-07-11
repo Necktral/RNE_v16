@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 
 from runtime.neural import (
+    CausalContextView,
+    DecisionInfluence,
     DevicePreference,
     InferenceScope,
     LazyBackendRegistry,
@@ -161,7 +163,12 @@ def _graph(*, nodes: list[dict] | None = None, edges: list[dict] | None = None) 
     }
 
 
-def _request(graph: dict, *, scope: InferenceScope = InferenceScope.LAB) -> NeuralInferenceRequest:
+def _request(
+    graph: dict,
+    *,
+    scope: InferenceScope = InferenceScope.LAB,
+    linked: bool = False,
+) -> NeuralInferenceRequest:
     return NeuralInferenceRequest(
         inference_id="n4-inference",
         run_id="n4-run",
@@ -171,6 +178,11 @@ def _request(graph: dict, *, scope: InferenceScope = InferenceScope.LAB) -> Neur
         seed=17,
         scope=scope,
         resources=ResourceSnapshot(),
+        causal_context=(
+            CausalContextView(organism_id="organism-n4", decision_id="decision-n4")
+            if linked
+            else None
+        ),
     )
 
 
@@ -215,7 +227,9 @@ def test_typed_signed_predictions_are_deterministic_and_do_not_mutate_graph(tmp_
     assert positive["model_identity"]["frozen"] is True
     assert positive["model_identity"]["experimental"] is True
     assert set(positive["next_state_bounded_estimate"]) == {"lower", "mean", "upper"}
-    assert CausalPredictionAdmission()(candidate, _request(graph)).accepted is True
+    admission = CausalPredictionAdmission()(candidate, _request(graph))
+    assert admission.accepted is True
+    assert admission.effective_mode_ceiling is NeuralMode.SHADOW
 
 
 @pytest.mark.parametrize(
@@ -390,6 +404,7 @@ def _runtime(
 def test_modes_hash_resources_and_trace_failure_preserve_authority(tmp_path: Path) -> None:
     graph = _graph()
     request = _request(graph, scope=InferenceScope.LIVE)
+    linked_request = _request(graph, scope=InferenceScope.LIVE, linked=True)
 
     off_runtime, off_registry, manifest = _runtime(tmp_path / "off", NeuralMode.OFF)
     off = off_runtime.infer(request=request, manifest=manifest, fallback_output={"authority": "CAU"})
@@ -412,13 +427,17 @@ def test_modes_hash_resources_and_trace_failure_preserve_authority(tmp_path: Pat
         tmp_path / "provisional", NeuralMode.PROVISIONAL
     )
     provisional = provisional_runtime.infer(
-        request=request,
+        request=linked_request,
         manifest=manifest,
         fallback_output={"authority": "CAU"},
         admission_gate=CausalPredictionAdmission(),
     )
     assert provisional.effective_mode is NeuralMode.SHADOW
     assert provisional.effective_output == {"authority": "CAU"}
+    assert provisional.candidate_output["relations"]
+    assert provisional.decision_influence is DecisionInfluence.NONE
+    assert provisional.fallback_used is True
+    assert provisional.fallback_reason == "admission_authority_ceiling:shadow"
 
     bad_hash_runtime, _, bad_manifest = _runtime(
         tmp_path / "bad-hash", NeuralMode.SHADOW, digest_override="0" * 64
@@ -441,15 +460,18 @@ def test_modes_hash_resources_and_trace_failure_preserve_authority(tmp_path: Pat
 
     flaky = _FlakyStorage()
     traced_runtime, _, manifest = _runtime(
-        tmp_path / "trace", NeuralMode.SHADOW, storage=flaky
+        tmp_path / "trace", NeuralMode.PROVISIONAL, storage=flaky
     )
     traced = traced_runtime.infer(
-        request=request,
+        request=linked_request,
         manifest=manifest,
         fallback_output={"authority": "CAU"},
         admission_gate=CausalPredictionAdmission(),
     )
     assert traced.effective_output == {"authority": "CAU"}
+    assert traced.effective_mode is NeuralMode.SHADOW
+    assert traced.decision_influence is DecisionInfluence.NONE
+    assert traced.fallback_reason == "admission_authority_ceiling:shadow"
     assert traced_runtime.trace_health.degraded is True
     assert traced_runtime.trace_health.persistence_failures == 4
     assert traced_runtime.trace_health.pending_events == 4
@@ -459,7 +481,17 @@ def test_admission_rejects_any_attempt_to_emit_mutation_or_action(tmp_path: Path
     backend, _ = _loaded_backend(tmp_path)
     graph = _graph()
     candidate = backend.infer(_request(graph)).candidate_output
-    for forbidden in ("graph_mutations", "action", "selected_intervention"):
+    forbidden_outputs = {
+        "action",
+        "authorization",
+        "certificate",
+        "closure_decision",
+        "effective_output",
+        "graph_mutations",
+        "selected_intervention",
+    }
+    assert forbidden_outputs.isdisjoint(candidate)
+    for forbidden in forbidden_outputs:
         malformed = {**candidate, forbidden: [] if forbidden == "graph_mutations" else "x"}
         decision = CausalPredictionAdmission()(malformed, _request(graph))
         assert decision.accepted is False
