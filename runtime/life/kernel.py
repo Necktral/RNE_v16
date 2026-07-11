@@ -5,8 +5,15 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence
-from uuid import uuid4
 
+from runtime.organism.identity import (
+    CausalContext,
+    causal_context_enabled,
+    mint_lineage_id,
+    mint_organism_id,
+    mint_run_id,
+    resolve_organism_id,
+)
 from runtime.organism.lineage import LineageState
 from runtime.organism.state import IdentityState, OrganismState
 from runtime.conjunction import OperationalConjunctionLayer
@@ -39,6 +46,10 @@ NON_EPISODE_ACTIONS = frozenset({"shutdown", "sleep", "quarantine", "rollback"})
 @dataclass(frozen=True, slots=True)
 class LifeKernelConfig:
     run_id: str | None = None
+    # B41: genoma persistente a vincular (resume/bind de un organismo conocido, p. ej.
+    # aeon-01). None ⇒ el kernel resuelve por RNFE_ORGANISM_ID o acuña un genoma genuino.
+    # Config gana sobre entorno (precedencia de génesis, §1.2).
+    organism_id: str | None = None
     scenarios: Sequence[str] = ("thermal_homeostasis", "resource_management")
     block_size: int = 8
     interval_s: float = 0.0
@@ -83,7 +94,14 @@ class LifeKernel:
             if self.config.enable_operational_conjunction
             else None
         )
-        self.run_id = self.config.run_id or f"life-{uuid4().hex[:12]}"
+        # B41 — tres ejes de identidad distintos (canon f2.4 A-M5/A-M8/A-M10):
+        #   run_id      : la corrida (EFÍMERO; re-acuñado cada proceso salvo config).
+        #   organism_id : el genoma (PERSISTE entre corridas; namespace de memoria M_t).
+        #   lineage_id  : el linaje evolutivo μ_t (abarca varios organismos).
+        # run_id ya NO es fuente de identidad persistente: solo marca esta ejecución.
+        self.run_id = self.config.run_id or mint_run_id()
+        self.organism_id: str = ""
+        self.lineage_id: str = ""
         self.total_steps = 0
         self.scenario_index = 0
         self.scenario_episode_index = 0
@@ -191,11 +209,17 @@ class LifeKernel:
         )
         self.last_decision = decision
 
+        # B41 CausalContext.v1: se acuña 1× por step() a partir de los tres ejes + el
+        # decision_id que originó el episodio. Aditivo y GATED (RNFE_CAUSAL_CONTEXT):
+        # None ⇒ nada se inyecta ⇒ byte-idéntico con la feature ausente.
+        causal = self._mint_causal_context(decision)
+
         if decision.action in NON_EPISODE_ACTIONS:
             return self._handle_non_acting_decision(
                 decision=decision,
                 pre_vitals=pre_vitals,
                 operational=operational,
+                causal=causal,
             )
 
         checkpoint_before = None
@@ -244,7 +268,10 @@ class LifeKernel:
         runner.set_resource_signals(self._resource_snapshot)
         runner.set_external_reasoner_enabled(external_reasoner_enabled)
         # Experiencia: identidad cross-vida + lecciones del maestro para sesgar el episodio.
-        runner.set_organism_id(self.run_id)
+        # B41: el namespace es el GENOMA (organism_id), no la corrida (run_id).
+        runner.set_organism_id(self.organism_id)
+        # B41: el sobre de correlación viaja al runner (episodio/trazas). None ⇒ no-op.
+        runner.set_causal_context(causal.to_dict() if causal is not None else None)
         runner.set_experience_lessons(self._experience_lessons)
         episode_result = runner.run_episode(external_input=input_value)
         self._consecutive_quarantine = 0  # actuó sano ⇒ ya no está atascado
@@ -296,21 +323,24 @@ class LifeKernel:
             decision=decision,
             reason="step_completed",
         )
+        step_payload: Dict[str, Any] = {
+            "step_index": self.total_steps,
+            "scenario": scenario,
+            "decision": decision.to_dict(),
+            "vital_signs": vitals.to_dict(),
+            "goals": [goal.to_dict() for goal in goals],
+            "checkpoint_artifact_id": getattr(checkpoint, "artifact_id", None),
+            "pre_mutation_checkpoint_artifact_id": getattr(checkpoint_before, "artifact_id", None),
+            "msrc": msrc_result,
+            "operational_conjunction": operational.to_dict() if operational else {},
+        }
+        if causal is not None:
+            step_payload["causal_context"] = causal.to_dict()
         self.storage.append_event(
             event_type="life.step.completed",
             run_id=self.run_id,
             source="life_kernel",
-            payload={
-                "step_index": self.total_steps,
-                "scenario": scenario,
-                "decision": decision.to_dict(),
-                "vital_signs": vitals.to_dict(),
-                "goals": [goal.to_dict() for goal in goals],
-                "checkpoint_artifact_id": getattr(checkpoint, "artifact_id", None),
-                "pre_mutation_checkpoint_artifact_id": getattr(checkpoint_before, "artifact_id", None),
-                "msrc": msrc_result,
-                "operational_conjunction": operational.to_dict() if operational else {},
-            },
+            payload=step_payload,
         )
         return LifeStepResult(
             run_id=self.run_id,
@@ -384,8 +414,8 @@ class LifeKernel:
         scenario = self._current_scenario()
         main_var, _ = self._scenario_info(scenario)
         exp = build_experience(
-            organism_id=self.run_id,
-            run_id=self.run_id,
+            organism_id=self.organism_id,  # B41: namespace por genoma (recuperable cross-vida)
+            run_id=self.run_id,            # procedencia: la corrida que sufrió el golpe
             episode_id=f"life-{decision.action}-{self.total_steps}",
             scenario=scenario,
             regime="distress" if decision.action in {"quarantine", "rollback"} else "rest",
@@ -418,7 +448,7 @@ class LifeKernel:
         if not valid:
             return
         try:
-            lessons = self._teacher.reflect(organism_id=self.run_id, valid_interventions=valid)
+            lessons = self._teacher.reflect(organism_id=self.organism_id, valid_interventions=valid)
         except Exception:
             lessons = []
         if lessons:
@@ -578,12 +608,25 @@ class LifeKernel:
             created_at=decision.created_at,
         )
 
+    def _mint_causal_context(self, decision: AutonomyDecision) -> CausalContext | None:
+        """Acuña el sobre CausalContext del step (gated). None ⇒ feature ausente."""
+        if not causal_context_enabled():
+            return None
+        return CausalContext.for_step(
+            organism_id=self.organism_id,
+            lineage_id=self.lineage_id,
+            run_id=self.run_id,
+            step_index=self.total_steps,
+            decision_id=getattr(decision, "decision_id", None),
+        )
+
     def _handle_non_acting_decision(
         self,
         *,
         decision: AutonomyDecision,
         pre_vitals: VitalSignsSnapshot,
         operational: OperationalConjunctionResult | None = None,
+        causal: CausalContext | None = None,
     ) -> LifeStepResult:
         assert self.organism_state is not None
         assert self.lineage is not None
@@ -620,17 +663,20 @@ class LifeKernel:
             decision=decision,
             reason=f"non_acting_{decision.action}",
         )
+        non_acting_payload: Dict[str, Any] = {
+            "step_index": self.total_steps,
+            "decision": decision.to_dict(),
+            "vital_signs": vitals.to_dict(),
+            "checkpoint_artifact_id": checkpoint.artifact_id,
+            "operational_conjunction": operational.to_dict() if operational else {},
+        }
+        if causal is not None:
+            non_acting_payload["causal_context"] = causal.to_dict()
         self.storage.append_event(
             event_type=f"life.{decision.action}",
             run_id=self.run_id,
             source="life_kernel",
-            payload={
-                "step_index": self.total_steps,
-                "decision": decision.to_dict(),
-                "vital_signs": vitals.to_dict(),
-                "checkpoint_artifact_id": checkpoint.artifact_id,
-                "operational_conjunction": operational.to_dict() if operational else {},
-            },
+            payload=non_acting_payload,
         )
         # Experiencia: grabar el golpe de esta decisión no-actuante y —si es una herida
         # profunda— que el maestro (7B) reflexione y destile una lección (E1 + E2, off hot-path).
@@ -649,15 +695,30 @@ class LifeKernel:
         )
 
     def _restore_initial_identity(self) -> None:
-        restored = self.persistence.load_latest_identity(run_id=self.config.run_id)
+        # B41 (§3.5/§3.8): el descubrimiento se scopea por GENOMA cuando hay un
+        # organism_id explícito (config gana sobre entorno); si no, se conserva la
+        # mecánica legada por run_id (encuentra el checkpoint de una corrida estable
+        # tipo aeon-01, cuyo run_id ES el genoma legado por §4.1).
+        explicit_organism = resolve_organism_id(self.config.organism_id)
+        restored = self.persistence.load_latest_identity(
+            organism_id=explicit_organism,
+            run_id=self.config.run_id,
+        )
         if restored is None:
             return
+        previous_run_id = restored.run_id
         self._apply_restored_identity(restored)
+        # Genealogía de corridas (decisión 2): organism_id persiste, y el evento carga
+        # el run_id ANTERIOR (bajo el que se guardó) + el run_id NUEVO (esta corrida).
         self.storage.append_event(
             event_type="life.identity.restored",
             run_id=self.run_id,
             source="life_kernel",
             payload={
+                "organism_id": self.organism_id,
+                "lineage_id": self.lineage_id,
+                "previous_run_id": previous_run_id,
+                "run_id": self.run_id,
                 "checkpoint_artifact_id": restored.checkpoint_artifact_id,
                 "episode_count": restored.organism_state.episode_count,
                 "total_steps": restored.total_steps,
@@ -665,7 +726,12 @@ class LifeKernel:
         )
 
     def _apply_restored_identity(self, restored: RestoredIdentity) -> None:
-        self.run_id = restored.run_id
+        # B41 re-keying (decisión 2, CONDICIÓN DURA): el organism_id del payload
+        # (fallback run_id legacy) pasa a ser la clave persistente; el run_id NO se
+        # hereda — se conserva el re-acuñado en __init__ (efímero salvo config), de modo
+        # que la continuidad del organismo viva en organism_id y no en run_id.
+        self.organism_id = restored.organism_id
+        self.lineage_id = restored.lineage_id
         self.organism_state = restored.organism_state
         self.lineage = restored.lineage
         self.goal_manager = GoalManager(restored.goals or None)
@@ -679,14 +745,20 @@ class LifeKernel:
             self._scale_state = self._scale_state_from_payload(scale_state)
 
     def _genesis(self) -> None:
+        # organism_id (genoma) por precedencia: config gana sobre entorno →
+        # RNFE_ORGANISM_ID → ancestro (stub) → génesis genuina org-{uuid4}.
+        self.organism_id = resolve_organism_id(self.config.organism_id) or mint_organism_id()
+        # lineage_id (linaje μ_t): génesis genuina ⇒ linaje nuevo con un solo organismo.
+        # Distinto del run_id (ya no se deriva de la corrida).
+        self.lineage_id = mint_lineage_id()
         self.organism_state = OrganismState(
-            state_id=f"state-0-{self.run_id}",
+            state_id=f"state-0-{self.organism_id}",
             timestamp=utc_now_iso(),
             active_regime="genesis",
             episode_count=0,
-            identity=IdentityState(lineage_id=f"lineage-{self.run_id}"),
+            identity=IdentityState(lineage_id=self.lineage_id),
         )
-        self.lineage = LineageState(lineage_id=f"lineage-{self.run_id}")
+        self.lineage = LineageState(lineage_id=self.lineage_id)
         from runtime.organism.constitution import OrganismConstitution
 
         self.lineage.record_genesis(OrganismConstitution(), timestamp=utc_now_iso())
@@ -700,6 +772,7 @@ class LifeKernel:
             run_id=self.run_id,
             source="life_kernel",
             payload={
+                "organism_id": self.organism_id,
                 "organism_state_id": self.organism_state.state_id,
                 "lineage_id": self.lineage.lineage_id,
                 "goals": [goal.to_dict() for goal in self.goal_manager.goals],
@@ -758,6 +831,8 @@ class LifeKernel:
         assert self.lineage is not None
         return self.checkpoints.save_checkpoint(
             run_id=self.run_id,
+            organism_id=self.organism_id,
+            lineage_id=self.lineage_id,
             organism_state=self.organism_state,
             lineage=self.lineage,
             goals=list(self.goal_manager.goals),
@@ -777,7 +852,12 @@ class LifeKernel:
         )
 
     def _restore_latest_healthy_checkpoint(self) -> bool:
-        loaded = self.checkpoints.load_latest_payload(run_id=self.run_id, healthy_only=True)
+        # B41: el refugio sano (rollback/E5) se busca por GENOMA — el último yo sano del
+        # organismo, aunque viva bajo otra corrida (run_id efímero). Fallback a run_id
+        # legacy cubierto por load_latest_payload (§4.1).
+        loaded = self.checkpoints.load_latest_payload(
+            organism_id=self.organism_id, healthy_only=True
+        )
         if loaded is None:
             return False
         payload, artifact = loaded

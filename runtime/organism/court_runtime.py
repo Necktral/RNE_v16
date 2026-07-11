@@ -316,7 +316,10 @@ class ConstitutionalCourtRuntime:
         scope_defs = [
             ("organism", run_id),
             ("modification", snapshot.modification.active_proposals[0].proposal_id if snapshot.modification.active_proposals else f"{run_id}:mod"),
-            ("inheritance", snapshot.identity.lineage_id or run_id),
+            # B41: el scope de HERENCIA (μ_t) se keya por el linaje del GENOMA, no por la
+            # corrida efímera. El fallback a run_id se reemplaza por el centinela de linaje
+            # de génesis (IdentityState.lineage_id default), que es estable por-organismo.
+            ("inheritance", snapshot.identity.lineage_id or "genesis"),
         ]
         if renorm_result is not None:
             scope_defs.append(

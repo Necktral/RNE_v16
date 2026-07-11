@@ -31,6 +31,17 @@ from .regime_renormalization import (
     RenormalizationUncertainty,
 )
 from .autoevolution import AutoEvolutionController
+from .identity import (
+    CausalContext,
+    causal_context_enabled,
+    legacy_organism_id,
+    mint_lineage_id,
+    mint_organism_id,
+    mint_run_id,
+    mint_trace_group_id,
+    resolve_organism_id,
+    resolve_parent_organism_id,
+)
 from .failure_atlas import FailureAtlas, FailureClass, FailureSignature, detect_failure_atlas
 from .risk_process import (
     ConstitutionalRiskProcess,
@@ -46,6 +57,15 @@ __all__ = [
     "AutoEvolutionController",
     "BeliefHistory",
     "BeliefProjectionField",
+    "CausalContext",
+    "causal_context_enabled",
+    "legacy_organism_id",
+    "mint_lineage_id",
+    "mint_organism_id",
+    "mint_run_id",
+    "mint_trace_group_id",
+    "resolve_organism_id",
+    "resolve_parent_organism_id",
     "ConstitutionalFlowEngine",
     "ConstitutionalFlowResult",
     "ConstitutionalCourtRuntime",
