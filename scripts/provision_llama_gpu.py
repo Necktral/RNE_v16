@@ -430,9 +430,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--enable-external-reasoner",
         action="store_true",
-        help="Emitir activas (no comentadas) las claves de gobernanza del razonador "
-        "externo tier_3 (RNFE_ALLOW_EXTERNAL_REASONER / RNFE_MAX_COMPUTE_TIER) en el "
-        ".env generado. Default: comentadas / opt-in.",
+        help="Emitir activas (no comentadas) las TRES claves de gobernanza del "
+        "razonador externo tier_3 (RNFE_EXTERNAL_REASONER_RUNTIME —el switch maestro— "
+        "más RNFE_ALLOW_EXTERNAL_REASONER y RNFE_MAX_COMPUTE_TIER) en el .env generado. "
+        "Default: comentadas / opt-in.",
     )
     parser.add_argument("--smoke", action="store_true", help="Correr una inferencia de prueba en GPU.")
     args = parser.parse_args(argv)
