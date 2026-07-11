@@ -279,10 +279,33 @@ def cmd_download(models_root: Path, *, embeddings: bool) -> int:
     return 0
 
 
-def cmd_write_env(models_root: Path, out: Path, *, vk_device: str = "1") -> int:
+def cmd_write_env(
+    models_root: Path,
+    out: Path,
+    *,
+    vk_device: str = "1",
+    enable_external_reasoner: bool = False,
+) -> int:
     cli = _find_llama_cli(models_root)
     paths = _paths(models_root)
     cli_path = str(cli or models_root / "tools/llama.cpp/build-vulkan/llama-cli")
+    # Gobernanza del razonador externo: gate allow/tier que lee
+    # scripts/life_kernel.py -> config del kernel -> router (allow_external + techo
+    # tier_3_external). OPT-IN por defecto: auto-setearlas al máximo en un .env que
+    # el operador hace `source` derrota el gate por diseño (queda siempre-on) y arma
+    # la ejecución de un binario no verificado. Con --enable-external-reasoner se
+    # emiten activas; sin el flag salen comentadas.
+    if enable_external_reasoner:
+        governance = [
+            "export RNFE_ALLOW_EXTERNAL_REASONER=1",
+            "export RNFE_MAX_COMPUTE_TIER=tier_3_external",
+        ]
+    else:
+        governance = [
+            "# descomentar para habilitar el razonador externo tier_3 (requiere binario y GGUF verificados)",
+            "# export RNFE_ALLOW_EXTERNAL_REASONER=1",
+            "# export RNFE_MAX_COMPUTE_TIER=tier_3_external",
+        ]
     lines = [
         f'export RNFE_MODELS_ROOT="{models_root}"',
         f'export RNFE_REASONING_GGUF="{paths["reasoner_gguf"]}"',
@@ -302,11 +325,7 @@ def cmd_write_env(models_root: Path, out: Path, *, vk_device: str = "1") -> int:
         f"export GGML_VK_VISIBLE_DEVICES={vk_device}",
         "export RNFE_EXTERNAL_REASONER_RUNTIME=1",
         "export RNFE_CONJUNCTION_ROUTING_ENFORCED=1",
-        # Gobernanza del razonador externo: sin estas dos el 7B recién provisto es
-        # inalcanzable. Las lee el launcher scripts/life_kernel.py -> config del
-        # kernel -> router (allow_external + techo tier_3_external). Ver informe (f).
-        "export RNFE_ALLOW_EXTERNAL_REASONER=1",
-        "export RNFE_MAX_COMPUTE_TIER=tier_3_external",
+        *governance,
         "export RNFE_HOST_SENSING=1",
         # 'hashed' (CPU): este release de llama.cpp no trae llama-embedding. Para
         # embeddings en GPU: llama-server --embedding (seguimiento aparte).
@@ -350,6 +369,13 @@ def main(argv: list[str] | None = None) -> int:
         help="índice de GPU Vulkan para GGML_VK_VISIBLE_DEVICES en el .env "
         "(default 1; overridea con este flag o la env GGML_VK_VISIBLE_DEVICES).",
     )
+    parser.add_argument(
+        "--enable-external-reasoner",
+        action="store_true",
+        help="Emitir activas (no comentadas) las claves de gobernanza del razonador "
+        "externo tier_3 (RNFE_ALLOW_EXTERNAL_REASONER / RNFE_MAX_COMPUTE_TIER) en el "
+        ".env generado. Default: comentadas / opt-in.",
+    )
     parser.add_argument("--smoke", action="store_true", help="Correr una inferencia de prueba en GPU.")
     args = parser.parse_args(argv)
 
@@ -358,7 +384,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.download:
         return cmd_download(models_root, embeddings=not args.no_embeddings)
     if args.write_env:
-        return cmd_write_env(models_root, Path(args.write_env), vk_device=args.vk_device)
+        return cmd_write_env(
+            models_root,
+            Path(args.write_env),
+            vk_device=args.vk_device,
+            enable_external_reasoner=args.enable_external_reasoner,
+        )
     if args.smoke:
         return cmd_smoke(models_root)
     return cmd_check(models_root)

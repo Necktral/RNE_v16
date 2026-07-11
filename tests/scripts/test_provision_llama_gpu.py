@@ -7,7 +7,14 @@ Cubren lo verificable SIN red ni GPU:
   (b/c) `_verify_or_fail`: seteado -> enforce (borra + lanza); vacío -> advertencia
       honesta UNVERIFIED sin fallar.
   (d/e/f) `cmd_write_env`: preserva el contrato de nombres CUDA, resuelve el
-      GGML_VK_VISIBLE_DEVICES override, y emite los flags de gobernanza reales.
+      GGML_VK_VISIBLE_DEVICES override, y deja el gate de gobernanza del razonador
+      externo como opt-in (comentado por defecto; activo con --enable-external-reasoner).
+
+Re-obra (must-fix de la auditoría adversaria):
+  1) gobernanza opt-in por defecto (no auto-escalar el gate en el .env).
+  2) integridad del BINARIO llama.cpp (no solo del GGUF) vía `_verify_or_fail`.
+  3) `cmd_download` verifica SIEMPRE (fuera del guard exists()): un artefacto
+      preexistente corrupto aborta y no reporta "Descarga OK".
 """
 
 from __future__ import annotations
@@ -183,11 +190,56 @@ def test_write_env_vk_device_default_is_1(tmp_path: Path) -> None:
     assert "export GGML_VK_VISIBLE_DEVICES=1" in lines
 
 
-def test_write_env_governance_flags_present(tmp_path: Path) -> None:
+def test_write_env_external_reasoner_opt_in_commented_by_default(tmp_path: Path) -> None:
+    # (must-fix 1) El gate de gobernanza NO se auto-habilita: por defecto las dos
+    # claves salen COMENTADAS (opt-in), nunca activas.
     lines = _write_env_lines(tmp_path)
-    # (f) Flags reales que gatean el razonador externo (via life_kernel.py -> router).
+    assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" not in lines
+    assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" not in lines
+    text = "\n".join(lines)
+    assert "# export RNFE_ALLOW_EXTERNAL_REASONER=1" in text
+    assert "# export RNFE_MAX_COMPUTE_TIER=tier_3_external" in text
+    # Nota explicativa de una línea para el operador.
+    assert "descomentar para habilitar el razonador externo tier_3" in text
+
+
+def test_write_env_external_reasoner_active_with_flag(tmp_path: Path) -> None:
+    # (must-fix 1) Con --enable-external-reasoner las claves se emiten activas.
+    lines = _write_env_lines(tmp_path, enable_external_reasoner=True)
     assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" in lines
     assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" in lines
+    text = "\n".join(lines)
+    assert "# export RNFE_ALLOW_EXTERNAL_REASONER=1" not in text
+
+
+def test_main_write_env_external_reasoner_flag_activates(
+    tmp_path: Path,
+) -> None:
+    # (must-fix 1) El flag del CLI llega a cmd_write_env y activa las claves.
+    out = tmp_path / ".env.enabled"
+    rc = prov.main(
+        [
+            "--write-env",
+            str(out),
+            "--models-root",
+            str(tmp_path / "models"),
+            "--enable-external-reasoner",
+        ]
+    )
+    assert rc == 0
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" in lines
+    assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" in lines
+
+
+def test_main_write_env_external_reasoner_default_commented(tmp_path: Path) -> None:
+    # (must-fix 1) Sin el flag, el CLI deja las claves comentadas.
+    out = tmp_path / ".env.default"
+    rc = prov.main(["--write-env", str(out), "--models-root", str(tmp_path / "models")])
+    assert rc == 0
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" not in lines
+    assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" not in lines
 
 
 def test_write_env_preserves_cuda_contract(tmp_path: Path) -> None:
