@@ -118,6 +118,12 @@ Regla permanente: ver [[Protocolo de coordinación campaña neural]]. Partición
 
 **Estado git:** P1 committeado en `feat` (canon), **NO en `main`** — `main` queda en `canon-apex-v3.0` (`34cd3a3`) hasta que el número de fase se confirme. La memoria de coordinación se queda en `feat`, fuera de `main`, hasta nuevo aviso.
 
+> [!success] ACTUALIZACIÓN 2026-07-10 — P1, A-M0 y campaña neural EN MAIN
+> FASE_VIGENTE=1 confirmada → P1 promovido a main (cherry-pick `f3db397`+`a506540`). A-M0 (`4ab700c`) y la **campaña neural N0–N6 de Codex** (`3121b4c`, inerte, default `OFF`) mergeadas a main tras **auditoría de contexto fresco** (14 CONFIRMADO / 3 MATIZADO / 0 refutado) y **verificación ejecutada** (26 tests verde, cero imports en caminos vivos por comando). **`main = 3121b4c`.** **P-SEG (B48+B39)** committeado en feat (`b0452cd`, `auditor-reparacion`: APROBAR, suite 1125 verde). Detalle: [[Auditoría y merge campaña neural N0-N6 2026-07-10]].
+>
+> **Gate de promoción neural (shadow→provisional, por órgano):** (1) tests `artifact-missing` + `schema-inválido` y matriz de ~17 categorías (CC4); (2) campo "criterio de promoción" en los 7 ADRs (CC5). Ningún órgano sale de shadow sin eso.
+> **Pendiente:** promoción de P-SEG a main; re-tag opcional `canon-apex-v3.1` (A-M0 ya en main).
+
 ## Related
 
 - [[Cierre de adjudicación y reconciliación externa 2026-07-10]]
