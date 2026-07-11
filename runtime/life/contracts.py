@@ -249,7 +249,13 @@ class VitalSignsSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class RestoredIdentity:
-    """Identidad viva restaurada desde el ultimo checkpoint."""
+    """Identidad viva restaurada desde el ultimo checkpoint.
+
+    B41: separa los tres ejes. ``run_id`` es el de la corrida bajo la que se guardó
+    el checkpoint (queda como ``run_id`` ANTERIOR en la genealogía de corridas);
+    ``organism_id`` es el genoma persistente que el kernel adopta como clave (con
+    fallback legado ``organism_id := run_id``); ``lineage_id`` es el linaje μ_t.
+    """
 
     run_id: str
     organism_state: Any
@@ -260,6 +266,8 @@ class RestoredIdentity:
     scenario_index: int
     checkpoint_payload: Dict[str, Any]
     checkpoint_artifact_id: str | None = None
+    organism_id: str = ""
+    lineage_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)

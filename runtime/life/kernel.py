@@ -784,6 +784,8 @@ class LifeKernel:
         assert self.lineage is not None
         return self.checkpoints.save_checkpoint(
             run_id=self.run_id,
+            organism_id=self.organism_id,
+            lineage_id=self.lineage_id,
             organism_state=self.organism_state,
             lineage=self.lineage,
             goals=list(self.goal_manager.goals),

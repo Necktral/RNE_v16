@@ -38,17 +38,26 @@ class CheckpointManager:
         scenario_episode_index: int,
         memory_filter_mode: str,
         closure_profile: str,
+        organism_id: str | None = None,
+        lineage_id: str | None = None,
         decision: AutonomyDecision | None = None,
         runner_knobs: Dict[str, Any] | None = None,
         scale_state: Dict[str, Any] | None = None,
         metadata: Dict[str, Any] | None = None,
     ) -> ArtifactRecord:
         checkpoint_id = f"life-ckpt-{uuid4().hex[:12]}"
+        # B41 (decisión 4/6): el organism_id vive en el PAYLOAD del checkpoint (no se
+        # toca el IdentityState frozen). Fallback legado: si el kernel no lo provee,
+        # el genoma es el run_id bajo el que se escribió (organism_id := run_id).
+        organism_id = str(organism_id or run_id)
+        lineage_id = str(lineage_id or getattr(lineage, "lineage_id", "") or "")
         payload = {
             "version": LIFE_CHECKPOINT_VERSION,
             "checkpoint_id": checkpoint_id,
             "created_at": utc_now_iso(),
             "run_id": run_id,
+            "organism_id": organism_id,
+            "lineage_id": lineage_id,
             "total_steps": int(total_steps),
             "scenario_index": int(scenario_index),
             "scenario_episode_index": int(scenario_episode_index),
@@ -72,6 +81,10 @@ class CheckpointManager:
             mime_type="application/json",
             metadata={
                 "checkpoint_id": checkpoint_id,
+                # B41: organism_id/lineage_id en metadata ⇒ descubrimiento por genoma
+                # (decisión 5, filtro por metadata; path-segment diferido, cero migración).
+                "organism_id": organism_id,
+                "lineage_id": lineage_id,
                 "episode_count": organism_state.episode_count,
                 "total_steps": total_steps,
                 "mode": vital_signs.mode,
@@ -85,6 +98,8 @@ class CheckpointManager:
             payload={
                 "checkpoint_id": checkpoint_id,
                 "artifact_id": artifact.artifact_id,
+                "organism_id": organism_id,
+                "lineage_id": lineage_id,
                 "episode_count": organism_state.episode_count,
                 "mode": vital_signs.mode,
                 "healthy": vital_signs.is_restorable,
@@ -96,19 +111,34 @@ class CheckpointManager:
         self,
         *,
         run_id: str | None = None,
+        organism_id: str | None = None,
         healthy_only: bool = False,
     ) -> tuple[Dict[str, Any], ArtifactRecord] | None:
-        # Al buscar un REFUGIO sano (healthy_only) escaneamos mucho más hondo: tras un
-        # período largo dañado (cuarentena), el último yo sano puede estar lejos en el
+        # B41 (§3.8): el descubrimiento se puede scopear por GENOMA (organism_id) en vez
+        # de por corrida. Con run_id efímero, "el último checkpoint de cualquier corrida"
+        # es incorrecto; debe ser "el último de ESTE organismo". Cuando se da organism_id,
+        # escaneamos todos los checkpoints (run_id=None) y filtramos por el genoma vía
+        # metadata (fallback legado: el artifact.run_id ES el organism_id legado, §4.1).
+        # Sin organism_id, se conserva la mecánica por run_id (byte-idéntico).
+        scan_run_id = None if organism_id else run_id
+        # Al buscar un REFUGIO sano (healthy_only) o al scopear por organismo escaneamos
+        # mucho más hondo: tras un período largo dañado (cuarentena) o a través de varias
+        # corridas efímeras, el último yo sano del organismo puede estar lejos en el
         # tiempo, y debe seguir siendo alcanzable — sobrevivir es condición de aprender.
         artifacts = self.storage.list_artifacts(
-            run_id=run_id,
+            run_id=scan_run_id,
             kind=LIFE_CHECKPOINT_KIND,
-            limit=400 if healthy_only else 20,
+            limit=400 if (healthy_only or organism_id) else 20,
         )
         for artifact in artifacts:
             if healthy_only and not bool((artifact.metadata or {}).get("healthy")):
                 continue
+            if organism_id is not None:
+                # metadata.organism_id (post-B41) o, para checkpoints legados sin ese
+                # campo, el run_id de la corrida bajo la que se escribió (== genoma legado).
+                art_org = str((artifact.metadata or {}).get("organism_id") or artifact.run_id or "")
+                if art_org != organism_id:
+                    continue
             path = Path(artifact.abs_path)
             if not path.exists() or not path.is_file():
                 continue
