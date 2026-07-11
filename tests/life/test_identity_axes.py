@@ -221,3 +221,49 @@ def test_cross_run_experience_via_organism_id(tmp_path: Path, monkeypatch):
     records = storage.retrieve_memory_records(run_id="org-shared", scales=["experience"])
     run_ids = {(r.metadata or {}).get("run_id") for r in records}
     assert {"life-a", "life-b"} <= run_ids
+
+
+def test_causal_context_absent_by_default(tmp_path: Path, monkeypatch):
+    """Feature ausente (RNFE_CAUSAL_CONTEXT off): la clave no viaja ⇒ byte-idéntico."""
+    monkeypatch.delenv("RNFE_CAUSAL_CONTEXT", raising=False)
+    storage = _storage(tmp_path)
+    kernel = LifeKernel(
+        config=LifeKernelConfig(
+            run_id="life-noctx", organism_id="org-noctx",
+            scenarios=("thermal_homeostasis",), restore=False, enable_msrc=False,
+        ),
+        storage=storage,
+    )
+    kernel.step(external_input=0.05)
+    events = storage.list_events(
+        run_id="life-noctx", event_types=["life.step.completed"], limit=5
+    )
+    assert events
+    assert "causal_context" not in events[0].payload
+
+
+def test_causal_context_injected_when_enabled(tmp_path: Path, monkeypatch):
+    """Con RNFE_CAUSAL_CONTEXT=1 el sobre viaja aditivamente en life.step.completed."""
+    monkeypatch.setenv("RNFE_CAUSAL_CONTEXT", "1")
+    storage = _storage(tmp_path)
+    kernel = LifeKernel(
+        config=LifeKernelConfig(
+            run_id="life-ctx", organism_id="org-ctx",
+            scenarios=("thermal_homeostasis",), restore=False, enable_msrc=False,
+        ),
+        storage=storage,
+    )
+    kernel.step(external_input=0.05)
+    events = storage.list_events(
+        run_id="life-ctx", event_types=["life.step.completed"], limit=5
+    )
+    assert events
+    ctx = events[0].payload.get("causal_context")
+    assert ctx is not None
+    assert ctx["schema_version"] == "causal_context.v1"
+    # El sobre carga los tres ejes del organismo + el hilo del step.
+    assert ctx["organism_id"] == "org-ctx"
+    assert ctx["run_id"] == "life-ctx"
+    assert ctx["lineage_id"] == kernel.lineage_id
+    assert ctx["trace_group_id"].startswith("tg-org-ctx-")
+    assert ctx["decision_id"]

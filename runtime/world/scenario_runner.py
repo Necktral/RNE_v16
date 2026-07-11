@@ -125,6 +125,8 @@ class ScenarioEpisodeRunner:
         # Habilitación por-episodio del razonador externo (tier_3). El runtime
         # solo lo agenda si además el perfil admitido y el gate lo permiten (Bloque C).
         self._external_reasoner_enabled: bool = False
+        # B41: sobre CausalContext del step (aditivo, gated por el kernel). None ⇒ no-op.
+        self._causal_context: Dict[str, Any] | None = None
         # Experiencia: el organismo recuerda sus golpes y aprende (RNFE_EXPERIENCE).
         # B41: el namespace es organism_id (cross-vida). El runner NO acuña con convención
         # propia (nada de org-{run_id}): usa la función de acuñación compartida (SSOT). En
@@ -354,6 +356,23 @@ class ScenarioEpisodeRunner:
         """Inyecta lecciones del maestro (7B) para sesgar el razonamiento vía IND."""
         self._experience_lessons = list(lessons) if lessons else []
 
+    def set_causal_context(self, causal_context: Dict[str, Any] | None) -> None:
+        """Inyecta el sobre CausalContext.v1 del step (aditivo, gated por el kernel).
+
+        None ⇒ no-op byte-idéntico. Cuando está presente, su ``trace_group_id`` ata la
+        cadena decisión→episodio→traza→certificado de ESTE step y viaja como clave
+        aditiva en el evento ``episode.closed`` y en el contexto de razonamiento.
+        """
+        self._causal_context = dict(causal_context) if causal_context else None
+
+    def _causal_context_signals(self) -> Dict[str, Any]:
+        """Señales aditivas del sobre para el contexto de razonamiento (trazas)."""
+        ctx = self._causal_context
+        if not ctx:
+            return {}
+        tg = ctx.get("trace_group_id")
+        return {"trace_group_id": tg} if tg else {}
+
     def _situation_signature(self, observation) -> str:
         """Firma de situación estable, consistente entre sesgo y grabación."""
         from runtime.organism.experience import situation_key
@@ -569,6 +588,7 @@ class ScenarioEpisodeRunner:
                 "memory_filter_mode": self.memory_filter_mode,
                 "causal_attestation": causal_attestation,
                 **self._resource_context_signals(),
+                **self._causal_context_signals(),
             },
         )
         overlay_directives: Dict[str, str] | None = None
@@ -694,7 +714,10 @@ class ScenarioEpisodeRunner:
             "trace": reasoning["trace"],
         }
 
-        # 11. Persistir evento de cierre
+        # 11. Persistir evento de cierre. B41: el sobre CausalContext viaja como clave
+        # aditiva (gated). Ausente ⇒ episode_payload byte-idéntico a pre-B41.
+        if self._causal_context is not None:
+            episode_payload["causal_context"] = self._causal_context
         self.storage.append_event(
             event_type="episode.closed",
             payload=episode_payload,
