@@ -7,7 +7,10 @@ import sqlite3
 import threading
 from typing import Sequence
 
-from runtime.core.event_log_sqlite import EventLogSQLite
+from runtime.core.event_log_sqlite import (
+    EventLogSQLite,
+    configure_sqlite_connection,
+)
 
 from ..interfaces import StorageBackend
 from ..records import (
@@ -53,7 +56,7 @@ class SQLiteStorageBackend(StorageBackend):
         self._ensure_aux_schema()
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path)
+        return configure_sqlite_connection(sqlite3.connect(self.db_path))
 
     def _ensure_aux_schema(self) -> None:
         with self._lock, self._connect() as conn:
