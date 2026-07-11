@@ -272,9 +272,14 @@ def cmd_download(models_root: Path, *, embeddings: bool) -> int:
     try:
         if not paths["reasoner_gguf"].exists():
             _hf_download(REASONER_REPO, REASONER_FILE, paths["reasoner_gguf"])
-            _verify_or_fail(paths["reasoner_gguf"], REASONER_SHA256, "reasoner_gguf")
-        if embeddings and not paths["embed_gguf"].exists():
-            _hf_download(EMBED_REPO, EMBED_FILE, paths["embed_gguf"])
+        # Verificar SIEMPRE, FUERA del guard exists(): un artefacto preexistente
+        # (parcial por el copy no atómico, o plantado por un atacante local) NO debe
+        # saltear la verificación e imprimir "Descarga OK". exists() no es prueba de
+        # integridad; solo un hash OK habilita el return 0.
+        _verify_or_fail(paths["reasoner_gguf"], REASONER_SHA256, "reasoner_gguf")
+        if embeddings:
+            if not paths["embed_gguf"].exists():
+                _hf_download(EMBED_REPO, EMBED_FILE, paths["embed_gguf"])
             _verify_or_fail(paths["embed_gguf"], EMBED_SHA256, "embed_gguf")
     except IntegrityError as exc:
         print(f"  ERROR de integridad: {exc}")

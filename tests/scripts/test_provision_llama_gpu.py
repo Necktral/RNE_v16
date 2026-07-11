@@ -167,6 +167,35 @@ def test_cmd_download_fail_closed_on_reasoner_mismatch(
     assert not reasoner_path.exists()
 
 
+def test_cmd_download_fail_closed_on_preexisting_corrupt_reasoner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # (must-fix 3) Un GGUF PREEXISTENTE corrupto NO debe saltear _verify_or_fail via
+    # exists()->skip: cmd_download aborta (rc!=0) sin imprimir "Descarga OK", aunque
+    # no se descargue nada en esta corrida.
+    models_root = tmp_path / "models"
+    reasoner_path = prov._paths(models_root)["reasoner_gguf"]
+    reasoner_path.parent.mkdir(parents=True, exist_ok=True)
+    # Contenido arbitrario: su hash real != REASONER_SHA256 pinneado.
+    reasoner_path.write_bytes(b"corrupt-preexisting-artifact")
+
+    # Prueba que NO se intenta descargar (el archivo ya existe).
+    def _boom(*args: object, **kwargs: object) -> Path:
+        raise AssertionError("no debe descargar: el artefacto ya existe")
+
+    monkeypatch.setattr(prov, "_hf_download", _boom)
+
+    rc = prov.cmd_download(models_root, embeddings=False)
+
+    assert rc != 0
+    out = capsys.readouterr().out
+    assert "Descarga OK" not in out
+    # Fail-closed: el artefacto corrupto se borró del disco.
+    assert not reasoner_path.exists()
+
+
 # --------------------------------------------------------------------------- #
 # (d/e/f) write_env: contrato de nombres, override de device, gobernanza.
 # --------------------------------------------------------------------------- #
