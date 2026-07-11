@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from runtime.core.event_bus import event_bus  # Integración EventBus centralizado
 from runtime.core.epistemic_drift_predictor import EpistemicDriftPredictor  # Habilita predictor de deriva
-from runtime.reasoning.metacognition_tracker import MetacognitionTracker
+from runtime.reasoning.scheduler_meta.metacognition_tracker import MetacognitionTracker
 
 class CognitiveSelfChallengeAGI:
     def __init__(self, modules, monitor, quantum_states, challenge_interval=5000, drift_predictor=None, metacognition_tracker=None):

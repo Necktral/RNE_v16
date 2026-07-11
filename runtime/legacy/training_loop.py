@@ -40,9 +40,29 @@ class TrainingLoop:
         orch.logger.info("[DEBUG] training_loop.run iniciado")
         challenger = None
         if hasattr(orch, "modules") and orch.modules:
-            from runtime.reasoning.cognitive_self_challenge import CognitiveSelfChallenge
+            # B9: el nombre real de la clase es CognitiveSelfChallengeAGI y vive en
+            # families/dia_adv (el shim legacy fue podado en B13). Requiere monitor y
+            # estados cuánticos: se cablean desde el meta_optimizer, tras guard.
+            from runtime.reasoning.families.dia_adv.cognitive_self_challenge import (
+                CognitiveSelfChallengeAGI,
+            )
 
-            challenger = CognitiveSelfChallenge(orch.modules)
+            meta_optimizer = getattr(orch, "meta_optimizer", None)
+            monitor = getattr(meta_optimizer, "physics_monitor", None)
+            quantum_state = None
+            if meta_optimizer is not None:
+                quantum_state = getattr(meta_optimizer, "state", {}).get("quantum_state")
+            if monitor is not None and quantum_state is not None:
+                challenger = CognitiveSelfChallengeAGI(
+                    orch.modules,
+                    monitor,
+                    {uid: quantum_state for uid in orch.modules},
+                )
+            else:
+                orch.logger.warning(
+                    "CognitiveSelfChallengeAGI no cableado: meta_optimizer sin "
+                    "physics_monitor/quantum_state disponibles."
+                )
 
         cycle = 0
         if orch.tensorboard_writer is not None:
