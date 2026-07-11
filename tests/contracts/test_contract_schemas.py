@@ -104,7 +104,24 @@ def test_required_fields_of_record_backed_contracts_exist_in_the_dataclass():
         )
 
 
-def test_tool_request_and_tool_result_are_not_active_contracts():
-    """B20: capacidad de contrato reservada, sin productor. NO son contratos activos."""
-    assert "tool_request" not in cv.ACTIVE_CONTRACTS
-    assert "tool_result" not in cv.ACTIVE_CONTRACTS
+#: B20: schemas sin productor ni consumidor en el runtime actual. NO son huerfanos a
+#: borrar: son la superficie de contrato de la capa adaptadora que exige
+#: governance/adr/ADR_OPENCLAW_ACOPLAMIENTO.md (seccion 6), igual que session_bridge (B23).
+#: Retirar un schema de contrato es decision de producto/canon, no de refactor.
+RESERVED_CONTRACTS_WITHOUT_PRODUCER = ("tool_request", "tool_result")
+
+
+def test_reserved_contracts_are_not_active_contracts():
+    """B20: reservados != activos. No se validan on-write (no estan entre los 5 de CANON 13)."""
+    for contract in RESERVED_CONTRACTS_WITHOUT_PRODUCER:
+        assert contract not in cv.ACTIVE_CONTRACTS
+        assert contract not in cv.EVENT_CONTRACTS.values()
+
+
+def test_reserved_contracts_survive_and_declare_their_status():
+    """B20: no borrar. El schema se queda y dice por que no tiene productor."""
+    for contract in RESERVED_CONTRACTS_WITHOUT_PRODUCER:
+        schema = _load(f"{contract}.schema.json")
+        assert "RESERVADA" in schema.get("description", ""), (
+            f"{contract}.schema.json debe declarar su status de capacidad reservada (B20)"
+        )
