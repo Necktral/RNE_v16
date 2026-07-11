@@ -30,6 +30,11 @@ from .serialization import lineage_from_payload, organism_from_payload
 from .supervisor import AutonomySupervisor, AutonomySupervisorConfig
 from .vitals import VitalSignsService
 
+# B48: acciones que NO ejecutan episodio (las maneja la rama no-actuante de
+# ``step()``). Cualquier otra acción llega al runner, así que bajo veredicto
+# "block" debe transformarse o detenerse — jamás caer al retorno anotador.
+NON_EPISODE_ACTIONS = frozenset({"shutdown", "sleep", "quarantine", "rollback"})
+
 
 @dataclass(frozen=True, slots=True)
 class LifeKernelConfig:
@@ -186,7 +191,7 @@ class LifeKernel:
         )
         self.last_decision = decision
 
-        if decision.action in {"shutdown", "sleep", "quarantine", "rollback"}:
+        if decision.action in NON_EPISODE_ACTIONS:
             return self._handle_non_acting_decision(
                 decision=decision,
                 pre_vitals=pre_vitals,
@@ -208,8 +213,16 @@ class LifeKernel:
         # B3: el tier del router se vuelve EJECUTABLE (gated por
         # RNFE_CONJUNCTION_ROUTING_ENFORCED). Off -> nada de esto aplica.
         if routing_enforced() and operational is not None:
+            # B48: se ejecuta con el tier AUTORIZADO por el gate (execution_tier),
+            # no con el tier en el que se validó la acción original. Una acción
+            # crítica bloqueada y transformada valida en un tier y su reemplazo
+            # seguro ejecuta en otro (separación validation_tier/execution_tier).
+            execution_tier = (
+                decision.directives.get("execution_tier")
+                or operational.selected_compute_tier
+            )
             exec_dir = tier_execution_directives(
-                operational.selected_compute_tier,
+                execution_tier,
                 gpu_backed=self._route_gpu_backed(operational),
             )
             # La seguridad manda: si el gate/supervisor ya fijó un closure_profile
@@ -452,8 +465,16 @@ class LifeKernel:
         if operational is None:
             return decision
         operational_payload = operational.to_dict()
+        # Separación validation_tier/execution_tier (B48): validation_tier es el
+        # tier en el que la conjunción VALIDÓ la acción original; execution_tier
+        # es el tier en el que la decisión resultante queda AUTORIZADA a
+        # ejecutar (None si el ciclo se detiene y no hay episodio).
+        validation_tier = operational.selected_compute_tier
         if operational.final_decision == "block":
             if decision.action in {"self_modify", "consult_external"}:
+                # La acción crítica bloqueada NO se ejecuta: se reemplaza por un
+                # acto seguro que ejecuta en el tier más conservador, no en el
+                # tier donde validó la acción original.
                 return AutonomyDecision(
                     action="act",
                     mode="recovery" if decision.action == "self_modify" else "conservative",
@@ -466,7 +487,13 @@ class LifeKernel:
                         "blocked_action": decision.action,
                         "closure_profile": "adaptive_min",
                         "operational_conjunction": operational_payload,
+                        "validation_tier": validation_tier,
+                        "execution_tier": "tier_0_deterministic",
                     },
+                    # B39: la transformación preserva la identidad causal de la
+                    # decisión original (mismo decision_id/created_at).
+                    decision_id=decision.decision_id,
+                    created_at=decision.created_at,
                 )
             evidence_kinds = set(operational.context_summary.get("available_evidence_kinds") or [])
             if decision.action == "rollback" and "healthy_checkpoint" not in evidence_kinds:
@@ -481,8 +508,38 @@ class LifeKernel:
                         **decision.directives,
                         "blocked_action": decision.action,
                         "operational_conjunction": operational_payload,
+                        "validation_tier": validation_tier,
+                        "execution_tier": None,
                     },
+                    # B39: identidad causal preservada en la transformación.
+                    decision_id=decision.decision_id,
+                    created_at=decision.created_at,
                 )
+            if decision.action not in NON_EPISODE_ACTIONS:
+                # B48 (H5): invariante total de bloqueo. Cualquier otra acción
+                # ejecutante bajo veredicto "block" se DETIENE — jamás cae al
+                # retorno anotador (que dejaría correr el episodio igual).
+                return AutonomyDecision(
+                    action="sleep",
+                    mode="conservative",
+                    reason=f"operational_conjunction_block_halted_{decision.action}",
+                    priority=decision.priority,
+                    scenario=decision.scenario,
+                    external_input=decision.external_input,
+                    directives={
+                        **decision.directives,
+                        "blocked_action": decision.action,
+                        "operational_conjunction": operational_payload,
+                        "validation_tier": validation_tier,
+                        "execution_tier": None,
+                    },
+                    # B39: identidad causal preservada en la transformación.
+                    decision_id=decision.decision_id,
+                    created_at=decision.created_at,
+                )
+            # Acción no-ejecutante (shutdown/sleep/quarantine/rollback con
+            # evidencia) bajo "block": ya se detiene sola en la rama no-actuante
+            # de step(); cae al retorno anotador final sin ejecutar episodio.
         if operational.final_decision == "degrade":
             return AutonomyDecision(
                 action=decision.action,
@@ -495,7 +552,12 @@ class LifeKernel:
                     **decision.directives,
                     "closure_profile": "baseline_fixed",
                     "operational_conjunction": operational_payload,
+                    "validation_tier": validation_tier,
+                    "execution_tier": validation_tier,
                 },
+                # B39: identidad causal preservada en la transformación.
+                decision_id=decision.decision_id,
+                created_at=decision.created_at,
             )
         return AutonomyDecision(
             action=decision.action,
@@ -507,6 +569,10 @@ class LifeKernel:
             directives={
                 **decision.directives,
                 "operational_conjunction": operational_payload,
+                "validation_tier": validation_tier,
+                "execution_tier": (
+                    validation_tier if decision.action not in NON_EPISODE_ACTIONS else None
+                ),
             },
             decision_id=decision.decision_id,
             created_at=decision.created_at,
