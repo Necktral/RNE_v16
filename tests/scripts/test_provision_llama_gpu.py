@@ -220,21 +220,27 @@ def test_write_env_vk_device_default_is_1(tmp_path: Path) -> None:
 
 
 def test_write_env_external_reasoner_opt_in_commented_by_default(tmp_path: Path) -> None:
-    # (must-fix 1) El gate de gobernanza NO se auto-habilita: por defecto las dos
-    # claves salen COMENTADAS (opt-in), nunca activas.
+    # (must-fix 1) El gate de gobernanza NO se auto-habilita: por defecto las TRES
+    # claves de armado salen COMENTADAS (opt-in), nunca activas. La MAESTRA es
+    # RNFE_EXTERNAL_REASONER_RUNTIME (la que leen el camino vivo scenario_runner.py y la
+    # admisión policy.py, y de la que life_kernel deriva allow_external): dejarla activa
+    # por defecto armaría el razonador aunque las otras dos estén comentadas.
     lines = _write_env_lines(tmp_path)
+    assert "export RNFE_EXTERNAL_REASONER_RUNTIME=1" not in lines
     assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" not in lines
     assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" not in lines
     text = "\n".join(lines)
+    assert "# export RNFE_EXTERNAL_REASONER_RUNTIME=1" in text
     assert "# export RNFE_ALLOW_EXTERNAL_REASONER=1" in text
     assert "# export RNFE_MAX_COMPUTE_TIER=tier_3_external" in text
     # Nota explicativa de una línea para el operador.
-    assert "descomentar para habilitar el razonador externo tier_3" in text
+    assert "habilitar el razonador externo tier_3" in text
 
 
 def test_write_env_external_reasoner_active_with_flag(tmp_path: Path) -> None:
-    # (must-fix 1) Con --enable-external-reasoner las claves se emiten activas.
+    # (must-fix 1) Con --enable-external-reasoner las TRES claves se emiten activas.
     lines = _write_env_lines(tmp_path, enable_external_reasoner=True)
+    assert "export RNFE_EXTERNAL_REASONER_RUNTIME=1" in lines
     assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" in lines
     assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" in lines
     text = "\n".join(lines)
@@ -257,16 +263,20 @@ def test_main_write_env_external_reasoner_flag_activates(
     )
     assert rc == 0
     lines = out.read_text(encoding="utf-8").splitlines()
+    assert "export RNFE_EXTERNAL_REASONER_RUNTIME=1" in lines
     assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" in lines
     assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" in lines
 
 
 def test_main_write_env_external_reasoner_default_commented(tmp_path: Path) -> None:
-    # (must-fix 1) Sin el flag, el CLI deja las claves comentadas.
+    # (must-fix 1) Sin el flag, el CLI deja las TRES claves comentadas — incluido el
+    # switch maestro RNFE_EXTERNAL_REASONER_RUNTIME: `source` del .env por defecto NO
+    # debe armar el razonador externo.
     out = tmp_path / ".env.default"
     rc = prov.main(["--write-env", str(out), "--models-root", str(tmp_path / "models")])
     assert rc == 0
     lines = out.read_text(encoding="utf-8").splitlines()
+    assert "export RNFE_EXTERNAL_REASONER_RUNTIME=1" not in lines
     assert "export RNFE_ALLOW_EXTERNAL_REASONER=1" not in lines
     assert "export RNFE_MAX_COMPUTE_TIER=tier_3_external" not in lines
 
@@ -350,3 +360,52 @@ def test_download_llama_vulkan_unverified_binary_warns_but_extracts(
     assert "llama.cpp Vulkan" in out
     assert cli is not None
     assert cli.name == "llama-cli"
+
+
+# --------------------------------------------------------------------------- #
+# (re-obra 2) Binario PREEXISTENTE sin verificar + higiene de vk_device.
+# --------------------------------------------------------------------------- #
+
+
+def test_cmd_download_warns_on_preexisting_unverified_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # (must-fix 2 residual) Un binario llama.cpp PREEXISTENTE (no bajado en esta corrida,
+    # resuelto por _find_llama_cli) no pasa por _verify_or_fail: cmd_download debe ADVERTIR
+    # UNVERIFIED sobre el binario que el runtime ejecutará, no dejarlo pasar en silencio.
+    monkeypatch.delenv("RNFE_LLAMA_CLI_CUDA", raising=False)
+    models_root = tmp_path / "models"
+    reasoner = prov._paths(models_root)["reasoner_gguf"]
+    reasoner.parent.mkdir(parents=True, exist_ok=True)
+    reasoner.write_bytes(b"ok-gguf")  # preexiste -> no se descarga
+    monkeypatch.setattr(prov, "_verify_or_fail", lambda *a, **k: None)  # neutraliza el GGUF
+    cli = models_root / "tools" / "llama.cpp" / "build-vulkan" / "bin" / "llama-cli"
+    cli.parent.mkdir(parents=True, exist_ok=True)
+    cli.write_text("#!/bin/sh\n")  # binario preexistente
+
+    rc = prov.cmd_download(models_root, embeddings=False)
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Descarga OK" in out
+    assert "UNVERIFIED [binario llama.cpp]" in out
+
+
+def test_write_env_rejects_vk_device_injection(tmp_path: Path) -> None:
+    # (higiene, hallazgo de la auditoría) vk_device con salto de línea NO debe inyectar
+    # líneas `export` en el .env: se rechaza (rc 2) y no se escribe el archivo envenenado.
+    out = tmp_path / ".env.inj"
+    rc = prov.cmd_write_env(
+        tmp_path / "models",
+        out,
+        vk_device="1\nexport RNFE_EXTERNAL_REASONER_RUNTIME=1",
+    )
+    assert rc == 2
+    if out.exists():
+        assert "export RNFE_EXTERNAL_REASONER_RUNTIME=1" not in out.read_text(encoding="utf-8")
+
+
+def test_write_env_accepts_multi_device_list(tmp_path: Path) -> None:
+    # Una lista numérica válida (p.ej. '0,1') se acepta y se emite tal cual.
+    lines = _write_env_lines(tmp_path, vk_device="0,1")
+    assert "export GGML_VK_VISIBLE_DEVICES=0,1" in lines

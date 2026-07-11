@@ -158,6 +158,11 @@ def _download_llama_vulkan(models_root: Path) -> Path | None:
         _verify_or_fail(tar_path, LLAMA_VULKAN_SHA256, "binario llama.cpp Vulkan")
         with tarfile.open(tar_path, "r:gz") as tf:
             _safe_extractall(tf, dest_dir)
+    except IntegrityError as exc:
+        # Distinguir un fallo de INTEGRIDAD (fail-closed) de un error de red/tar, para
+        # no rotular un mismatch de hash como "error bajando".
+        print(f"  ERROR de integridad del binario: {exc}")
+        return None
     except Exception as exc:  # noqa: BLE001
         print(f"  ERROR bajando llama.cpp: {type(exc).__name__}: {exc}")
         return None
@@ -288,12 +293,27 @@ def cmd_download(models_root: Path, *, embeddings: bool) -> int:
         print(f"  ERROR de descarga: {type(exc).__name__}: {exc}")
         return 1
     cli = _find_llama_cli(models_root)
+    binary_verified_path = False
     if cli is None:
         print("  binario llama.cpp ausente -> bajando build Vulkan ...")
-        cli = _download_llama_vulkan(models_root)
+        cli = _download_llama_vulkan(models_root)  # este camino pasa por _verify_or_fail
+        binary_verified_path = cli is not None
     if cli is None:
         print(f"\nNo se pudo obtener el binario. {LLAMA_RELEASE_HINT}")
         return 1
+    if not binary_verified_path:
+        # Binario PREEXISTENTE/out-of-band: NO pasó por la descarga verificada. El
+        # runtime lo EJECUTA como código nativo; su integridad no está garantizada.
+        # Mismo criterio de honestidad que el GGUF/embed: advertir explícito en vez de
+        # dejar pasar en silencio (es el mismo exists()-skip que cerramos para el dato,
+        # aplicado ahora al binario). Un pin a nivel binario (distinto del tar) queda en
+        # backlog B56.
+        print(
+            f"  UNVERIFIED [binario llama.cpp] — usando binario preexistente sin "
+            f"verificar integridad: {cli}. Re-provisioná con --download sobre un "
+            "models-root limpio (o pinneá el hash) para garantizar el código que "
+            "ejecuta el runtime."
+        )
     print(f"Descarga OK. llama-cli: {cli}")
     return 0
 
@@ -305,23 +325,43 @@ def cmd_write_env(
     vk_device: str = "1",
     enable_external_reasoner: bool = False,
 ) -> int:
+    import re
+
+    # vk_device se interpola crudo en el .env; restringirlo a índice(s) numéricos evita
+    # que un valor con salto de línea inyecte líneas `export` en el archivo generado.
+    if not re.fullmatch(r"[0-9]+(,[0-9]+)*", vk_device):
+        print(
+            f"  ERROR: --vk-device inválido: {vk_device!r} (esperado índice(s) numéricos, "
+            "p.ej. '1' o '0,1'). Se rechaza para evitar inyección en el .env."
+        )
+        return 2
     cli = _find_llama_cli(models_root)
     paths = _paths(models_root)
     cli_path = str(cli or models_root / "tools/llama.cpp/build-vulkan/llama-cli")
-    # Gobernanza del razonador externo: gate allow/tier que lee
-    # scripts/life_kernel.py -> config del kernel -> router (allow_external + techo
-    # tier_3_external). OPT-IN por defecto: auto-setearlas al máximo en un .env que
-    # el operador hace `source` derrota el gate por diseño (queda siempre-on) y arma
-    # la ejecución de un binario no verificado. Con --enable-external-reasoner se
-    # emiten activas; sin el flag salen comentadas.
+    if cli is not None:
+        print(
+            f"  nota [integridad]: se escribe {cli} al .env sin verificación aquí; "
+            "la integridad del binario se chequea en --download (o pinneá el hash)."
+        )
+    # Gobernanza del razonador externo: TRES claves que, juntas, lo arman. La MAESTRA
+    # es RNFE_EXTERNAL_REASONER_RUNTIME — la leen el camino vivo
+    # (runtime/world/scenario_runner.py:44) y la admisión del scheduler
+    # (runtime/reasoning/scheduler_meta/policy.py:27), y de ella scripts/life_kernel.py:75
+    # deriva el default de allow_external. Las otras dos (ALLOW_EXTERNAL + MAX_COMPUTE_TIER)
+    # fijan el permiso y el techo tier_3. OPT-IN por defecto: auto-setear CUALQUIERA de
+    # ellas en un .env que el operador hace `source` derrota el gate por diseño (queda
+    # siempre-on) y arma la ejecución de un binario no verificado. Con
+    # --enable-external-reasoner se emiten activas; sin el flag, las TRES salen comentadas.
     if enable_external_reasoner:
         governance = [
+            "export RNFE_EXTERNAL_REASONER_RUNTIME=1",
             "export RNFE_ALLOW_EXTERNAL_REASONER=1",
             "export RNFE_MAX_COMPUTE_TIER=tier_3_external",
         ]
     else:
         governance = [
-            "# descomentar para habilitar el razonador externo tier_3 (requiere binario y GGUF verificados)",
+            "# descomentar las TRES para habilitar el razonador externo tier_3 (requiere binario y GGUF verificados)",
+            "# export RNFE_EXTERNAL_REASONER_RUNTIME=1",
             "# export RNFE_ALLOW_EXTERNAL_REASONER=1",
             "# export RNFE_MAX_COMPUTE_TIER=tier_3_external",
         ]
@@ -342,7 +382,6 @@ def cmd_write_env(
         # Aísla el RTX 2070 del iGPU Intel. Configurable vía --vk-device o la env
         # GGML_VK_VISIBLE_DEVICES (ajustá el índice si tu layout difiere; default 1).
         f"export GGML_VK_VISIBLE_DEVICES={vk_device}",
-        "export RNFE_EXTERNAL_REASONER_RUNTIME=1",
         "export RNFE_CONJUNCTION_ROUTING_ENFORCED=1",
         *governance,
         "export RNFE_HOST_SENSING=1",
