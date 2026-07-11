@@ -1,6 +1,6 @@
 ---
 title: Diseño P-CADENA-CAUSAL (B41) — Separación de ejes de identidad del organismo
-status: draft
+status: ratified
 date: 2026-07-10
 paquete: P-CADENA-CAUSAL
 work_item: B41 (identidad del organismo)
@@ -26,10 +26,35 @@ anchors:
 **Notas relacionadas:** [[2026-07-05_carta_de_crecimiento_aeon01]] ·
 [[2026-07-05_planos_integracion_rne16_opus]] · [[2026-06-17_self_sustaining_cognitive_gain]]
 
-> **Estado: borrador para ratificación.** Este documento NO implementa nada.
-> Toca identidad del organismo: nada se cablea sin ratificación humana explícita.
+> **Estado: RATIFICADO 2026-07-10** con las incorporaciones abajo. Este documento pasó
+> de diseño a spec de implementación tras ratificación humana.
 > Todas las citas de código fueron verificadas en el worktree `repair/cadena-causal`
 > el 2026-07-10 (los números de línea son de esa lectura).
+
+> **Ratificado 2026-07-10 con las incorporaciones abajo.** Decisiones vinculantes
+> asentadas en la ratificación (resuelven el Apéndice A):
+> 1. **Tres ejes con UNA función de acuñación compartida (SSOT):** el kernel soberano
+>    acuña `organism_id`/`lineage_id`; el runner los RECIBE vía `set_organism_id`
+>    (nunca acuña con convención propia); el runner standalone llama a la MISMA
+>    función. Se elimina la divergencia `org-{run_id}` (runner) vs. la del kernel.
+> 2. **`run_id` EFÍMERO** (re-acuñado cada corrida). CONDICIÓN DURA: el re-keying del
+>    restore a `organism_id` aterriza en el MISMO paso — en restore `organism_id`
+>    (payload, fallback `run_id` legacy) pasa a ser la clave persistente y `run_id`
+>    se re-acuña nuevo. `life.identity.restored` carga `organism_id` + `run_id`
+>    anterior + `run_id` nuevo (genealogía de corridas).
+> 3. **Génesis de `organism_id`:** precedencia config gana sobre entorno →
+>    `RNFE_ORGANISM_ID` → ancestro como interfaz SIN implementar (stub documentado)
+>    → génesis genuina `org-{uuid4}`.
+> 4. **Hogar de `organism_id`:** opción (c) payload del checkpoint (no se toca el
+>    `IdentityState` frozen).
+> 5. **Namespace de artefactos (A.2):** filtro por metadata/payload (`register_artifact`
+>    ya acepta metadata; aditivo, cero migración). Path-segment diferido.
+> 6. **Compatibilidad:** `organism_id_legacy := run_id`
+>    (`payload.get("organism_id") or payload.get("run_id")`). Cero pérdida, cero
+>    corrupción de cold-start.
+> 7. **`CausalContext.v1`:** contrato frozen versionado; se acuña 1× por `step()`;
+>    viaja como clave ADITIVA (gated) en payloads de eventos/runner/trazas. Aditivo ⇒
+>    byte-idéntico con la feature ausente.
 
 ## 0. El defecto, verificado en código
 
@@ -152,6 +177,18 @@ deja de ser fuente de identidad persistente; pasa a ser solo la marca de la ejec
 - **Namespace que gobierna:** la medida de linajes `μ_t`, la ley D8 (reaparición viable),
   la promoción/herencia (C-AC4).
 
+> **NOTA (anotada, NO arreglada) — linajes de ecología sin enlace al padre.**
+> `runtime/organism/ecology.py:296` (`_spawn_offspring`) acuña el linaje del hijo con
+> `LineageState(lineage_id=f"lineage-{child_id}")` y `:517` (génesis de miembro) con
+> `LineageState(lineage_id=f"lineage-{member_id}")`. En ambos casos el linaje del hijo
+> NACE nuevo en vez de **heredar el `lineage_id` del padre** (§1.3, D8: fork ⇒ el linaje
+> continúa). El :296 sí registra una divergencia (`record_divergence`) pero bajo un
+> `lineage_id` propio, de modo que `μ_t` no puede agrupar padre e hijo bajo un mismo
+> linaje evolutivo. **Requisito de trabajo μ_t futuro:** al hacer fork/spawn, el hijo
+> debe heredar el `lineage_id` del ancestro y acuñar `organism_id` propio, para que la
+> reaparición viable entre organismos del mismo linaje (`Z_stable`) sea computable. B41
+> no lo toca (queda fuera de scope: la ecología multi-organismo es su propio paquete).
+
 ### 1.4 Decisión abierta para ratificación: ¿`run_id` efímero o heredado en restore?
 
 Hoy `run_id` se hereda en restore (`kernel.py:668`) **porque** debe hacer de
@@ -229,6 +266,18 @@ objeto:
 **Reconstrucción de la cadena (objetivo):** dado un `organism_id`, agrupar por
 `trace_group_id` reconstruye cada episodio completo; seguir `parent_trace_group_id`
 reconstruye el árbol de rollbacks/forks — todo **sin ordenar por timestamp**.
+
+> **NOTA (anotada, NO arreglada) — procedencia sintética del maestro.**
+> `runtime/organism/teacher.py:179` y `:188` graban lecciones destiladas con
+> `run_id="teacher"` (centinela), y `:201` emite el evento `experience.lesson` con
+> `run_id="teacher"`. Ese `run_id` NO es una corrida real: es una marca de origen
+> sintético (el maestro 7B destilando, no un episodio vivo). Para `CausalContext`,
+> `run_id="teacher"` debe tratarse como **procedencia sintética**: la experiencia
+> del maestro se namespacea por `organism_id` (correcto — la lección es del genoma),
+> pero su `run_id` centinela no participa de la genealogía de corridas ni acuña un
+> `trace_group_id` de episodio. Requisito de trabajo futuro (B44/B45): al reconstruir
+> la cadena, filtrar/etiquetar los registros con `run_id="teacher"` como inyecciones
+> del maestro, no como pasos de una corrida.
 
 ### 2.4 Compatibilidad
 
