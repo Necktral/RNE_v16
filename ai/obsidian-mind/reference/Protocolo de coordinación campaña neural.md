@@ -9,7 +9,10 @@ tags:
 
 # Protocolo de coordinación campaña neural
 
-Regla permanente para el orquestador mientras la **campaña neural** (Codex, N0→N6) corra en paralelo a la reparación ([[RNFE v16 — Backlog de Reparación]]).
+Regla permanente para el orquestador mientras la **campaña neural** (Codex, N0→N6) y la reparación se **turnan** sobre el mismo repo ([[RNFE v16 — Backlog de Reparación]]).
+
+> [!important] Modelo de ejecución — POR TURNOS, no concurrente
+> Codex está **en pausa mientras la reparación trabaja**, y avanza solo cuando la reparación no. Por lo tanto: durante una sesión de reparación **NO hay modificación concurrente** — los worktrees/ramas de Codex están congelados y no cambian bajo los pies del orquestador. El chequeo de sync (`git fetch` + comparar `origin/main` y ramas `codex/*`; rebase de reparación + baseline si Codex avanzó) se hace **al INICIO de cada sesión de reparación** — en los bordes, no a mitad del trabajo. La cadencia de §3 se lee con esta luz.
 
 > [!abstract] Principio rector — un organismo integral y simbiótico
 > RNFE es UN organismo (axioma **A-M0** de la cúspide `RNFE_canon_matematico_f2_4_v3_0.md`). Reparación y campaña neural no son proyectos separados por un muro: son **funciones simbióticas de un mismo cuerpo**, integradas con sinergia. Esta partición es división del trabajo, no una frontera adversarial; las dependencias de sustrato (§2) son la simbiosis misma. **Ninguna optimización local de una zona es válida si rompe la sinergia del todo.**
