@@ -9,6 +9,7 @@ from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
 from .config import StorageConfig
+from .contract_validation import enforce_event, enforce_record
 from .interfaces import StorageBackend
 from .records import (
     ArtifactRecord,
@@ -61,6 +62,9 @@ class StorageFacade:
             legacy_db_path=legacy_db_path,
             legacy_event_id=legacy_event_id,
         )
+        # B17: contrato activo (CANON §13). Los contratos episodio/propuesta/rollback
+        # viajan como payload de evento; se validan ANTES de persistir.
+        enforce_event(event_type, event.payload, origin="StorageFacade.append_event")
         return self.backend.append_event(event)
 
     def list_events(
@@ -85,6 +89,12 @@ class StorageFacade:
             run_id=run_id,
             metrics=dict(metrics),
             timestamp=timestamp or utc_now_iso(),
+        )
+        # B17: contrato activo (CANON §13).
+        enforce_record(
+            "telemetry_snapshot",
+            record,
+            origin="StorageFacade.write_telemetry_snapshot",
         )
         return self.backend.write_telemetry_snapshot(record)
 
@@ -341,6 +351,12 @@ class StorageFacade:
             promotion_candidate=bool(promotion_candidate),
             created_at=created_at or utc_now_iso(),
             metadata=dict(metadata or {}),
+        )
+        # B17: contrato activo (CANON §13).
+        enforce_record(
+            "certificate",
+            record,
+            origin="StorageFacade.write_episode_certificate",
         )
         return self.backend.write_episode_certificate(record)
 
