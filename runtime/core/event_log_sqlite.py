@@ -8,6 +8,30 @@ import threading
 from datetime import datetime
 
 
+def configure_sqlite_connection(conn: sqlite3.Connection) -> sqlite3.Connection:
+    """Aplica los PRAGMA de conexión estándar del proyecto (fuente única, B38-C12).
+
+    Debe invocarse tras CADA ``sqlite3.connect(...)`` del runtime:
+
+    - ``journal_mode=WAL``: lectores no bloquean escritores (y viceversa);
+      mitiga "database is locked" bajo la amplificación de escritura por
+      episodio (SMG + EventBus + court_runtime + artifacts).
+    - ``busy_timeout=5000``: ante un lock, espera hasta 5 s en vez de fallar
+      inmediatamente.
+    - ``synchronous=NORMAL``: durabilidad adecuada en WAL sin fsync por commit.
+    - ``foreign_keys=ON``: integridad referencial (SQLite la trae OFF por
+      defecto y es per-conexión).
+
+    Devuelve la misma conexión para permitir uso en línea:
+    ``with configure_sqlite_connection(sqlite3.connect(path)) as conn:``.
+    """
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
 class EventLogSQLite:
     """
     Ledger SQLite con compatibilidad histórica:
@@ -26,7 +50,7 @@ class EventLogSQLite:
         return [row[1] for row in rows]
 
     def _ensure_schema(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with configure_sqlite_connection(sqlite3.connect(self.db_path)) as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS events (
@@ -69,7 +93,9 @@ class EventLogSQLite:
 
     def log_event(self, event_type, payload, timestamp=None):
         ts = timestamp or datetime.utcnow().isoformat()
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, configure_sqlite_connection(
+            sqlite3.connect(self.db_path)
+        ) as conn:
             conn.execute(
                 f"INSERT INTO events ({self._event_column}, payload, timestamp) VALUES (?, ?, ?)",
                 (event_type, json.dumps(payload), ts),
@@ -98,7 +124,7 @@ class EventLogSQLite:
             query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
-        with sqlite3.connect(self.db_path) as conn:
+        with configure_sqlite_connection(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute(query, params).fetchall()
         return [
             {

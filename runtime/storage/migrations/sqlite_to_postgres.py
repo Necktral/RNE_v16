@@ -8,6 +8,7 @@ from pathlib import Path
 import sqlite3
 from typing import Iterator
 
+from runtime.core.event_log_sqlite import configure_sqlite_connection
 from runtime.storage.backends.postgres_store import PostgresStorageBackend
 from runtime.storage.records import StoredEvent
 
@@ -38,7 +39,7 @@ def _iter_events(
     *,
     batch_size: int = 1000,
 ) -> Iterator[list[tuple[int, str, str | None, str]]]:
-    with sqlite3.connect(db_path) as conn:
+    with configure_sqlite_connection(sqlite3.connect(db_path)) as conn:
         event_column = _detect_event_column(conn)
         offset = 0
         while True:
