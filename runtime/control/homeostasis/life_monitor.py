@@ -216,10 +216,15 @@ class LifeMonitor:
         # Preservar estado antes de acciones críticas
         if self.preserver and level != CrisisLevel.NONE:
             try:
-                state_id = self.preserver.save_critical_state(
-                    metadata={"crisis_level": level.name}
-                )
-                logger.info(f"[LifeMonitor] Estado preservado con ID: {state_id}")
+                # B8: save_critical_state acepta un único dict posicional (no un
+                # keyword `metadata`) y devuelve bool; mismo ajuste que shutdown_logic.
+                saved = self.preserver.save_critical_state({"crisis_level": level.name})
+                if saved:
+                    logger.info("[LifeMonitor] Estado crítico preservado (tag='critical')")
+                else:
+                    logger.error("[LifeMonitor] Falla en preservación: save_critical_state devolvió False")
+                    if level.value < CrisisLevel.CRITICAL.value:
+                        level = CrisisLevel.CRITICAL  # Escalar crisis si falla guardado
             except Exception as e:
                 logger.error(f"[LifeMonitor] Falla en preservación: {str(e)}")
                 if level.value < CrisisLevel.CRITICAL.value:
@@ -248,7 +253,11 @@ class LifeMonitor:
     def _initiate_optimization_protocol(self, health: HealthStatus):
         """Protocolo de optimización proactiva."""
         logger.warning("[LifeMonitor] Iniciando optimización proactiva")
-        self.shutdown._phase_optimize()
+        # B8: `_phase_optimize` no existe en PhasedShutdown; la fase de optimización
+        # son los protocolos reversibles de CrisisLevel.OPTIMIZATION (su ejecución
+        # deja `executed=True`, que es lo que revierte rollback_shutdown(OPTIMIZATION)
+        # en el protocolo de emergencia).
+        self.shutdown._execute_protocols(CrisisLevel.OPTIMIZATION)
         self._adjust_learning_rate(health)
         self._compress_memory()
         logger.info("[LifeMonitor] Optimización completada")
@@ -266,7 +275,9 @@ class LifeMonitor:
             except Exception as e:
                 logger.error(f"[LifeMonitor] Falla en guardado de emergencia: {str(e)}")
         # Ejecutar protocolo de emergencia
-        self.shutdown._emergency_protocol()
+        # B8: _emergency_protocol exige el posicional `preserver` (acepta None);
+        # omitirlo lanzaba TypeError silenciado por _execute_safely.
+        self.shutdown._emergency_protocol(self.preserver)
         logger.info("[LifeMonitor] Sistema detenido por emergencia")
 
     def _adjust_learning_rate(self, health: HealthStatus):

@@ -100,7 +100,9 @@ class HomeoController:
             ),
             CognitivePolicy(
                 name="energy_conservation",
-                activation_condition=lambda h: h.energy > self.thresholds["energy"].current_value,
+                # B8: el HealthStatus canónico expone `power_consumption` (no `energy`);
+                # mismo campo que ya usan update_stress_index y shutdown_logic.evaluate_crisis.
+                activation_condition=lambda h: h.power_consumption > self.thresholds["energy"].current_value,
                 actions=[
                     lambda: self._switch_mode("conservative"),
                     lambda: self._reduce_component_load("learning", 0.4),
@@ -111,7 +113,8 @@ class HomeoController:
             ),
             CognitivePolicy(
                 name="chaotic_resurrection",
-                activation_condition=lambda h: h.entropy > self.thresholds["entropy"].current_value,
+                # B8: el HealthStatus canónico expone `entropy_rate` (no `entropy`).
+                activation_condition=lambda h: h.entropy_rate > self.thresholds["entropy"].current_value,
                 actions=[
                     lambda: self._inject_chaotic_noise(0.2),
                     lambda: self._reconfigure_latent_space(),
@@ -196,10 +199,12 @@ class HomeoController:
 
     def dynamic_ceiling(self) -> float:
         h = self.evaluate_state()
+        # B8: campos canónicos de HealthStatus — `power_consumption` (no `energy`)
+        # y `stability_index` (no `stability`).
         tf = 1.0 - h.temperature ** 2
-        ef = 1.0 - h.energy ** 1.5
+        ef = 1.0 - h.power_consumption ** 1.5
         vf = 1.0 - h.vram_usage ** 2
-        sf = h.stability
+        sf = h.stability_index
         return max(0.1, tf * ef * vf * sf)
 
     def system_snapshot(self) -> Dict[str, Any]:
