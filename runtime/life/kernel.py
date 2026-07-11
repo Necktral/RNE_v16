@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence
-from uuid import uuid4
 
 from runtime.organism.identity import (
     CausalContext,
@@ -263,7 +262,8 @@ class LifeKernel:
         runner.set_resource_signals(self._resource_snapshot)
         runner.set_external_reasoner_enabled(external_reasoner_enabled)
         # Experiencia: identidad cross-vida + lecciones del maestro para sesgar el episodio.
-        runner.set_organism_id(self.run_id)
+        # B41: el namespace es el GENOMA (organism_id), no la corrida (run_id).
+        runner.set_organism_id(self.organism_id)
         runner.set_experience_lessons(self._experience_lessons)
         episode_result = runner.run_episode(external_input=input_value)
         self._consecutive_quarantine = 0  # actuó sano ⇒ ya no está atascado
@@ -403,8 +403,8 @@ class LifeKernel:
         scenario = self._current_scenario()
         main_var, _ = self._scenario_info(scenario)
         exp = build_experience(
-            organism_id=self.run_id,
-            run_id=self.run_id,
+            organism_id=self.organism_id,  # B41: namespace por genoma (recuperable cross-vida)
+            run_id=self.run_id,            # procedencia: la corrida que sufrió el golpe
             episode_id=f"life-{decision.action}-{self.total_steps}",
             scenario=scenario,
             regime="distress" if decision.action in {"quarantine", "rollback"} else "rest",
@@ -437,7 +437,7 @@ class LifeKernel:
         if not valid:
             return
         try:
-            lessons = self._teacher.reflect(organism_id=self.run_id, valid_interventions=valid)
+            lessons = self._teacher.reflect(organism_id=self.organism_id, valid_interventions=valid)
         except Exception:
             lessons = []
         if lessons:
@@ -668,15 +668,30 @@ class LifeKernel:
         )
 
     def _restore_initial_identity(self) -> None:
-        restored = self.persistence.load_latest_identity(run_id=self.config.run_id)
+        # B41 (§3.5/§3.8): el descubrimiento se scopea por GENOMA cuando hay un
+        # organism_id explícito (config gana sobre entorno); si no, se conserva la
+        # mecánica legada por run_id (encuentra el checkpoint de una corrida estable
+        # tipo aeon-01, cuyo run_id ES el genoma legado por §4.1).
+        explicit_organism = resolve_organism_id(self.config.organism_id)
+        restored = self.persistence.load_latest_identity(
+            organism_id=explicit_organism,
+            run_id=self.config.run_id,
+        )
         if restored is None:
             return
+        previous_run_id = restored.run_id
         self._apply_restored_identity(restored)
+        # Genealogía de corridas (decisión 2): organism_id persiste, y el evento carga
+        # el run_id ANTERIOR (bajo el que se guardó) + el run_id NUEVO (esta corrida).
         self.storage.append_event(
             event_type="life.identity.restored",
             run_id=self.run_id,
             source="life_kernel",
             payload={
+                "organism_id": self.organism_id,
+                "lineage_id": self.lineage_id,
+                "previous_run_id": previous_run_id,
+                "run_id": self.run_id,
                 "checkpoint_artifact_id": restored.checkpoint_artifact_id,
                 "episode_count": restored.organism_state.episode_count,
                 "total_steps": restored.total_steps,
@@ -684,7 +699,12 @@ class LifeKernel:
         )
 
     def _apply_restored_identity(self, restored: RestoredIdentity) -> None:
-        self.run_id = restored.run_id
+        # B41 re-keying (decisión 2, CONDICIÓN DURA): el organism_id del payload
+        # (fallback run_id legacy) pasa a ser la clave persistente; el run_id NO se
+        # hereda — se conserva el re-acuñado en __init__ (efímero salvo config), de modo
+        # que la continuidad del organismo viva en organism_id y no en run_id.
+        self.organism_id = restored.organism_id
+        self.lineage_id = restored.lineage_id
         self.organism_state = restored.organism_state
         self.lineage = restored.lineage
         self.goal_manager = GoalManager(restored.goals or None)
@@ -805,7 +825,12 @@ class LifeKernel:
         )
 
     def _restore_latest_healthy_checkpoint(self) -> bool:
-        loaded = self.checkpoints.load_latest_payload(run_id=self.run_id, healthy_only=True)
+        # B41: el refugio sano (rollback/E5) se busca por GENOMA — el último yo sano del
+        # organismo, aunque viva bajo otra corrida (run_id efímero). Fallback a run_id
+        # legacy cubierto por load_latest_payload (§4.1).
+        loaded = self.checkpoints.load_latest_payload(
+            organism_id=self.organism_id, healthy_only=True
+        )
         if loaded is None:
             return False
         payload, artifact = loaded

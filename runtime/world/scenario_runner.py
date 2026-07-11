@@ -14,6 +14,7 @@ from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
 from runtime.organism.autoevolution import AutoEvolutionController
 from runtime.organism.constitution import OrganismConstitution
+from runtime.organism.identity import mint_lineage_id, mint_organism_id
 from runtime.organism.lineage import LineageState
 from runtime.organism.state import OrganismState, IdentityState, transition_organism_state
 from runtime.organism.trajectory import OrganismTrajectory
@@ -125,10 +126,15 @@ class ScenarioEpisodeRunner:
         # solo lo agenda si además el perfil admitido y el gate lo permiten (Bloque C).
         self._external_reasoner_enabled: bool = False
         # Experiencia: el organismo recuerda sus golpes y aprende (RNFE_EXPERIENCE).
-        # El namespace es organism_id (cross-vida); default = run_id (estable en aeon-01).
+        # B41: el namespace es organism_id (cross-vida). El runner NO acuña con convención
+        # propia (nada de org-{run_id}): usa la función de acuñación compartida (SSOT). En
+        # el life-loop, el kernel soberano lo REEMPLAZA vía set_organism_id con el genoma real.
         from runtime.organism.experience import ExperienceStore, experience_enabled
 
-        self._organism_id: str = self.run_id
+        self._organism_id: str = mint_organism_id()
+        # Linaje standalone (solo si no llega uno del kernel): un único lineage_id
+        # compartido entre el estado de génesis y el LineageState, vía la SSOT.
+        _standalone_lineage_id = mint_lineage_id()
         self._experience = ExperienceStore(storage=self.storage) if experience_enabled() else None
         self._experience_lessons: List[Dict[str, Any]] = []
 
@@ -143,17 +149,17 @@ class ScenarioEpisodeRunner:
 
         # T5 SOVEREIGNTY: Initialize organism trajectory as primary runtime unit
         self._organism_state = organism_state or OrganismState(
-            state_id=f"state-0-{self.run_id}",
+            state_id=f"state-0-{self._organism_id}",
             timestamp=utc_now_iso(),
             active_regime="unknown",
             episode_count=0,
             identity=IdentityState(
-                lineage_id=f"lineage-{self.run_id}",
+                lineage_id=_standalone_lineage_id,
                 constitution_hash="",
             ),
         )
         self._organism_trajectory = OrganismTrajectory(
-            organism_id=f"org-{self.run_id}",
+            organism_id=self._organism_id,
             start_timestamp=utc_now_iso(),
         )
         self._constitution = OrganismConstitution()
@@ -167,7 +173,7 @@ class ScenarioEpisodeRunner:
         if lineage is not None:
             self._lineage = lineage
         else:
-            self._lineage = LineageState(lineage_id=f"lineage-{self.run_id}")
+            self._lineage = LineageState(lineage_id=_standalone_lineage_id)
             self._lineage.record_genesis(self._constitution, timestamp=utc_now_iso())
         self._autoevolution = AutoEvolutionController(
             run_id=self.run_id,
@@ -333,8 +339,16 @@ class ScenarioEpisodeRunner:
         ]
 
     def set_organism_id(self, organism_id: str) -> None:
-        """Fija el namespace de identidad para la experiencia cross-vida."""
-        self._organism_id = str(organism_id or self.run_id)
+        """Fija el namespace de identidad (genoma) para la experiencia cross-vida.
+
+        B41: el kernel soberano REEMPLAZA el organism_id acuñado por el runner con el
+        genoma real; se propaga también a la trayectoria para que la identidad del
+        organismo sea única en todo el runner (no queda el org-acuñado del constructor).
+        Si llega vacío, se conserva el acuñado por la SSOT (nunca vuelve a run_id).
+        """
+        if organism_id:
+            self._organism_id = str(organism_id)
+            self._organism_trajectory.organism_id = self._organism_id
 
     def set_experience_lessons(self, lessons: List[Dict[str, Any]] | None) -> None:
         """Inyecta lecciones del maestro (7B) para sesgar el razonamiento vía IND."""
@@ -731,7 +745,9 @@ class ScenarioEpisodeRunner:
 
         # 12c. T5 SOVEREIGNTY: Transition organism state and append to trajectory
         previous_state = self._organism_state
-        new_state_id = f"state-{self._organism_state.episode_count + 1}-{self.run_id}"
+        # B41: el state_id se ancla al GENOMA (organism_id), no a la corrida (run_id) —
+        # coherente con la génesis del kernel (state-0-{organism_id}).
+        new_state_id = f"state-{self._organism_state.episode_count + 1}-{self._organism_id}"
         regime = self._trajectory_regime_label
 
         self._organism_state = transition_organism_state(

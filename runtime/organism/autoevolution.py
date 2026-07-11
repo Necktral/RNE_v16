@@ -33,6 +33,7 @@ import os
 from typing import Any, Callable, Dict, Optional
 from uuid import uuid4
 
+from .identity import mint_lineage_id
 from .lineage import LineageState
 from .self_modification import SelfModificationPipeline
 from .state import OrganismState
@@ -75,7 +76,10 @@ class AutoEvolutionController:
         self.knob_reader = knob_reader
         self.knob_writer = knob_writer
         self.storage = storage
-        self.lineage = lineage if lineage is not None else LineageState(lineage_id=f"lineage-{run_id}")
+        # B41: el linaje μ_t es del ORGANISMO, no de la corrida. En el life-loop llega
+        # siempre desde el runner/kernel (genoma real); el fallback standalone acuña un
+        # lineage genuino vía la SSOT en vez de derivarlo del run_id efímero.
+        self.lineage = lineage if lineage is not None else LineageState(lineage_id=mint_lineage_id())
         self.pipeline = pipeline or SelfModificationPipeline()
         self.viability_trigger = viability_trigger
         self.drift_trigger = drift_trigger
