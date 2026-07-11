@@ -209,11 +209,17 @@ class LifeKernel:
         )
         self.last_decision = decision
 
+        # B41 CausalContext.v1: se acuña 1× por step() a partir de los tres ejes + el
+        # decision_id que originó el episodio. Aditivo y GATED (RNFE_CAUSAL_CONTEXT):
+        # None ⇒ nada se inyecta ⇒ byte-idéntico con la feature ausente.
+        causal = self._mint_causal_context(decision)
+
         if decision.action in NON_EPISODE_ACTIONS:
             return self._handle_non_acting_decision(
                 decision=decision,
                 pre_vitals=pre_vitals,
                 operational=operational,
+                causal=causal,
             )
 
         checkpoint_before = None
@@ -264,6 +270,8 @@ class LifeKernel:
         # Experiencia: identidad cross-vida + lecciones del maestro para sesgar el episodio.
         # B41: el namespace es el GENOMA (organism_id), no la corrida (run_id).
         runner.set_organism_id(self.organism_id)
+        # B41: el sobre de correlación viaja al runner (episodio/trazas). None ⇒ no-op.
+        runner.set_causal_context(causal.to_dict() if causal is not None else None)
         runner.set_experience_lessons(self._experience_lessons)
         episode_result = runner.run_episode(external_input=input_value)
         self._consecutive_quarantine = 0  # actuó sano ⇒ ya no está atascado
@@ -315,21 +323,24 @@ class LifeKernel:
             decision=decision,
             reason="step_completed",
         )
+        step_payload: Dict[str, Any] = {
+            "step_index": self.total_steps,
+            "scenario": scenario,
+            "decision": decision.to_dict(),
+            "vital_signs": vitals.to_dict(),
+            "goals": [goal.to_dict() for goal in goals],
+            "checkpoint_artifact_id": getattr(checkpoint, "artifact_id", None),
+            "pre_mutation_checkpoint_artifact_id": getattr(checkpoint_before, "artifact_id", None),
+            "msrc": msrc_result,
+            "operational_conjunction": operational.to_dict() if operational else {},
+        }
+        if causal is not None:
+            step_payload["causal_context"] = causal.to_dict()
         self.storage.append_event(
             event_type="life.step.completed",
             run_id=self.run_id,
             source="life_kernel",
-            payload={
-                "step_index": self.total_steps,
-                "scenario": scenario,
-                "decision": decision.to_dict(),
-                "vital_signs": vitals.to_dict(),
-                "goals": [goal.to_dict() for goal in goals],
-                "checkpoint_artifact_id": getattr(checkpoint, "artifact_id", None),
-                "pre_mutation_checkpoint_artifact_id": getattr(checkpoint_before, "artifact_id", None),
-                "msrc": msrc_result,
-                "operational_conjunction": operational.to_dict() if operational else {},
-            },
+            payload=step_payload,
         )
         return LifeStepResult(
             run_id=self.run_id,
@@ -597,12 +608,25 @@ class LifeKernel:
             created_at=decision.created_at,
         )
 
+    def _mint_causal_context(self, decision: AutonomyDecision) -> CausalContext | None:
+        """Acuña el sobre CausalContext del step (gated). None ⇒ feature ausente."""
+        if not causal_context_enabled():
+            return None
+        return CausalContext.for_step(
+            organism_id=self.organism_id,
+            lineage_id=self.lineage_id,
+            run_id=self.run_id,
+            step_index=self.total_steps,
+            decision_id=getattr(decision, "decision_id", None),
+        )
+
     def _handle_non_acting_decision(
         self,
         *,
         decision: AutonomyDecision,
         pre_vitals: VitalSignsSnapshot,
         operational: OperationalConjunctionResult | None = None,
+        causal: CausalContext | None = None,
     ) -> LifeStepResult:
         assert self.organism_state is not None
         assert self.lineage is not None
@@ -639,17 +663,20 @@ class LifeKernel:
             decision=decision,
             reason=f"non_acting_{decision.action}",
         )
+        non_acting_payload: Dict[str, Any] = {
+            "step_index": self.total_steps,
+            "decision": decision.to_dict(),
+            "vital_signs": vitals.to_dict(),
+            "checkpoint_artifact_id": checkpoint.artifact_id,
+            "operational_conjunction": operational.to_dict() if operational else {},
+        }
+        if causal is not None:
+            non_acting_payload["causal_context"] = causal.to_dict()
         self.storage.append_event(
             event_type=f"life.{decision.action}",
             run_id=self.run_id,
             source="life_kernel",
-            payload={
-                "step_index": self.total_steps,
-                "decision": decision.to_dict(),
-                "vital_signs": vitals.to_dict(),
-                "checkpoint_artifact_id": checkpoint.artifact_id,
-                "operational_conjunction": operational.to_dict() if operational else {},
-            },
+            payload=non_acting_payload,
         )
         # Experiencia: grabar el golpe de esta decisión no-actuante y —si es una herida
         # profunda— que el maestro (7B) reflexione y destile una lección (E1 + E2, off hot-path).
