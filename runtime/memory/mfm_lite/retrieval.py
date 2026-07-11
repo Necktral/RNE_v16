@@ -12,8 +12,30 @@ from runtime.memory.embeddings import (
     text_from_mapping,
 )
 
+# Centinela para distinguir "no me lo pasaron" de "me pasaron None" (None es un valor
+# legítimo tanto para embedder como para un embedding degradado).
+_UNSET: Any = object()
+
 # Penalty applied to cross-scenario memories in analogical mode
 _CROSS_SCENARIO_PENALTY = 0.5
+
+# B28: tamaño del POOL de candidatos que se traen de storage para puntuar. Es una
+# magnitud DISTINTA del top-k que se devuelve (`limit`).
+#
+# Antes el pool era `max(20, limit * 4)`: como storage ordena por `created_at DESC`
+# (sqlite_store.py:954), el pool eran literalmente las ~20 memorias MÁS RECIENTES, así
+# que una memoria vieja con mejor overlap NUNCA llegaba al scoring: la recencia decidía
+# antes que la relevancia. Ahora se trae un pool amplio, se puntúa TODO el pool y recién
+# ahí se corta el top-k por score.
+#
+# Trade-off de costo (por llamada a retrieve, pool = P):
+#   - storage: 1 query, P filas leídas + P `json.loads` del structure_json;
+#   - scoring: P Jaccard (O(tokens), barato);
+#   - con RNFE_MEMORY_EMBEDDINGS activo: P `embed()` de structure + P cosenos. El embed de
+#     la QUERY se calcula UNA sola vez por retrieve (antes se recalculaba por candidato).
+# Por eso el pool es acotado y configurable, no "traer todo": crece lineal con P y con
+# embeddings pesados (llama) P grande se paga caro.
+_DEFAULT_CANDIDATE_POOL_SIZE = 200
 
 
 def _embedding_weight() -> float:
@@ -23,6 +45,24 @@ def _embedding_weight() -> float:
     except (TypeError, ValueError):
         return 0.5
     return min(max(w, 0.0), 1.0)
+
+
+def _resolve_candidate_pool_size(*, limit: int, override: int | None) -> int:
+    """Pool de candidatos a puntuar. Nunca menor que el top-k pedido."""
+    if override is not None:
+        try:
+            resolved = int(override)
+        except (TypeError, ValueError):
+            resolved = _DEFAULT_CANDIDATE_POOL_SIZE
+    else:
+        try:
+            resolved = int(
+                os.environ.get("RNFE_MEMORY_CANDIDATE_POOL", _DEFAULT_CANDIDATE_POOL_SIZE)
+            )
+        except (TypeError, ValueError):
+            resolved = _DEFAULT_CANDIDATE_POOL_SIZE
+    # El pool jamás puede ser menor que el top-k solicitado (si no, no se podría llenar).
+    return max(resolved, limit, 1)
 
 
 def summarize_retrieval_hits(hits: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -80,6 +120,7 @@ class MemoryRetrieval:
         scenario_name: str | None = None,
         scenario_version: str | None = None,
         scenario_filter_mode: str = "strict_same_scenario",
+        candidate_pool_size: int | None = None,
     ) -> List[Dict[str, Any]]:
         """Retrieve memory records scored by structural overlap.
 
@@ -87,12 +128,17 @@ class MemoryRetrieval:
             run_id: Run ID to scope retrieval.
             query: Query dict for overlap scoring.
             scales: Memory scales to search.
-            limit: Max results to return.
+            limit: Top-k a DEVOLVER (después de puntuar el pool completo).
             scenario_name: Filter memories by scenario name.
-            scenario_version: Optionally filter by scenario version as well.
+            scenario_version: Version de escenario de la query. Una memoria del MISMO
+                escenario con OTRA version no se descarta: se conserva penalizada
+                (penalty_cross_version).
             scenario_filter_mode: 'strict_same_scenario' discards cross-scenario
                 memories. 'cross_scenario_analogical' (alias 'analogical') keeps
                 them with a penalty.
+            candidate_pool_size: Cuántos candidatos traer de storage para puntuar
+                (default _DEFAULT_CANDIDATE_POOL_SIZE / env RNFE_MEMORY_CANDIDATE_POOL).
+                Es independiente de `limit`: sin esto el ranking lo decidía la recencia.
 
         Returns:
             List of scored memory dicts with retrieval_metrics.
@@ -100,10 +146,23 @@ class MemoryRetrieval:
         # Normalize alias
         if scenario_filter_mode == "analogical":
             scenario_filter_mode = "cross_scenario_analogical"
+        # B28: el pool (cuántos candidatos compiten) se separa del top-k (cuántos se
+        # devuelven). El TTL ya se aplica en storage ANTES del limit (P6), así que las
+        # filas expiradas no consumen presupuesto de pool: eso se respeta tal cual.
+        pool_size = _resolve_candidate_pool_size(
+            limit=limit, override=candidate_pool_size
+        )
         candidates = self.storage.retrieve_memory_records(
             run_id=run_id,
             scales=scales or ["macro", "meso", "micro"],
-            limit=max(20, limit * 4),
+            limit=pool_size,
+        )
+
+        # El embedding de la query se calcula UNA vez por retrieve, no una vez por
+        # candidato: con el pool ampliado eso serían 2*P embeds por llamada.
+        embedder = get_embedder()
+        query_embedding = (
+            embedder.embed(text_from_mapping(query)) if embedder is not None else None
         )
 
         candidate_same_scenario_count = 0
@@ -115,7 +174,12 @@ class MemoryRetrieval:
         for item in candidates:
             structure = item.structure_json or {}
             meta = item.metadata or {}
-            score = self._score(query=query, structure=structure)
+            score = self._score(
+                query=query,
+                structure=structure,
+                embedder=embedder,
+                query_embedding=query_embedding,
+            )
 
             # Scenario filtering
             is_cross_scenario = False
@@ -207,6 +271,11 @@ class MemoryRetrieval:
             "scenario_filter_mode": scenario_filter_mode,
             "cross_scenario_penalty_applied": penalty_applied,
             "retrieval_purity": retrieval_purity,
+            # B28: observabilidad del pool. `candidate_pool_scored` == `candidate_pool_size`
+            # significa que el pool se saturó: puede haber memorias relevantes que no
+            # llegaron a competir (subir RNFE_MEMORY_CANDIDATE_POOL).
+            "candidate_pool_size": pool_size,
+            "candidate_pool_scored": len(candidates),
         }
         rag_attestation = {
             "schema": "memory_rag_attestation.v1",
@@ -231,15 +300,28 @@ class MemoryRetrieval:
 
         return out
 
-    def _score(self, *, query: Dict[str, Any], structure: Dict[str, Any]) -> float:
+    def _score(
+        self,
+        *,
+        query: Dict[str, Any],
+        structure: Dict[str, Any],
+        embedder: Any = _UNSET,
+        query_embedding: Any = _UNSET,
+    ) -> float:
         jaccard = self._jaccard(query=query, structure=structure)
         # RNFE_MEMORY_EMBEDDINGS off (default) -> get_embedder() None -> Jaccard puro
         # (byte-idéntico). hashed/llama -> mezcla coseno semántico.
-        embedder = get_embedder()
+        # embedder/query_embedding se pueden precomputar por llamada a retrieve (B28) para
+        # no re-embeber la query por cada candidato del pool; sin ellos, se resuelven acá
+        # (comportamiento standalone idéntico al previo).
+        if embedder is _UNSET:
+            embedder = get_embedder()
         if embedder is None:
             return jaccard
+        if query_embedding is _UNSET:
+            query_embedding = embedder.embed(text_from_mapping(query))
         cos = cosine_similarity(
-            embedder.embed(text_from_mapping(query)),
+            query_embedding,
             embedder.embed(text_from_mapping(structure)),
         )
         if cos <= 0.0:
