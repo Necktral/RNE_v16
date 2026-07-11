@@ -162,6 +162,10 @@ class MemoryStore(Protocol):
     ) -> list[MemoryRecord]:
         ...
 
+    def purge_expired_memory_records(self) -> int:
+        """Borra las memorias expiradas (TTL) y devuelve la cantidad borrada."""
+        ...
+
 
 @runtime_checkable
 class TransferAssessmentStore(Protocol):

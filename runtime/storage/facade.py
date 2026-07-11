@@ -428,6 +428,10 @@ class StorageFacade:
             limit=limit,
         )
 
+    def purge_expired_memory_records(self) -> int:
+        """B2 - Borra memorias expiradas por TTL; devuelve la cantidad borrada."""
+        return self.backend.purge_expired_memory_records()
+
     # ───────────────  Transfer Assessment  ────────────────────────────────────
 
     def write_transfer_assessment(

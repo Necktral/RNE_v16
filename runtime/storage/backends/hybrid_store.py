@@ -307,6 +307,12 @@ class HybridStorageBackend(StorageBackend):
             limit=limit,
         )
 
+    def purge_expired_memory_records(self) -> int:
+        # B2 - Purga en ambos stores; devuelve el total de filas borradas.
+        deleted = self.primary.purge_expired_memory_records()
+        deleted += self.fallback.purge_expired_memory_records()
+        return deleted
+
     def write_transfer_assessment(
         self, assessment: TransferAssessmentRecord,
     ) -> TransferAssessmentRecord:

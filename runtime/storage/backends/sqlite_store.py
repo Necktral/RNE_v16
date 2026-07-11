@@ -34,6 +34,26 @@ from ..records import (
 )
 
 
+# B2 - Edad de una fila de memory_records en segundos (now - created_at) usando
+# el reloj UTC de SQLite. strftime('%s', ...) parsea el ISO-8601 UTC de created_at.
+_MEMORY_AGE_SECONDS_SQL = (
+    "(CAST(strftime('%s', 'now') AS INTEGER) "
+    "- CAST(strftime('%s', created_at) AS INTEGER))"
+)
+# Condicion "NO expirada" para filtrar en lectura.
+_MEMORY_NOT_EXPIRED_SQL = (
+    "(ttl_seconds IS NULL "
+    "OR strftime('%s', created_at) IS NULL "
+    f"OR {_MEMORY_AGE_SECONDS_SQL} <= ttl_seconds)"
+)
+# Condicion "expirada" para purgar (complemento estricto de la anterior).
+_MEMORY_EXPIRED_SQL = (
+    "ttl_seconds IS NOT NULL "
+    "AND strftime('%s', created_at) IS NOT NULL "
+    f"AND {_MEMORY_AGE_SECONDS_SQL} > ttl_seconds"
+)
+
+
 def _safe_json_load(raw: str | None) -> dict:
     if not raw:
         return {}
@@ -918,6 +938,11 @@ class SQLiteStorageBackend(StorageBackend):
         if min_ioc_proxy is not None:
             clauses.append("ioc_proxy >= ?")
             params.append(min_ioc_proxy)
+        # B2 - Aplicar TTL en lectura: excluir memorias expiradas. Una memoria
+        # expira cuando now > created_at + ttl_seconds. ttl_seconds NULL = sin
+        # expiracion; un created_at no parseable se trata como sin expiracion
+        # (defensivo, no deberia ocurrir: siempre lo escribe utc_now_iso()).
+        clauses.append(_MEMORY_NOT_EXPIRED_SQL)
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY created_at DESC LIMIT ?"
@@ -941,6 +966,20 @@ class SQLiteStorageBackend(StorageBackend):
             )
             for row in rows
         ]
+
+    def purge_expired_memory_records(self) -> int:
+        """B2 - Borra las memorias expiradas (now > created_at + ttl_seconds).
+
+        Devuelve la cantidad de filas borradas. Las memorias con ttl_seconds NULL
+        nunca expiran.
+        """
+        with self._lock, self._connect() as conn:
+            cursor = conn.execute(
+                f"DELETE FROM memory_records WHERE {_MEMORY_EXPIRED_SQL}"
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+        return int(deleted)
 
     def write_transfer_assessment(
         self, assessment: TransferAssessmentRecord,
