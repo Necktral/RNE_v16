@@ -26,21 +26,21 @@ def _sequence_stability(prev: list[str], curr: list[str]) -> float:
 
 
 def _optimization_direction(scenario_metadata: Dict[str, Any]) -> str:
-    """Dirección de optimización del escenario (best-effort vía el registro).
+    """Sentido de MEJORA del escenario (``'minimize'`` / ``'maximize'``).
 
-    Default ``"minimize"`` → preserva el comportamiento térmico histórico
-    (la temperatura es lower-is-better). Para recursos resuelve ``"maximize"``.
+    Se deriva de ``causal_polarity`` (hacia dónde queda la región segura), no de
+    ``optimization_direction`` —que declara la FORMA del objetivo (`target_band` para un
+    regulador de umbral) y no es un valor que esta comparación monótona sepa leer.
+    Default ``"minimize"`` → preserva el comportamiento térmico histórico.
     Import perezoso y tolerante: nunca rompe ni acopla import-time.
     """
     name = scenario_metadata.get("scenario_name")
     if name:
         try:
+            from runtime.world.causal_signature import improvement_direction
             from runtime.world.registry import get_scenario
 
-            sig = get_scenario(name).causal_signature
-            direction = getattr(sig, "optimization_direction", None)
-            if isinstance(direction, str) and direction:
-                return direction
+            return improvement_direction(get_scenario(name).causal_signature)
         except Exception:
             pass
     low = (name or "").lower()

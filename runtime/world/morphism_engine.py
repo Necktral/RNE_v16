@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal, Sequence, Tuple
 
-from .causal_signature import ScenarioCausalSignature, CausalEdge
+from .causal_signature import ScenarioCausalSignature, CausalEdge, improvement_direction
 from .alignment import (
     AlignmentResult,
     align_causal_graphs,
@@ -174,27 +174,38 @@ def _directionality_penalty(
     source: ScenarioCausalSignature,
     target: ScenarioCausalSignature,
 ) -> float:
-    """Penalización por inversión de dirección de optimización.
+    """Penalización por inversión del SENTIDO de mejora / del borde seguro.
 
-    Si source minimiza y target maximiza (o viceversa), la transferencia
-    invierte la interpretación de "mejora", lo cual es peligroso.
+    Lo peligroso de transferir térmico → recursos no es que uno "minimice" y el otro
+    "maximice" (ambos, en verdad, REGULAN hacia una banda: `target_band`): es que al cruzar
+    se **invierte la interpretación de mejora** —abajo deja de ser bueno y pasa a ser
+    malo— y se **invierte el borde de la región segura** (`threshold_above` ↔
+    `threshold_below`). Esas dos inversiones son las que rompen el transporte, y las dos
+    siguen declaradas en `causal_polarity` y `alarm_semantics`.
+
+    Antes esta penalización se leía de `optimization_direction`. Al declarar la verdad
+    (los cuatro escenarios son reguladores de banda), ese campo dejó de distinguir
+    térmico de recursos: keyear la penalización ahí habría hecho desaparecer el morfismo
+    adversarial entre dos escenarios que siguen siendo tan adversarios como antes.
     """
-    if source.optimization_direction == target.optimization_direction:
-        return 0.0
+    polarity_defined = (
+        source.causal_polarity != "contextual" and target.causal_polarity != "contextual"
+    )
+    polarity_inv = polarity_defined and source.causal_polarity != target.causal_polarity
+    alarm_inv = source.alarm_semantics != target.alarm_semantics
 
-    # minimize ↔ maximize is the most dangerous inversion
-    pair = {source.optimization_direction, target.optimization_direction}
-    if pair == {"minimize", "maximize"}:
-        # Further penalize if polarity also inverts
-        if source.causal_polarity != target.causal_polarity:
-            return 0.30
+    # Inversión TOTAL: "mejor" y "seguro" apuntan al revés. La más peligrosa.
+    if polarity_inv and alarm_inv:
+        return 0.30
+    if polarity_inv or alarm_inv:
         return 0.20
 
-    # target_band vs others
-    if "target_band" in pair:
+    # Sin inversión semántica, sólo puede quedar una diferencia en la FORMA del objetivo
+    # (monótono vs banda): distinta manera de perseguir lo mismo, mucho menos grave.
+    if source.optimization_direction != target.optimization_direction:
         return 0.10
 
-    return 0.15
+    return 0.0
 
 
 # ── Transport operator builder ───────────────────────────────────────────────
@@ -217,7 +228,10 @@ def _build_transport_operator(
     )
 
     polarity_inv = source.causal_polarity != target.causal_polarity
-    direction_inv = source.optimization_direction != target.optimization_direction
+    # La inversión que el transporte debe registrar es la del SENTIDO DE MEJORA (lo que
+    # invierte la lectura de "mejor" al cruzar), no la de la forma del objetivo: dos
+    # reguladores de banda (`target_band`) pueden tener sentidos de mejora opuestos.
+    direction_inv = improvement_direction(source) != improvement_direction(target)
 
     # Information loss estimate
     unmatched_props = len(prop_alignment.source_unmatched) + len(prop_alignment.target_unmatched)

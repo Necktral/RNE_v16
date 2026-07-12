@@ -86,9 +86,26 @@ class TestCausalSignature:
         assert prod.expected_direction == "+"
         assert prod.semantic_role == "corrective"
 
-    def test_opposing_optimization_directions(self, thermal, resource):
-        assert thermal.causal_signature.optimization_direction == "minimize"
-        assert resource.causal_signature.optimization_direction == "maximize"
+    def test_both_declare_a_regulatory_objective(self, thermal, resource):
+        """P12 — ambos REGULAN hacia una banda: ninguno minimiza/maximiza sin fin.
+
+        Antes declaraban `minimize` / `maximize`: un objetivo monótono que sus políticas
+        (que sólo actúan bajo alarma) no persiguen. La firma es lo que el organismo
+        atestigua a su corte vía `causal_attestation`; ahora dice la verdad.
+        """
+        assert thermal.causal_signature.optimization_direction == "target_band"
+        assert resource.causal_signature.optimization_direction == "target_band"
+
+    def test_opposing_improvement_directions(self, thermal, resource):
+        """La OPOSICIÓN real entre térmico y recursos no desapareció: cambió de campo.
+
+        Vive en la polaridad (hacia dónde queda la región segura), que es lo que se
+        invierte al cruzar y lo que hace peligrosa la transferencia.
+        """
+        assert thermal.causal_signature.causal_polarity == "lower_is_better"
+        assert resource.causal_signature.causal_polarity == "higher_is_better"
+        assert thermal.causal_signature.improvement_direction == "minimize"
+        assert resource.causal_signature.improvement_direction == "maximize"
 
     def test_opposing_alarm_semantics(self, thermal, resource):
         assert thermal.causal_signature.alarm_semantics == "threshold_above"
@@ -198,7 +215,10 @@ class TestMorphismEngine:
         m = engine.compute_morphism(t_sig, r_sig)
         op = m.transport_operator
         assert op.polarity_inversion is True  # lower_is_better vs higher_is_better
-        assert op.direction_inversion is True  # minimize vs maximize
+        # La inversión que el transporte registra es la del SENTIDO DE MEJORA (minimize vs
+        # maximize, derivado de la polaridad), no la de la forma del objetivo: ambos son
+        # `target_band` y aun así "mejor" apunta al revés al cruzar.
+        assert op.direction_inversion is True
 
     def test_matrix_is_square(self, engine, thermal, resource):
         sigs = [thermal.causal_signature, resource.causal_signature]

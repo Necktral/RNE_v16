@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping
 
+from runtime.smg.smg_min import SUPPORT, is_measured_relation
+
+from .causal_signature import improvement_direction as _improvement_direction
+
 
 def _as_float(value: Any) -> float | None:
     if isinstance(value, (int, float)):
@@ -89,10 +93,26 @@ def build_causal_attestation(
     declared optimization direction, then compares that result with
     ``relation_kind`` and the expected intervention direction from the signature.
     """
+    # Lo que el organismo DECLARA como objetivo (lo que atestigua a su corte) y lo que
+    # usa para juzgar "¿el factual fue al menos tan bueno como el contrafactual?" son
+    # dos cosas distintas y ambas viajan al certificado:
+    #   - `optimization_direction`: la FORMA del objetivo (`target_band` = regula, no
+    #     minimiza). Es la declaración auditable.
+    #   - `improvement_direction`:  el SENTIDO de mejora (`minimize`/`maximize`), derivado
+    #     de `causal_polarity`. Es lo que `supports_choice` necesita.
+    # Antes se declaraba `minimize`/`maximize` y se usaba ese mismo valor para juzgar:
+    # una sola cuerda para dos cosas, y la declaración mentía.
+    declared_direction = getattr(signature, "optimization_direction", None)
     optimization_direction = str(
-        getattr(signature, "optimization_direction", None)
+        declared_direction
         or ("maximize" if "resource" in str(scenario_name or "").lower() else "minimize")
     )
+    if signature is not None:
+        improvement = _improvement_direction(signature)
+    else:
+        improvement = (
+            "maximize" if "resource" in str(scenario_name or "").lower() else "minimize"
+        )
     scenario_version = scenario_version or getattr(signature, "scenario_version", None)
     main_variable = str(main_variable or getattr(signature, "main_variable", "") or "world_level")
     observed_value = _state_value(observation, main_variable)
@@ -116,11 +136,14 @@ def build_causal_attestation(
     supports_choice = _supports_choice(
         factual_value=factual_value,
         counterfactual_value=counterfactual_value,
-        optimization_direction=optimization_direction,
+        optimization_direction=improvement,
     )
+    # `agreement` sólo tiene sentido cuando el contrafactual DISCRIMINÓ. Ante
+    # `no_discriminating_evidence` no hay nada con lo que concordar: queda None (no medido),
+    # no False (que se leería como desacuerdo causal y rompería el ciclo M→S de Ω).
     agreement_with_relation_kind = None
-    if supports_choice is not None and relation_kind in {"support", "contradiction"}:
-        agreement_with_relation_kind = (relation_kind == "support") == bool(supports_choice)
+    if supports_choice is not None and is_measured_relation(relation_kind):
+        agreement_with_relation_kind = (relation_kind == SUPPORT) == bool(supports_choice)
 
     expected_direction = _expected_direction(signature, intervention)
     observed_direction = _direction_from_delta(factual_delta)
@@ -138,8 +161,14 @@ def build_causal_attestation(
         missing.append("factual_value")
     if counterfactual_value is None:
         missing.append("counterfactual_value")
-    if relation_kind not in {"support", "contradiction"}:
+    if relation_kind is None:
+        # No hay relación en absoluto: falta el dato.
         missing.append("relation_kind")
+    elif not is_measured_relation(relation_kind):
+        # La relación EXISTE y es válida (`no_discriminating_evidence`): lo que falta no es
+        # el `relation_kind` sino el CONTRASTE que lo habría hecho medible. Declararlo con
+        # su nombre real permite distinguir "no medí" de "no había nada que medir".
+        missing.append("discriminating_counterfactual")
     if expected_direction is None:
         missing.append("intervention_effect")
 
@@ -171,7 +200,10 @@ def build_causal_attestation(
         "main_variable": main_variable,
         "intervention": intervention,
         "relation_kind": relation_kind,
+        "relation_kind_measured": is_measured_relation(relation_kind),
+        # Declarado (forma del objetivo) vs usado para juzgar (sentido de mejora).
         "optimization_direction": optimization_direction,
+        "improvement_direction": improvement,
         "observed_value": None if observed_value is None else round(observed_value, 6),
         "factual_value": None if factual_value is None else round(factual_value, 6),
         "counterfactual_value": (

@@ -281,12 +281,19 @@ class TestGridThermalStructuralProfile:
         assert "global_temp_mean" in sig.observable_variables
 
     def test_causal_signature_has_correct_polarity(self):
-        """Firma causal debe tener polaridad 'lower_is_better'."""
+        """Firma causal: polaridad 'lower_is_better' y objetivo REGULATORIO.
+
+        P12 — el grid regula sobre el agregado global contra su umbral de alarma; no
+        minimiza sin fin. `optimization_direction` declara la FORMA del objetivo
+        (`target_band`); `causal_polarity` declara hacia dónde queda la región segura
+        (abajo), que es lo que los consumidores monótonos necesitan.
+        """
         scenario = GridThermalScenario()
         sig = scenario.causal_signature
 
         assert sig.causal_polarity == "lower_is_better"
-        assert sig.optimization_direction == "minimize"
+        assert sig.optimization_direction == "target_band"
+        assert sig.improvement_direction == "minimize"
 
 
 class TestGridThermalObservation:

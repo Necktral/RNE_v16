@@ -39,6 +39,7 @@ from runtime.organism.viability import ViabilityKernel
 from runtime.reasoning.context import build_reasoning_context, resolve_reasoning_mode
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
 from runtime.reality.belief_state import BeliefState, build_belief_state, compute_belief_shift
+from runtime.world.causal_signature import improvement_direction
 from runtime.world.compatibility import ScenarioCompatibilityGraph
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
@@ -268,8 +269,13 @@ class ScenarioEpisodeRunner:
         if not is_actuation_enabled():
             return OverrideDecision(fired=False, guard_reason="actuation_disabled"), None
         mv = self.scenario.config.main_variable
+        # La guarda del override pregunta "¿la alterna MEJORA?" — o sea el SENTIDO de
+        # mejora, no la FORMA del objetivo. Leer `optimization_direction` acá era leer la
+        # forma (`target_band` en un regulador de umbral) y caer al `else` de
+        # `_safety_margin`, que la interpreta como maximize: la guarda habría concluido
+        # que enfriar EMPEORA. Se deriva de la polaridad vía el SSOT de la firma.
         try:
-            direction = str(self.scenario.causal_signature.optimization_direction)
+            direction = improvement_direction(self.scenario.causal_signature)
         except Exception:
             direction = "minimize"
         allowed = list(self.scenario.config.interventions)
@@ -1294,6 +1300,13 @@ class ScenarioEpisodeRunner:
             "hard_violation_count": constitutional_validation.hard_violation_count,
             "soft_violation_count": constitutional_validation.soft_violation_count,
             "margin_to_threshold": constitutional_validation.margin_to_threshold,
+            # P12 — la abstención VIAJA. Sin estas claves, un lector no puede distinguir
+            # "no se detectó violación" de "se verificó sano": `is_valid` sólo responde lo
+            # primero. `is_fully_verified` responde lo segundo, y `abstained_invariants`
+            # dice CUÁLES no se pudieron mirar y por qué eje.
+            "is_fully_verified": constitutional_validation.is_fully_verified,
+            "abstained_invariants": list(constitutional_validation.abstained_invariants),
+            "unmeasured_axes": list(constitutional_validation.unmeasured_axes),
         }
         episode_result["viability_assessment"] = {
             "is_viable": viability_assessment.is_viable,
