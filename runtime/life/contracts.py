@@ -345,7 +345,7 @@ class VitalSignsSnapshot:
     def from_dict(cls, payload: Dict[str, Any]) -> "VitalSignsSnapshot":
         """Deserializa vitales SIN fabricar verificación.
 
-        B73: `to_dict()` es `asdict()` — escribe SIEMPRE los 17 campos. Por lo tanto un
+        B73: `to_dict()` es `asdict()` — escribe SIEMPRE los 18 campos. Por lo tanto un
         payload al que le falte un eje NO puede ser un checkpoint legítimo: es truncado,
         corrupto o de otra fuente. Los rellenos se conservan (para no mentir en el otro
         sentido, "el organismo agoniza"), pero cada eje ausente queda anotado en

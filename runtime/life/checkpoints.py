@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict
 from uuid import uuid4
@@ -15,6 +16,8 @@ from runtime.storage.records import ArtifactRecord, utc_now_iso
 from .contracts import AutonomyDecision, GoalState, VitalSignsSnapshot
 from .serialization import jsonable, lineage_to_payload, organism_to_payload
 
+
+logger = logging.getLogger(__name__)
 
 LIFE_CHECKPOINT_VERSION = "1.0.0"
 
@@ -150,13 +153,15 @@ class CheckpointManager:
                 continue
             # B73: si esto es la búsqueda de un REFUGIO, la salud se re-deriva del
             # CONTENIDO del archivo, no del flag de metadata (ver _payload_is_restorable).
-            if healthy_only and not self._payload_is_restorable(payload):
+            if healthy_only and not self._payload_is_restorable(
+                payload, artifact_id=getattr(artifact, "artifact_id", "?")
+            ):
                 continue
             return payload, artifact
         return None
 
     @staticmethod
-    def _payload_is_restorable(payload: Dict[str, Any]) -> bool:
+    def _payload_is_restorable(payload: Dict[str, Any], *, artifact_id: str = "?") -> bool:
         """B73 — el refugio se decide sobre el archivo, no sobre el flag guardado.
 
         ``metadata["healthy"]`` se escribe al GUARDAR, con el snapshot completo en memoria:
@@ -170,8 +175,41 @@ class CheckpointManager:
         ausentes/truncadas ya no puede pasar por refugio (``from_dict`` los marca NO
         VERIFICADOS y ``is_restorable`` se cierra). Un checkpoint sano re-deriva
         ``is_restorable=True`` y sigue siendo elegible exactamente como antes.
+
+        FAIL-SAFE **Y TOTAL**: un candidato malo se **saltea**, jamás mata la búsqueda.
+        ``from_dict`` no es total —un ``vital_signs`` JSON-válido pero MAL TIPADO
+        (``"risk_score": "high"``) revienta en ``float(...)``— y esta función corre dentro
+        del loop de selección de refugio: si la excepción escapara, abortaría la búsqueda
+        ENTERA y un checkpoint **sano** que estuviera detrás del corrupto **nunca se
+        alcanzaría**. Endurecer la compuerta no puede volverla frágil.
+
+        Y el rechazo **deja constancia**: negarse a refugiarse sin decir por qué es el mismo
+        callejón sin salida (cuarentena muda) que el camino E5 existe para romper.
         """
         vital_payload = payload.get("vital_signs")
         if not isinstance(vital_payload, dict):
+            logger.warning(
+                "[life.refuge] candidato %s RECHAZADO: bloque 'vital_signs' ausente o no-dict "
+                "(checkpoint truncado o ajeno). No sirve de refugio.",
+                artifact_id,
+            )
             return False
-        return VitalSignsSnapshot.from_dict(vital_payload).is_restorable
+        try:
+            vitals = VitalSignsSnapshot.from_dict(vital_payload)
+        except Exception as exc:  # noqa: BLE001 - candidato ilegible: se saltea, no se muere
+            logger.warning(
+                "[life.refuge] candidato %s RECHAZADO: vitales ilegibles (%s: %s). "
+                "Se saltea y se sigue buscando; NO se aborta la búsqueda de refugio.",
+                artifact_id,
+                type(exc).__name__,
+                exc,
+            )
+            return False
+        if vitals.is_restorable:
+            return True
+        logger.warning(
+            "[life.refuge] candidato %s RECHAZADO: %s",
+            artifact_id,
+            vitals.restorability_report(),
+        )
+        return False

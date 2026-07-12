@@ -56,7 +56,7 @@ HEALTHY_PAYLOAD = {
     "certified": True,
 }
 
-# Los 17 campos que `to_dict()` (== asdict) escribía ANTES de B73. Un checkpoint sano debe
+# Los 18 campos que `to_dict()` (== asdict) escribía ANTES de B73. Un checkpoint sano debe
 # seguir escribiendo exactamente estos, ni uno más: cero migración, cero cambio de bytes.
 PRE_B73_KEYS = frozenset(HEALTHY_PAYLOAD) | {"snapshot_id", "created_at", "metadata"}
 
@@ -216,7 +216,7 @@ def test_healthy_payload_keeps_the_pre_b73_shape():
 def test_unverified_marker_survives_serialization():
     """Anti-lavado: un snapshot NO VERIFICADO no se blanquea al re-serializarse.
 
-    Sin esto, `to_dict()` volvería a escribir los 17 campos (con sus rellenos) y el
+    Sin esto, `to_dict()` volvería a escribir los 18 campos (con sus rellenos) y el
     siguiente `from_dict()` lo vería completo y sano: la mentira se lavaría sola.
     """
     dirty = VitalSignsSnapshot.from_dict({})
@@ -305,6 +305,46 @@ def test_truncated_checkpoint_is_not_an_eligible_refuge(tmp_path: Path):
 
     manager = CheckpointManager(storage=storage)
     assert manager.load_latest_payload(organism_id=organism_id, healthy_only=True) is None
+
+
+def test_a_mistyped_candidate_is_skipped_not_fatal(tmp_path: Path):
+    """ROBUSTEZ: un candidato ilegible se SALTEA; jamás aborta la búsqueda de refugio.
+
+    `from_dict` no es total: un bloque `vital_signs` JSON-válido pero **mal tipado**
+    (`"risk_score": "high"`) revienta en `float(...)`. Si esa excepción escapara de
+    `load_latest_payload`, mataría `_restore_latest_healthy_checkpoint` y con él el lazo
+    vital — y, peor todavía, un checkpoint **sano** que estuviera detrás del corrupto
+    **nunca se alcanzaría**.
+
+    Endurecer la compuerta del refugio no puede volverla frágil: el organismo tiene que
+    poder saltear la basura y seguir buscando dónde refugiarse.
+    """
+    storage = _storage(tmp_path)
+    run_id = "life-b73-mistyped"
+    organism_id = _seed_checkpoint(storage, _healthy(), run_id=run_id)
+    _seed_checkpoint(storage, _healthy(), run_id=run_id)
+
+    artifacts = storage.list_artifacts(run_id=run_id, kind=LIFE_CHECKPOINT_KIND)
+    assert len(artifacts) == 2
+    # Corrompemos el PRIMERO que verá el loop, sea cual sea el orden: así garantizamos que
+    # el candidato malo se examina ANTES que el sano (si no, el test no probaría nada).
+    doomed = artifacts[0]
+    path = Path(doomed.abs_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["vital_signs"]["risk_score"] = "high"    # float("high") -> ValueError
+    payload["vital_signs"]["viability_margin"] = {}  # float({})     -> TypeError
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # El flag guardado sigue mintiendo: dice "sano".
+    assert doomed.metadata["healthy"] is True
+
+    manager = CheckpointManager(storage=storage)
+    loaded = manager.load_latest_payload(organism_id=organism_id, healthy_only=True)
+
+    # (1) No explota. (2) Encuentra el checkpoint SANO que estaba detrás del corrupto.
+    assert loaded is not None
+    payload_ok, artifact_ok = loaded
+    assert artifact_ok.artifact_id != doomed.artifact_id
+    assert VitalSignsSnapshot.from_dict(payload_ok["vital_signs"]).is_restorable is True
 
 
 def test_checkpoint_without_vitals_is_not_an_eligible_refuge(tmp_path: Path):
