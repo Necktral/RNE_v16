@@ -72,9 +72,17 @@ class MFMCondenser:
         }
         # Compat ADITIVA: se conserva la clave literal cuando la variable principal ES
         # "temperature" (mismo back-compat que certificate_builder.py:99 con
-        # "world_temperature"). Nadie lee meso["temperature"] por clave hoy, pero mantenerla
-        # deja byte-idéntico el payload de los escenarios térmicos (los dominantes) y no
-        # rompe artifacts/memorias ya persistidas. Ver backlog: es removible.
+        # "world_temperature"). Deja byte-idéntico el payload de los escenarios térmicos
+        # (los dominantes) y no rompe artifacts/memorias ya persistidas.
+        #
+        # NO ES REMOVIBLE HOY: `runtime/world/min_cognitive_episode.py:99` lee esta clave
+        # por nombre (`top.get("temperature") is not None`) de una memoria RECUPERADA para
+        # decidir la intervención (`activate_cooling`). Ese camino nunca setea
+        # `scenario_metadata`, así que `main_var` cae al default "temperature" y la clave se
+        # emite — el consumidor sigue funcionando **gracias a este shim**. Sacarlo rompe en
+        # silencio la selección de intervención del episodio mínimo.
+        # Para poder retirarla hay que migrar ANTES ese consumidor a
+        # `world_main_variable_value` (backlog B70). Hay un test que custodia esto.
         if main_var == "temperature":
             meso_result["temperature"] = main_value
 

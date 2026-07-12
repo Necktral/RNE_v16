@@ -99,6 +99,53 @@ class TestCanonValues:
         assert _CROSS_VERSION_PENALTY > _CROSS_SCENARIO_PENALTY
 
 
+class TestVersionAbsent:
+    def test_memory_without_version_is_kept_and_penalized(self, tmp_path: Path):
+        """Versión AUSENTE en la memoria + query CON versión: se conserva penalizada 0.8.
+
+        Caso que P8 cambió sin cubrir con test: en la base, una memoria sin
+        `scenario_version` caía al bucket cross-scenario y se **descartaba** en estricto;
+        ahora sobrevive penalizada. Es coherente con el canon §5.1 (el descarte estricto es
+        SOLO por `scenario_name`), pero "versión desconocida" no es lo mismo que "otra
+        versión": el canon §3 declara `scenario_version` metadata **obligatoria**, así que una
+        memoria sin ella está malformada (calidad de metadata: B71).
+
+        Este test FIJA la semántica elegida —conservar + penalizar + marcar como
+        cross_version— para que cualquier cambio futuro sea deliberado y no accidental.
+        """
+        storage = _storage(tmp_path)
+        run_id = "run-xv-noversion"
+        # Mismo overlap que las de _seed, pero SIN scenario_version en la metadata.
+        storage.write_memory_record(
+            run_id=run_id,
+            episode_id="ep-nover",
+            scale="micro",
+            structure_json=dict(STRUCTURE),
+            metadata={"scenario_metadata": {"scenario_name": "thermal_homeostasis"}},
+            memory_id="mem-no-version",
+        )
+        _seed(storage, run_id)
+
+        hits = MemoryRetrieval(storage=storage).retrieve(
+            run_id=run_id,
+            query=QUERY,
+            limit=10,
+            scenario_name="thermal_homeostasis",
+            scenario_version="1.0",
+            scenario_filter_mode="strict_same_scenario",
+        )
+        found = _by_id(hits)
+
+        # Mismo scenario_name -> el canon NO manda descartarla.
+        assert "mem-no-version" in found
+        # Se trata como cross-version, NO como cross-scenario ni como procedencia analógica.
+        assert found["mem-no-version"]["cross_version_source"] is True
+        assert found["mem-no-version"].get("analogical_source") is not True
+        same = found["mem-same-version"]["score"]
+        assert found["mem-no-version"]["score"] == pytest.approx(same * _CROSS_VERSION_PENALTY)
+        storage.close()
+
+
 class TestStrictMode:
     def test_same_scenario_other_version_is_kept_and_penalized(self, tmp_path: Path):
         """EL TEST DE B30: no se descarta, no es cross-scenario, score x0.8."""

@@ -70,6 +70,33 @@ class TestMesoMainVariable:
         assert meso["world_main_variable"] == "global_temp_mean"
         assert meso["world_main_variable_value"] == 0.71
 
+    def test_legacy_temperature_key_is_NOT_removable_a_live_consumer_reads_it(self):
+        """TRIPWIRE — no saques la clave legacy `temperature`: hay un consumidor VIVO.
+
+        `runtime/world/min_cognitive_episode.py:99` hace `top.get("temperature") is not None`
+        sobre una memoria RECUPERADA y con eso decide la intervención (`activate_cooling`).
+        Ese camino nunca setea `scenario_metadata`, así que `main_var` cae al default
+        "temperature" y la clave se emite: **el consumidor funciona GRACIAS a este shim**, no
+        porque nadie lea la clave.
+
+        Si este test falla porque sacaste la clave: migrá ANTES ese consumidor a
+        `world_main_variable_value` (backlog B70). Sacarla sin migrar rompe **en silencio** la
+        selección de intervención del episodio mínimo.
+        """
+        condenser = MFMCondenser()
+        meso = condenser.meso(
+            episode_result=_episode_result(
+                main_variable=None,  # como el camino de min_cognitive_episode: sin metadata
+                updated_world={"temperature": 0.88},
+            ),
+            certificate=_Cert(),
+        )
+        # La clave exacta que min_cognitive_episode.py:99 lee por nombre.
+        assert meso["temperature"] == 0.88
+        # Y la forma nueva convive con ella (aditiva, no reemplazo).
+        assert meso["world_main_variable"] == "temperature"
+        assert meso["world_main_variable_value"] == 0.88
+
     def test_meso_defaults_to_temperature_and_keeps_backcompat_key(self):
         """Sin scenario_metadata -> default "temperature" + clave legacy aditiva."""
         condenser = MFMCondenser()
