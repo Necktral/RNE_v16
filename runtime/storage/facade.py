@@ -411,6 +411,9 @@ class StorageFacade:
         scale: str,
         structure_json: Mapping[str, Any],
         ttl_seconds: int | None = None,
+        # B24: NO computado. El default `True` es un default de schema (columna
+        # NOT NULL), no una medición: nadie verifica la no-interferencia y nadie
+        # lee este campo. No confiar en él. Ver runtime/storage/records.py.
         no_interference: bool = True,
         certificate_id: str | None = None,
         ioc_proxy: float | None = None,
