@@ -21,6 +21,7 @@ from runtime.organism.state import IdentityState, OrganismState
 from runtime.conjunction import OperationalConjunctionLayer
 from runtime.conjunction.contracts import ComputeTier, OperationalConjunctionResult
 from runtime.conjunction.execution import routing_enforced, tier_execution_directives
+from runtime.core.checkpoint_kinds import LIFE_CHECKPOINT_KIND
 from runtime.storage import StorageFacade, get_storage
 from runtime.storage.records import utc_now_iso
 from runtime.world import ScenarioEpisodeRunner
@@ -931,14 +932,46 @@ class LifeKernel:
             },
         )
 
+    def _count_own_checkpoints(self) -> int | None:
+        """Cuántos checkpoints existen para ESTE organismo (sanos o no). `None` si no se pudo.
+
+        Solo se llama en el camino de emergencia (refugio agotado), así que el costo de la
+        consulta extra es irrelevante frente a lo que está en juego.
+        """
+        try:
+            artifacts = self.storage.list_artifacts(
+                run_id=None, kind=LIFE_CHECKPOINT_KIND, limit=400
+            )
+            return sum(
+                1
+                for a in artifacts
+                if str((a.metadata or {}).get("organism_id") or a.run_id or "")
+                == self.organism_id
+            )
+        except Exception:  # noqa: BLE001 - diagnóstico best-effort: jamás matar el lazo vital
+            return None
+
     def _emit_refuge_exhausted(self, rejections: List[Dict[str, Any]]) -> None:
         """B83 — BÚSQUEDA AGOTADA: "me quedé sin a dónde volver".
 
         La señal más importante que el organismo puede emitir sobre su propia supervivencia:
-        no queda NINGÚN estado al que replegarse. Dice cuántos candidatos examinó y por qué
-        cayó cada uno. Sin esto, el refugio estrechado (decisión del humano: un estado con
-        closure/traza rotos NO es refugio) puede dejar al organismo mudo en cuarentena.
+        no queda NINGÚN estado al que replegarse. Sin esto, el refugio estrechado (decisión
+        del humano: un estado con closure/traza rotos NO es refugio) puede dejar al organismo
+        mudo en cuarentena.
+
+        DOS DIAGNÓSTICOS MUY DISTINTOS, que `candidates_examined` solo NO puede separar: un
+        organismo que **nunca tuvo un refugio** (jamás produjo un checkpoint sano) y uno cuyos
+        refugios **se pudrieron** (los tuvo y hoy no pasan la compuerta) emiten ambos
+        `candidates_examined: 0`, porque los checkpoints guardados como no-sanos ni siquiera
+        entran a la lista de candidatos. Por eso se emite también el total propio:
+
+          total=0                      -> nunca hubo checkpoint
+          total>0, examined=0          -> los tuvo, pero TODOS nacieron enfermos: nunca hubo refugio
+          total>0, examined>0          -> los tuvo y eran candidatos, pero hoy se pudrieron
+
+        En la señal más crítica del organismo, esa diferencia es el diagnóstico.
         """
+        total = self._count_own_checkpoints()
         self._emit_refuge_event(
             "life.refuge.exhausted",
             {
@@ -946,7 +979,14 @@ class LifeKernel:
                 "organism_id": self.organism_id,
                 "lineage_id": self.lineage_id,
                 "reason": "no_restorable_checkpoint",
+                # Candidatos que llegaron a la compuerta (pasaron el prefiltro del índice).
                 "candidates_examined": len(rejections),
+                # Total de checkpoints propios, sanos o no. Sin esto, "nunca tuve refugio" y
+                # "todos mis refugios se pudrieron" son indistinguibles (ambos examinan 0).
+                "checkpoints_total": total,
+                "born_unhealthy": (
+                    max(0, total - len(rejections)) if total is not None else None
+                ),
                 "rejections": [
                     {
                         "artifact_id": r.get("artifact_id"),

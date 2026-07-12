@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, Dict
 
+from runtime.certification.transfer_assessment import purity_not_applicable
 from runtime.organism.lineage import LineageState
 from runtime.organism.state import OrganismState
 
@@ -119,12 +120,15 @@ class VitalSignsService:
         raw_purity = transfer.get("memory_purity_score")
         if raw_purity is None:
             unverified.add("memory_purity")
-        elif "memory_purity" in declared_na or (
-            # Back-compat: certificados anteriores a B85 no traen `not_applicable_fields`,
-            # pero `contamination_opportunity: False` es exactamente la misma afirmación.
-            isinstance(purity_basis, dict)
-            and purity_basis.get("contamination_opportunity") is False
-        ):
+        elif "memory_purity" in declared_na or purity_not_applicable(purity_basis):
+            # `purity_not_applicable` es la SSOT del predicado (incluye el back-compat con
+            # `contamination_opportunity` para certificados pre-B85). ANTES esta compuerta
+            # REIMPLEMENTABA el predicado inline y las dos versiones YA DIVERGÍAN: la SSOT
+            # prioriza `status`, la copia lo ignoraba. Con un basis
+            # {"status": "measured", "contamination_opportunity": False} la SSOT decía "sí
+            # aplica" y la compuerta decía "no aplica" — la deriva exacta que una SSOT existe
+            # para impedir. Y era, además, el mismo pecado que B85 vino a matar: una
+            # capacidad declarada que ninguna compuerta consumía.
             not_applicable.add("memory_purity")
         memory_purity = _as_float(raw_purity, 1.0)
         resource_pressure = _as_float(

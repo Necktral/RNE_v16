@@ -467,6 +467,25 @@ class VitalSignsSnapshot:
         not_applicable: set[str] = set()
         if isinstance(declared_na, (list, tuple, set, frozenset)):
             not_applicable.update(str(axis) for axis in declared_na)
+        # B85 (endurecimiento) — EL ARCHIVO NO SE CONFÍA. Es el mismo modelo de amenaza que
+        # la compuerta de refugio (P9.5: `metadata["healthy"]` es un índice, no una prueba).
+        # Una NO APLICABILIDAD **auto-declarada** se DESCARTA si la evidencia que viaja en el
+        # MISMO snapshot la contradice: si el basis dice que sí hubo memoria que pudiera
+        # contaminarse (`hits > 0` o `contamination_opportunity: True`), entonces el eje SÍ
+        # aplica — y aceptar la etiqueta sería dejar que un payload se **compre la compuerta
+        # declarándose exento**. La etiqueta no puede valer más que la evidencia que la
+        # acompaña.
+        meta = payload.get("metadata")
+        basis = meta.get("memory_purity_basis") if isinstance(meta, dict) else None
+        if "memory_purity" in not_applicable and isinstance(basis, dict):
+            hits = basis.get("hits")
+            had_opportunity = basis.get("contamination_opportunity") is True or (
+                isinstance(hits, (int, float))
+                and not isinstance(hits, bool)
+                and hits > 0
+            )
+            if had_opportunity:
+                not_applicable.discard("memory_purity")
         return cls(
             run_id=str(payload.get("run_id") or "unknown"),
             episode_count=int(payload.get("episode_count", 0)),

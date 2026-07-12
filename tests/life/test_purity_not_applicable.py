@@ -273,3 +273,58 @@ def test_a_live_snapshot_never_claims_more_than_it_checked(tmp_path: Path):
     else:
         assert "memory_purity" in report["checks_applied"]
         assert "memory_purity" not in report["not_applicable_axes"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ENDURECIMIENTO: la etiqueta no puede valer más que la evidencia que la acompaña.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_self_declared_not_applicable_is_discarded_when_the_evidence_contradicts_it():
+    """EL ARCHIVO NO SE CONFÍA: no se puede comprar la compuerta declarándose exento.
+
+    Mismo modelo de amenaza que la compuerta de refugio (P9.5: `metadata["healthy"]` es un
+    índice, no una prueba). Un payload que declara `memory_purity: no aplica` mientras su
+    PROPIO basis confiesa que SÍ hubo memoria que pudiera contaminarse (`hits > 0`) está
+    mintiendo: el eje aplica, y la pureza (baja) debe cerrar la compuerta.
+
+    Sin este chequeo, la no-aplicabilidad seria una PUERTA TRASERA: una etiqueta que exime
+    de la verificación sin que nadie contraste la etiqueta contra la evidencia.
+    """
+    payload = {
+        **BASE,
+        "memory_purity": 0.33,  # pureza REAL y BAJA: la compuerta debe cerrarse
+        "not_applicable_axes": ["memory_purity"],  # ...pero el payload se declara exento
+        "metadata": {
+            # Su propia evidencia lo desmiente: hubo 5 hits, o sea SÍ había qué contaminar.
+            "memory_purity_basis": {"hits": 5, "contamination_opportunity": True}
+        },
+    }
+
+    snapshot = VitalSignsSnapshot.from_dict(payload)
+
+    # La etiqueta se DESCARTA: el eje vuelve a aplicar...
+    assert "memory_purity" not in snapshot.not_applicable_axes
+    # ...y la pureza baja cierra la compuerta, como debe.
+    assert snapshot.is_restorable is False
+    report = snapshot.restorability_report()
+    assert "memory_purity" in report["failed_axes"]
+
+
+def test_honest_not_applicable_still_passes():
+    """El caso legítimo NO se rompe: sin hits, la NA se acepta y el refugio sobrevive."""
+    payload = {
+        **BASE,
+        "not_applicable_axes": ["memory_purity"],
+        "metadata": {
+            "memory_purity_basis": {"hits": 0, "contamination_opportunity": False}
+        },
+    }
+
+    snapshot = VitalSignsSnapshot.from_dict(payload)
+
+    assert "memory_purity" in snapshot.not_applicable_axes
+    assert snapshot.is_restorable is True  # el refugio VIVE
+    report = snapshot.restorability_report()
+    # No aplicable NO cuenta como verificado.
+    assert "memory_purity" not in report["checks_applied"]
