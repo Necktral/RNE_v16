@@ -49,6 +49,18 @@ class FixtureBackend:
         self.counters["unload"] = self.counters.get("unload", 0) + 1
 
 
+class FlakyStorage:
+    def __init__(self) -> None:
+        self.fail = True
+        self.events = []
+
+    def append_event(self, **kwargs):
+        if self.fail:
+            raise OSError("fixture-storage-unavailable")
+        self.events.append(dict(kwargs))
+        return kwargs
+
+
 def _manifest(root: Path, *, digest_override: str | None = None) -> NeuralModelManifest:
     target = root / "n1" / "router.bin"
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -89,12 +101,24 @@ def _request(*, linked: bool = False, scope: InferenceScope = InferenceScope.LIV
     )
 
 
-def _runtime(tmp_path: Path, mode: NeuralMode, counters, *, fail_oom=False, storage=None):
+def _runtime(
+    tmp_path: Path,
+    mode: NeuralMode,
+    counters,
+    *,
+    fail_oom=False,
+    storage=None,
+    trace_buffer_size=128,
+):
     root = tmp_path / "artifacts" / "neural"
     registry = LazyBackendRegistry(artifact_root=root)
     registry.register("fixture", lambda: FixtureBackend(counters, fail_oom=fail_oom))
     runtime = NeuralRuntime(
-        config=NeuralRuntimeConfig(mode=mode, device_preference=DevicePreference.CPU),
+        config=NeuralRuntimeConfig(
+            mode=mode,
+            device_preference=DevicePreference.CPU,
+            trace_buffer_size=trace_buffer_size,
+        ),
         registry=registry,
         storage=storage,
     )
@@ -170,6 +194,86 @@ def test_linked_provisional_only_exposes_admitted_bounded_proposal(tmp_path: Pat
     assert result.fallback_used is False
 
 
+def test_linked_provisional_honors_typed_shadow_authority_ceiling(tmp_path: Path) -> None:
+    counters: dict[str, int] = {}
+    runtime, _, manifest = _runtime(tmp_path, NeuralMode.PROVISIONAL, counters)
+    fallback = {"families": ["DED"]}
+    result = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=lambda candidate, request: AdmissionDecision(
+            True,
+            candidate,
+            "semantically_valid_but_shadow_only",
+            effective_mode_ceiling=NeuralMode.SHADOW,
+        ),
+    )
+    assert result.effective_mode is NeuralMode.SHADOW
+    assert result.decision_influence is DecisionInfluence.NONE
+    assert result.effective_output == fallback
+    assert result.candidate_output == {"families": ["IND"], "seed": 11}
+    assert result.fallback_used is True
+    assert result.fallback_reason == "admission_authority_ceiling:shadow"
+
+
+def test_rejected_or_invalid_admission_contract_fails_closed(tmp_path: Path) -> None:
+    counters: dict[str, int] = {}
+    runtime, _, manifest = _runtime(tmp_path, NeuralMode.PROVISIONAL, counters)
+    fallback = {"families": ["DED"]}
+    rejected = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=lambda candidate, request: AdmissionDecision(
+            False, reason="policy_rejected"
+        ),
+    )
+    assert rejected.effective_output == fallback
+    assert rejected.decision_influence is DecisionInfluence.NONE
+    assert rejected.fallback_reason == "policy_rejected"
+
+    def invalid_ceiling(candidate, request):
+        return AdmissionDecision(
+            True,
+            candidate,
+            "invalid_fixture",
+            effective_mode_ceiling="shadow",  # type: ignore[arg-type]
+        )
+
+    invalid = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=invalid_ceiling,
+    )
+    assert invalid.effective_mode is NeuralMode.SHADOW
+    assert invalid.effective_output == fallback
+    assert invalid.decision_influence is DecisionInfluence.NONE
+    assert invalid.fallback_used is True
+    assert "admission_effective_mode_ceiling_must_be_neural_mode" in (
+        invalid.fallback_reason or ""
+    )
+
+    incompatible = runtime.infer(
+        request=_request(linked=True),
+        manifest=manifest,
+        fallback_output=fallback,
+        admission_gate=lambda candidate, request: AdmissionDecision(
+            True,
+            candidate,
+            "experimental_is_not_a_live_authority_ceiling",
+            effective_mode_ceiling=NeuralMode.EXPERIMENTAL,
+        ),
+    )
+    assert incompatible.effective_mode is NeuralMode.SHADOW
+    assert incompatible.effective_output == fallback
+    assert incompatible.decision_influence is DecisionInfluence.NONE
+    assert incompatible.fallback_reason == (
+        "admission_authority_ceiling_invalid:experimental"
+    )
+
+
 def test_hash_mismatch_and_oom_are_explicit_fallbacks(tmp_path: Path) -> None:
     counters: dict[str, int] = {}
     runtime, _, manifest = _runtime(tmp_path, NeuralMode.SHADOW, counters)
@@ -230,5 +334,61 @@ def test_manifest_and_a_m0_report_use_existing_artifact_plane(tmp_path: Path) ->
     assert Path(manifest_artifact.abs_path).is_file()
     assert Path(impact_artifact.abs_path).is_file()
     events = storage.list_events(run_id="run-impact")
-    assert [event.event_type for event in events] == ["neural.promotion.evaluated"]
+    assert [event.event_type for event in events] == ["neural.organ.promotion_evaluated"]
     storage.close()
+
+
+def test_trace_persistence_failure_is_buffered_reported_and_recovered(tmp_path: Path) -> None:
+    counters: dict[str, int] = {}
+    storage = FlakyStorage()
+    runtime, _, manifest = _runtime(tmp_path, NeuralMode.SHADOW, counters, storage=storage)
+    result = runtime.infer(
+        request=_request(),
+        manifest=manifest,
+        fallback_output={"families": ["DED"]},
+    )
+    assert result.effective_output == {"families": ["DED"]}
+    degraded = runtime.trace_health
+    assert degraded.degraded is True
+    assert degraded.persistence_failures == 4
+    assert degraded.pending_events == 4
+    assert degraded.last_error == "OSError:fixture-storage-unavailable"
+
+    storage.fail = False
+    assert runtime.flush_trace_buffer() == 4
+    recovered = runtime.trace_health
+    assert recovered.degraded is False
+    assert recovered.pending_events == 0
+    assert recovered.recovered_events == 4
+    assert [event["event_type"] for event in storage.events] == [
+        "neural.trace.persistence_failed",
+        "neural.inference.requested",
+        "neural.model.loaded",
+        "neural.inference.completed",
+        "neural.organ.shadow_evaluated",
+    ]
+    assert all(
+        event["payload"]["schema_version"] == "neural-events-v1"
+        for event in storage.events
+    )
+
+
+def test_trace_buffer_is_bounded_and_counts_dropped_events(tmp_path: Path) -> None:
+    counters: dict[str, int] = {}
+    storage = FlakyStorage()
+    runtime, _, manifest = _runtime(
+        tmp_path,
+        NeuralMode.SHADOW,
+        counters,
+        storage=storage,
+        trace_buffer_size=2,
+    )
+    runtime.infer(
+        request=_request(),
+        manifest=manifest,
+        fallback_output={"families": ["DED"]},
+    )
+    health = runtime.trace_health
+    assert health.persistence_failures == 4
+    assert health.pending_events == 2
+    assert health.dropped_events == 2

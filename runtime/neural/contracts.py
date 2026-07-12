@@ -274,10 +274,15 @@ class AdmissionDecision:
     accepted: bool
     output: Any = None
     reason: str = ""
+    effective_mode_ceiling: NeuralMode | None = None
 
     def __post_init__(self) -> None:
         if self.accepted and not self.reason:
             object.__setattr__(self, "reason", "admitted")
+        if self.effective_mode_ceiling is not None and not isinstance(
+            self.effective_mode_ceiling, NeuralMode
+        ):
+            raise ValueError("admission_effective_mode_ceiling_must_be_neural_mode")
         if self.output is not None:
             object.__setattr__(self, "output", _json_value(self.output))
 
