@@ -13,9 +13,17 @@ usa N0 para ejecutar referencias CPU,
 propaga una identidad causal común y transforma resultados en evidencia. No agenda
 familias, selecciona intervenciones, certifica, promociona memoria ni aplica cambios.
 
-El contrato `neural-symbiosis-trace-v1` enlaza identidad, input hash, candidato,
-consumidor, veredicto del consumidor, fallback, coste, resultado y certificado. Se
-persiste en el ledger existente; un fallo de storage queda en el health/buffer de N0.
+El contrato `neural-symbiosis-trace-v2` enlaza identidad, input hash, candidato,
+recibos tipados del consumidor, fallback, coste, resultado y certificado. El lector
+conserva compatibilidad con v1, pero sus strings decorativos no satisfacen completitud
+v2. Todo se persiste en el ledger existente; un fallo de storage queda en el
+health/buffer de N0 y en `receipt.persisted=false`.
+
+Cada `neural-consumer-receipt-v1` enlaza el hash vigente del candidato con hashes de
+entrada/salida del consumidor, evidencia, veredicto, identidad causal y un efecto de
+autoridad cerrado. Un consumidor desconocido, una identidad/hash incorrectos, una
+marca temporal anterior al candidato o autoridad excesiva fallan cerrados. N1, N2,
+N4 y N6 permanecen como máximo en `evidence_only`.
 
 El coordinador no contiene productores `_n1`…`_n6`. Cada entrada del registro tiene
 un único adaptador, capacidad, techo de autoridad, fallback y consumidor declarados;

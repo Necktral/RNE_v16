@@ -661,7 +661,8 @@ class ScenarioEpisodeRunner:
             causal_attestation=causal_attestation,
             resources=self._resource_signals,
         )
-        n5_ingestion = neural_signals.get("n5_ingestion") or {}
+        # Copia: los resultados del consumidor no deben mutar el candidato hasheado.
+        n5_ingestion = dict(neural_signals.get("n5_ingestion") or {})
         n5_sign_ids = []
         for chunk in n5_ingestion.get("chunks", []):
             content = str(chunk.get("text") or "").strip()
@@ -688,6 +689,25 @@ class ScenarioEpisodeRunner:
                 metadata={"origin": "N5", "consumer": "SMG"},
             )
         n5_ingestion["smg_sign_ids"] = n5_sign_ids
+        if self._neural.organ_has_candidate(episode_id, "N5"):
+            self._neural.record_consumer_receipt(
+                episode_id=episode_id,
+                organ="N5",
+                consumer_id="smg_write_result",
+                consumer_input={"chunks": n5_ingestion.get("chunks", [])},
+                consumer_output={"smg_sign_ids": n5_sign_ids},
+                verdict="written" if n5_sign_ids else "no_nonempty_chunks",
+                evidence_refs=tuple(f"smg:{sign_id}" for sign_id in n5_sign_ids) or ("smg:no-write",),
+            )
+            self._neural.record_consumer_receipt(
+                episode_id=episode_id,
+                organ="N5",
+                consumer_id="mfm_candidate_gate",
+                consumer_input={"memory_candidates": n5_ingestion.get("memory_candidates", [])},
+                consumer_output={"promotion": "requires_existing_mfm_gate", "direct_write": False},
+                verdict="candidate_deferred_to_existing_gate",
+                evidence_refs=("MFM",),
+            )
 
         # 9. Ejecutar scheduler de razonamiento
         reasoning_context = build_reasoning_context(

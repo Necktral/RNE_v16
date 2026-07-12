@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
@@ -22,10 +22,13 @@ from runtime.neural.runtime import NeuralRuntime
 
 from .adapters import N3Adapter, N4Adapter, canonical_adapter_registry
 from .contracts import (
+    AuthorityEffect,
+    ConsumerReceipt,
     OrganTrace,
     SymbiosisIdentity,
     SymbiosisTrace,
     canonical_sha256,
+    validate_consumer_receipt,
 )
 
 
@@ -87,7 +90,31 @@ class SymbioticNeuralCoordinator:
             "causal_attestation": dict(causal_attestation),
             "resources": asdict(resource_snapshot),
         }
-        session = _EpisodeSession(trace=SymbiosisTrace(identity=identity), inputs=inputs)
+        session = _EpisodeSession(
+            trace=SymbiosisTrace(
+                identity=identity,
+                organ_contract_versions={
+                    organ: "canonical-organ-adapter-v1" for organ in self._adapters
+                },
+                backend_identities={
+                    organ: adapter.reference_id for organ, adapter in self._adapters.items()
+                },
+                memory_read_references=tuple(
+                    str(item.get("episode_id") or item.get("id") or "")
+                    for item in memory_hits
+                    if item.get("episode_id") or item.get("id")
+                ),
+                resource_state=asdict(resource_snapshot),
+                measurement_status={
+                    "cpu_pressure": "measured_or_defaulted",
+                    "memory_pressure": "measured_or_defaulted",
+                    "thermal_pressure": "measured_or_defaulted",
+                },
+                unmeasured_fields=("actual_ram_mb", "actual_vram_mb"),
+                not_applicable_fields=("trained_model_metrics",),
+            ),
+            inputs=inputs,
+        )
         self._sessions[identity.episode_id] = session
 
         n5 = self._execute(
@@ -108,6 +135,25 @@ class SymbioticNeuralCoordinator:
             if self.config.mode is NeuralMode.OFF
             else "consumed_by_next_reasoning+MFM+continuity"
         )
+        if self.organ_has_candidate(identity.episode_id, "N3"):
+            self.record_consumer_receipt(
+                episode_id=identity.episode_id,
+                organ="N3",
+                consumer_id="next_episode_state",
+                consumer_input={"previous_state": n3.get("previous_state")},
+                consumer_output={"state_key": n3.get("state_key"), "episode_count": n3.get("episode_count")},
+                verdict="state_updated_for_longitudinal_context",
+                evidence_refs=(identity.episode_id,),
+            )
+            self.record_consumer_receipt(
+                episode_id=identity.episode_id,
+                organ="N3",
+                consumer_id="checkpoint_continuity",
+                consumer_input={"state_key": n3.get("state_key")},
+                consumer_output=self.export_temporal_state(),
+                verdict="checkpoint_projection_serialized",
+                evidence_refs=("n3-temporal-checkpoint-v1",),
+            )
         n1 = self._execute(
             session,
             organ="N1",
@@ -145,6 +191,16 @@ class SymbioticNeuralCoordinator:
             if n1.effective_mode == NeuralMode.OFF.value
             else f"compared:overlap={','.join(overlap) or 'none'}"
         )
+        if n1.candidate_hash is not None:
+            self.record_consumer_receipt(
+                episode_id=episode_id,
+                organ="N1",
+                consumer_id="scheduler_comparison",
+                consumer_input={"proposed": sorted(proposed), "scheduler_selected": selected},
+                consumer_output={"overlap": overlap, "scheduler_authority_preserved": True},
+                verdict="proposal_compared_without_scheduler_influence",
+                evidence_refs=(f"decision:{session.trace.identity.decision_id or 'unlinked'}",),
+            )
 
         n2 = self._execute(
             session,
@@ -157,6 +213,23 @@ class SymbioticNeuralCoordinator:
             },
         )
         session.entries["N2"].consumer_verdict = str(n2.get("verdict", "disabled"))
+        if session.entries["N2"].candidate_hash is not None:
+            verification = dict(n2.get("verification") or {})
+            for consumer_id, authority in (
+                ("ded_verifier", "DED"),
+                ("lotf_verifier", "LOT-F"),
+                ("nesy_verifier", "NESY"),
+            ):
+                accepted = bool(verification.get(authority))
+                self.record_consumer_receipt(
+                    episode_id=episode_id,
+                    organ="N2",
+                    consumer_id=consumer_id,
+                    consumer_input={"proposition": n2.get("proposition")},
+                    consumer_output={"authority": authority, "accepted": accepted},
+                    verdict="accepted" if accepted else "rejected",
+                    evidence_refs=(authority,),
+                )
 
         n4_entry = session.entries["N4"]
         n4_adapter = self._adapters["N4"]
@@ -167,6 +240,16 @@ class SymbioticNeuralCoordinator:
         if isinstance(n4_entry.candidate, dict):
             n4_entry.candidate["canonical_comparison"] = n4_comparison
             n4_entry.candidate_hash = canonical_sha256(n4_entry.candidate)
+        if n4_entry.candidate_hash is not None:
+            self.record_consumer_receipt(
+                episode_id=episode_id,
+                organ="N4",
+                consumer_id="canonical_causal_comparator",
+                consumer_input={"candidate_hash": n4_entry.candidate_hash},
+                consumer_output=n4_comparison,
+                verdict=str(n4_comparison["verdict"]),
+                evidence_refs=("CAU", "CTF", "C-GWM"),
+            )
 
         return {
             "n1_scheduler_comparison": {
@@ -198,6 +281,16 @@ class SymbioticNeuralCoordinator:
             },
         )
         session.entries["N6"].consumer_verdict = str(n6.get("sandbox_verdict", "disabled"))
+        if session.entries["N6"].candidate_hash is not None:
+            self.record_consumer_receipt(
+                episode_id=episode_id,
+                organ="N6",
+                consumer_id="sandbox",
+                consumer_input={"proposal": n6.get("proposal")},
+                consumer_output=n6.get("sandbox") or {},
+                verdict=str(n6.get("sandbox_verdict") or "abstained"),
+                evidence_refs=("shadow-sandbox",),
+            )
         health = asdict(self.runtime.trace_health)
         session.trace.trace_health = health
         return self.certification_block(episode_id)
@@ -270,16 +363,50 @@ class SymbioticNeuralCoordinator:
             f"{n1.consumer_verdict}|reward={float(reward.get('reward', 0.0) or 0.0):.4f}"
             f"|certificate={certificate.get('verdict')}"
         )
+        if n1.candidate_hash is not None:
+            self.record_consumer_receipt(
+                episode_id=episode_id,
+                organ="N1",
+                consumer_id="delayed_outcome_observer",
+                consumer_input={"reward": reward.get("reward")},
+                consumer_output={"certificate_verdict": certificate.get("verdict")},
+                verdict="observed_without_policy_update",
+                evidence_refs=("reward", "certificate"),
+            )
         n4 = session.entries["N4"]
         n4.consumer_verdict = f"{n4.consumer_verdict}|certificate_metadata=consumed"
+        if n4.candidate_hash is not None:
+            self.record_consumer_receipt(
+                episode_id=episode_id,
+                organ="N4",
+                consumer_id="certification_metadata",
+                consumer_input={"candidate_hash": n4.candidate_hash},
+                consumer_output={"certificate_verdict": certificate.get("verdict")},
+                verdict="metadata_observed_no_verdict_influence",
+                evidence_refs=("certificate",),
+            )
         n6 = session.entries["N6"]
         n6.consumer_verdict = f"{n6.consumer_verdict}|certificate={certificate.get('verdict')}"
+        if n6.candidate_hash is not None:
+            for consumer_id in ("certification", "autoevolution_evidence_observer"):
+                self.record_consumer_receipt(
+                    episode_id=episode_id,
+                    organ="N6",
+                    consumer_id=consumer_id,
+                    consumer_input={"proposal": (n6.candidate or {}).get("proposal")},
+                    consumer_output={"certificate_verdict": certificate.get("verdict"), "applied": False},
+                    verdict="evidence_only_not_applied",
+                    evidence_refs=(consumer_id,),
+                )
         session.trace.episode_result = {
             "intervention": outcome.get("intervention"),
             "relation_kind": outcome.get("relation_kind"),
             "reward": reward.get("reward"),
         }
         session.trace.certificate = dict(certificate)
+        session.trace.certificate_reference = str(
+            certificate.get("certificate_id") or certificate.get("id") or "episode-certificate"
+        )
         session.trace.trace_health = asdict(self.runtime.trace_health)
         payload = session.trace.to_dict(include_candidates=True)
         persisted = self.runtime.persist_symbiosis_event(
@@ -290,6 +417,55 @@ class SymbioticNeuralCoordinator:
         payload["trace_persisted"] = persisted
         payload["trace_health"] = asdict(self.runtime.trace_health)
         return payload
+
+    def record_consumer_receipt(
+        self,
+        *,
+        episode_id: str,
+        organ: str,
+        consumer_id: str,
+        consumer_input: Any,
+        consumer_output: Any,
+        verdict: str,
+        evidence_refs: tuple[str, ...],
+        authority_effect: AuthorityEffect = AuthorityEffect.EVIDENCE_ONLY,
+    ) -> ConsumerReceipt:
+        """Registra consumo después de ejecutar al consumidor y valida fail-closed."""
+
+        session = self._session(episode_id)
+        entry = session.entries[organ]
+        if entry.candidate_hash is None:
+            raise ValueError("consumer_receipt_requires_candidate_hash")
+        receipt = ConsumerReceipt(
+            receipt_id=f"receipt-{uuid4().hex}",
+            identity=session.trace.identity,
+            organ=organ,
+            candidate_hash=entry.candidate_hash,
+            consumer_id=consumer_id,
+            consumer_contract_version=f"{consumer_id}-v1",
+            consumer_input_hash=canonical_sha256(consumer_input),
+            consumer_output_hash=canonical_sha256(consumer_output),
+            verdict=verdict,
+            evidence_refs=evidence_refs,
+            authority_effect=authority_effect,
+            persisted=False,
+        )
+        validate_consumer_receipt(
+            receipt, trace_identity=session.trace.identity, organ_trace=entry
+        )
+        persisted = self.runtime.persist_symbiosis_event(
+            event_type="neural.consumer.receipt",
+            payload=receipt.to_dict(),
+            run_id=session.trace.identity.run_id,
+        )
+        receipt = replace(receipt, persisted=persisted)
+        session.trace.consumer_receipts.append(receipt)
+        return receipt
+
+    def organ_has_candidate(self, episode_id: str, organ: str) -> bool:
+        """Indica si existe un candidato hasheado que pueda recibir recibos."""
+
+        return self._session(episode_id).entries[organ].candidate_hash is not None
 
     def _execute(
         self,

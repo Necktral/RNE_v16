@@ -62,8 +62,17 @@ def test_multiple_live_episodes_share_trace_and_close_all_consumption_loops(
 
     first_trace = first["neural_symbiosis_trace"]
     second_trace = second["neural_symbiosis_trace"]
-    assert first_trace["trace_complete"] is True
-    assert second_trace["trace_complete"] is True
+    # V2 no declara completitud hasta que el siguiente corte enlace LifeTransition.
+    assert first_trace["trace_complete"] is False
+    assert second_trace["trace_complete"] is False
+    assert second_trace["schema_version"] == "neural-symbiosis-trace-v2"
+    receipt_organs = {receipt["organ"] for receipt in second_trace["consumer_receipts"]}
+    assert receipt_organs == {"N1", "N2", "N3", "N4", "N5", "N6"}
+    candidate_hashes = {entry["organ"]: entry["candidate_hash"] for entry in second_trace["organs"]}
+    assert all(
+        receipt["candidate_hash"] == candidate_hashes[receipt["organ"]]
+        for receipt in second_trace["consumer_receipts"]
+    )
     assert {entry["trace_group_id"] for entry in second_trace["organs"]} == {"trace-e2e-2"}
     assert {entry["organ"] for entry in second_trace["organs"]} == {
         "N1", "N2", "N3", "N4", "N5", "N6"
