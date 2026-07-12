@@ -75,6 +75,11 @@ class VitalSignsService:
         # apoyarse en él: `is_restorable` / `is_stable` se abstienen ante un eje no
         # verificado. Ausencia de dato NO es salud.
         unverified: set[str] = set()
+        # B85 — el TERCER estado. Hasta ahora `memory_purity_basis` VIAJABA con el certificado
+        # y NINGUNA compuerta lo leía (cero consumidores de producción): la etiqueta existía,
+        # pero la compuerta seguía consumiendo el 1.0 vacuo como si fuera evidencia. Acá se
+        # empieza a leer.
+        not_applicable: set[str] = set()
 
         # Sin certificado (bootstrap: el organismo todavía no vivió un episodio) no hay
         # NINGUNA medición de continuidad. Nótese que ya hoy el refugio estaba cerrado en ese
@@ -103,9 +108,24 @@ class VitalSignsService:
         # vivo `memory_purity_score` ahora viene MEDIDO en todo episodio (del retrieval del
         # propio episodio), así que el refugio sobrevive con pureza ganada, no regalada.
         # Si aun así falta (certificado viejo, o pre-P9.6): AUSENCIA, no 1.0.
+        #
+        # B85 — y hay un tercer caso que ni "medida" ni "ausente" describen. Si el episodio no
+        # recuperó NINGÚN hit, no hay memoria que pueda estar contaminada — que es lo único
+        # que esa compuerta existe para impedir. El eje NO APLICA: no bloquea el refugio
+        # (correcto: no hay nada que impedir) pero tampoco es una pureza verificada. El
+        # certificado ya lo dice (`not_applicable_fields` / `memory_purity_basis`); acá se LEE.
+        purity_basis = transfer.get("memory_purity_basis") or {}
+        declared_na = transfer.get("not_applicable_fields") or ()
         raw_purity = transfer.get("memory_purity_score")
         if raw_purity is None:
             unverified.add("memory_purity")
+        elif "memory_purity" in declared_na or (
+            # Back-compat: certificados anteriores a B85 no traen `not_applicable_fields`,
+            # pero `contamination_opportunity: False` es exactamente la misma afirmación.
+            isinstance(purity_basis, dict)
+            and purity_basis.get("contamination_opportunity") is False
+        ):
+            not_applicable.add("memory_purity")
         memory_purity = _as_float(raw_purity, 1.0)
         resource_pressure = _as_float(
             (risk_plus.get("b_safe") or {}).get("pressure"),
@@ -158,9 +178,10 @@ class VitalSignsService:
                 # P9.6: la procedencia de la pureza viaja con los vitales. Un 1.0 con
                 # `contamination_opportunity: False` es un 1.0 vacuo (no hubo memoria que
                 # pudiera contaminar), no una pureza verificada.
-                "memory_purity_basis": transfer.get("memory_purity_basis") or {},
+                "memory_purity_basis": purity_basis if isinstance(purity_basis, dict) else {},
             },
             unverified_fields=frozenset(unverified),
+            not_applicable_axes=frozenset(not_applicable),
         )
         # `replace` (y no `VitalSignsSnapshot(**draft.to_dict())`): `to_dict()` serializa
         # `unverified_fields` como lista ordenada —o la omite si está vacía—, así que

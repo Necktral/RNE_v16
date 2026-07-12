@@ -208,6 +208,13 @@ class PromotionGate:
             # `memory_purity_basis` dice si el 1.0 se ganó midiendo o si no hubo siquiera
             # oportunidad de contaminarse.
             "unmeasured_fields": list(transfer.unmeasured_fields),
+            # B85 — el TERCER estado viaja con el certificado. `not_applicable_fields` no es
+            # un agujero (eso es `unmeasured_fields`): es un eje SIN SUJETO — con cero hits no
+            # hay memoria que pueda estar contaminada. Sin esta clave, el consumidor
+            # (`runtime/life/vitals.py`) solo puede leer el 1.0 vacuo como si fuera una
+            # medición, y la compuerta del refugio lo cuenta como eje VERIFICADO. Lo era: una
+            # verificación que nunca ocurrió.
+            "not_applicable_fields": list(transfer.not_applicable_fields),
             "memory_purity_basis": transfer.memory_purity_basis,
         }
         causal_attestation = (episode.get("context") or {}).get("causal_attestation")

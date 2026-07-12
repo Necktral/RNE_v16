@@ -35,6 +35,42 @@ _NEUTRAL_STABILITY = 1.0
 _NEUTRAL_CONFIDENCE = 0.5
 _NEUTRAL_SHIFT_KL = 0.0
 
+# ── B85 — LA PUREZA TIENE TRES ESTADOS, NO DOS ────────────────────────────────────
+# La compuerta `memory_purity >= 0.85` de `is_restorable` existe para impedir que el
+# organismo se refugie en un estado con memoria CONTAMINADA. Si el retrieval no devolvió
+# NINGÚN hit, no hay memoria que pueda estar contaminada: ese eje no es "desconocido" ni
+# es "pureza verificada en 1.0" — es NO APLICABLE.
+#
+#   MEASURED       hubo hits ⇒ hubo oportunidad de contaminarse ⇒ el número es evidencia
+#                  GANADA. La compuerta lo evalúa.
+#   NOT_APPLICABLE cero hits ⇒ no hay nada que contaminar ⇒ el eje NO APLICA. No bloquea
+#                  la compuerta, pero TAMPOCO cuenta como eje verificado.
+#   UNMEASURED     hubo hits pero faltan las métricas ⇒ ausencia REAL de medición ⇒ el eje
+#                  se abstiene y la compuerta se CIERRA (patrón P9.5).
+#
+# El valor numérico del caso NOT_APPLICABLE sigue siendo 1.0 —bajarlo sería fabricar en el
+# otro sentido y mataría el refugio— pero deja de venderse como una medición: viaja
+# etiquetado y `runtime/life/contracts.py` lo consume como eje no aplicable.
+PURITY_MEASURED = "measured"
+PURITY_NOT_APPLICABLE = "not_applicable"
+PURITY_UNMEASURED = "unmeasured"
+
+
+def purity_not_applicable(basis: Any) -> bool:
+    """¿La pureza de este certificado es NO APLICABLE (no había memoria que contaminar)?
+
+    SSOT del predicado que consumen las compuertas (`runtime/life/vitals.py`). Acepta el
+    `memory_purity_basis` tal como viaja en el certificado (dict JSON). Back-compat: los
+    certificados de antes de B85 no traen `status`, pero sí `contamination_opportunity`,
+    que es exactamente la misma pregunta.
+    """
+    if not isinstance(basis, dict):
+        return False
+    status = basis.get("status")
+    if status is not None:
+        return status == PURITY_NOT_APPLICABLE
+    return basis.get("contamination_opportunity") is False
+
 
 @dataclass(frozen=True)
 class TransferAssessment:
@@ -79,9 +115,17 @@ class TransferAssessment:
     # `unmeasured_fields` no vacío NO es un certificado de salud: es un certificado con
     # agujeros, y los agujeros están declarados.
     unmeasured_fields: tuple[str, ...] = ()
+    # B85 — qué ejes NO APLICAN a este episodio. TERCER estado, distinto de los otros dos:
+    # `unmeasured_fields` dice "no lo miré" (ausencia ⇒ la compuerta se cierra);
+    # `not_applicable_fields` dice "no había NADA que mirar" (el eje no aplica ⇒ no bloquea,
+    # pero TAMPOCO cuenta como verificado). Sin esta distinción, la pureza vacua de un
+    # episodio sin memoria se leía como una medición de 1.0 — una verificación que jamás
+    # ocurrió. Lo consume `runtime/life/vitals.py` → `VitalSignsSnapshot.not_applicable_axes`.
+    not_applicable_fields: tuple[str, ...] = ()
     # P9.6 — CÓMO se obtuvo la pureza. Un 1.0 sobre cero hits (`contamination_opportunity:
     # False`) es ausencia de oportunidad de contaminarse, NO pureza verificada. El número no
-    # cambia; su sustento se vuelve legible.
+    # cambia; su sustento se vuelve legible. B85: además lleva `status` (measured /
+    # not_applicable / unmeasured).
     memory_purity_basis: dict = field(default_factory=dict)
 
 
@@ -118,15 +162,20 @@ def _measure_memory_purity(
     sobre CERO hits de memoria **no es lo mismo** que uno calculado sobre 50 hits sin
     contaminación: el primero es *ausencia de oportunidad de contaminarse*, no evidencia de
     pureza. Los dos valen 1.0 y los dos son honestos — pero solo uno es una verificación.
-    Sin la base, nadie puede distinguirlos y un 1.0 vacuo se lee como "pureza verificada".
 
-    El número NO se toca (bajarlo sería fabricar en el otro sentido, y mataría el refugio:
-    ver el comentario de `assess_transfer`). Lo que se agrega es el sustento.
+    B85 — y la salida NO es bajar el número (eso mataría el refugio) ni declararlo "no
+    medido" (tampoco: no hay nada que medir). Es reconocer que el eje **NO APLICA**. Tres
+    estados, no dos — ver ``PURITY_MEASURED`` / ``PURITY_NOT_APPLICABLE`` /
+    ``PURITY_UNMEASURED``. El estado viaja en ``basis["status"]`` y las compuertas lo leen.
 
     Returns:
-        ``(purity, basis)``. ``purity is None`` ⇒ NO MEDIDA (el episodio no dejó ninguna
-        evidencia de retrieval). ``basis`` describe la fuente, los hits y si hubo siquiera
-        oportunidad de contaminarse.
+        ``(purity, basis)``.
+        - ``purity is None`` ⇒ ``status == "unmeasured"``: hubo hits y no hay métricas.
+          Ausencia REAL: la compuerta se cierra.
+        - ``purity == 1.0`` con ``status == "not_applicable"``: cero hits. No hay memoria que
+          pueda estar contaminada. La compuerta pasa POR NO APLICABILIDAD, y el eje NO se
+          cuenta como verificado.
+        - cualquier otro caso ⇒ ``status == "measured"``: el número es evidencia ganada.
     """
     hits = retrieved if isinstance(retrieved, list) else []
     hit_count = len(hits)
@@ -135,67 +184,60 @@ def _measure_memory_purity(
     if retrieval_metrics:
         cross = retrieval_metrics.get("retrieved_cross_scenario_count")
         same = retrieval_metrics.get("retrieved_same_scenario_count")
+    counts_present = cross is not None or same is not None
+    cross_n = int(cross or 0)
+    same_n = int(same or 0)
+    counted = cross_n + same_n
 
-    # 1. Grado-transferencia: el vector de transición ya midió la pureza sobre estas mismas
-    #    métricas (`transition_analysis._memory_purity`). Es la medición más rica: se usa.
+    # ¿HUBO SIQUIERA MEMORIA QUE PUDIERA CONTAMINARSE? Esta —y no "¿tengo un número?"— es la
+    # pregunta que decide si el eje aplica. Se responde con lo que haya: los hits del contexto
+    # del episodio o los conteos del retriever (cualquiera de los dos > 0 ⇒ hubo memoria).
+    contamination_opportunity = hit_count > 0 or counted > 0
+
+    def _basis(source: str, status: str) -> dict:
+        return {
+            "source": source,
+            "status": status,
+            "hits": hit_count,
+            "cross_scenario_hits": cross_n if counts_present else None,
+            "same_scenario_hits": same_n if counts_present else None,
+            "contamination_opportunity": contamination_opportunity,
+        }
+
+    # 1. NO APLICABLE — cero memoria recuperada. No hay nada que contaminar, así que no hay
+    #    nada que verificar. El 1.0 se conserva (es verdadero: no hubo contaminación porque
+    #    no hubo memoria), pero se declara VACUO: no es una medición y no puede consumirse
+    #    como evidencia de salud. La compuerta pasará por NO APLICABILIDAD, no por un 1.0.
+    if not contamination_opportunity:
+        return (
+            1.0,
+            _basis(
+                "transition_vector" if transition_vector is not None else "no_memory_retrieved",
+                PURITY_NOT_APPLICABLE,
+            ),
+        )
+
+    # 2. MEDIDA (grado-transferencia): el vector de transición ya midió la pureza sobre estas
+    #    mismas métricas (`reality/transition_analysis`). Es la medición más rica: se usa.
     if transition_vector is not None:
         return (
             float(transition_vector.memory_purity),
-            {
-                "source": "transition_vector",
-                "hits": hit_count,
-                "cross_scenario_hits": cross,
-                "same_scenario_hits": same,
-                # Sin hits no hubo NADA que pudiera contaminar: el 1.0 es vacuo, no verificado.
-                "contamination_opportunity": bool(hit_count),
-            },
+            _basis("transition_vector", PURITY_MEASURED),
         )
 
-    # 2. Sin transición (primer episodio): la pureza sigue siendo medible, porque es una
-    #    propiedad del retrieval de ESTE episodio. Acá es donde sobrevive el refugio.
-    if retrieval_metrics:
-        cross_n = int(cross or 0)
-        same_n = int(same or 0)
-        total = cross_n + same_n
-        purity = 1.0 - (cross_n / total) if total else 1.0
+    # 3. MEDIDA (retrieval del propio episodio): la pureza es una propiedad del retrieval de
+    #    ESTE episodio, así que es medible incluso sin transición previa (primer episodio).
+    #    Acá es donde sobrevive el refugio, con pureza GANADA.
+    if counts_present and counted > 0:
         return (
-            purity,
-            {
-                "source": "episode_retrieval_metrics",
-                "hits": hit_count,
-                "cross_scenario_hits": cross_n,
-                "same_scenario_hits": same_n,
-                "contamination_opportunity": bool(total),
-            },
+            1.0 - (cross_n / counted),
+            _basis("episode_retrieval_metrics", PURITY_MEASURED),
         )
 
-    # 3. El retriever no dejó métricas. Si además NO hubo hits, el episodio no consultó
-    #    memoria: no hubo oportunidad de contaminarse y la pureza es 1.0 VACUA (verdadera,
-    #    pero sin sustento). Se reporta como tal, no como pureza verificada.
-    if hit_count == 0:
-        return (
-            1.0,
-            {
-                "source": "no_memory_retrieved",
-                "hits": 0,
-                "cross_scenario_hits": 0,
-                "same_scenario_hits": 0,
-                "contamination_opportunity": False,
-            },
-        )
-
-    # 4. Hubo hits pero SIN métricas: hubo oportunidad de contaminarse y no sabemos si pasó.
-    #    Esto sí es ausencia de medición — y no se rellena con un 1.0 favorable.
-    return (
-        None,
-        {
-            "source": "unmeasured",
-            "hits": hit_count,
-            "cross_scenario_hits": None,
-            "same_scenario_hits": None,
-            "contamination_opportunity": True,
-        },
-    )
+    # 4. NO MEDIDA — hubo hits (oportunidad de contaminarse) pero el retriever no dejó
+    #    conteos: no sabemos si se contaminó. Esto SÍ es ausencia de medición, y no se
+    #    rellena con un 1.0 favorable: el eje se abstiene y la compuerta se cierra.
+    return (None, _basis("unmeasured", PURITY_UNMEASURED))
 
 
 def assess_transfer(
@@ -279,6 +321,8 @@ def assess_transfer(
     # como enfermedad). Patrón: `checks_applied` (trace_integrity.py), `unmeasured_vitals`
     # (control/homeostasis/life_monitor.py), `unverified_fields` (life/contracts.py).
     unmeasured: list[str] = []
+    # B85 — el tercer estado. Un eje acá NO es un agujero: es un eje sin sujeto.
+    not_applicable: list[str] = []
 
     # Memory purity — LA PIEZA DELICADA.
     # De acá cuelga el REFUGIO del organismo: memory_purity_score → metadata del certificado
@@ -295,6 +339,11 @@ def assess_transfer(
     #   2. Las métricas de retrieval del propio episodio — disponibles SIEMPRE, incluso en
     #      el primer episodio, donde no hay transición que medir.
     # El valor honesto de un episodio limpio sigue siendo 1.0 — pero GANADO, no inventado.
+    #
+    # B85 — y hay un tercer estado que ni "medido" ni "no medido" capturan: NO APLICABLE.
+    # Con cero hits no hay memoria que pueda estar contaminada, que es lo ÚNICO que esa
+    # compuerta existe para impedir. El eje no es desconocido: no tiene sujeto. Pasa la
+    # compuerta —correctamente— pero NO como un 1.0 verificado.
     purity, purity_basis = _measure_memory_purity(
         transition_vector=transition_vector,
         retrieval_metrics=retrieval_metrics,
@@ -302,6 +351,8 @@ def assess_transfer(
     )
     if purity is None:
         unmeasured.append("memory_purity")
+    elif purity_basis.get("status") == PURITY_NOT_APPLICABLE:
+        not_applicable.append("memory_purity")
 
     # Transition stability: SIN episodio previo NO hay transición que medir. Acá la ausencia
     # es genuina (no hay de dónde sacarla) y no se rellena con 1.0.
@@ -489,6 +540,7 @@ def assess_transfer(
         failure_mode_scope=fm_scope,
         detector_checks_applied=fm_assessment.checks_applied,
         unmeasured_fields=tuple(unmeasured),
+        not_applicable_fields=tuple(not_applicable),
         memory_purity_basis=purity_basis,
     )
 
