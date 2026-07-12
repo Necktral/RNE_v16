@@ -2,7 +2,15 @@ import re
 import copy
 from dataclasses import dataclass, field
 
-import optree
+try:
+    from optree import tree_map as _tree_map
+except ImportError:  # pragma: no cover - depende del entorno
+    # `optree` NO está instalado en esta máquina y NO es instalable sin red.
+    # Se usa en UN solo lugar (`IsotropicInferenceParams.reset`), para mapear una función
+    # sobre las hojas de un dict de tensores/tuplas.  La pytree de torch (que ya está, viene
+    # con torch) hace exactamente eso para dict/list/tuple: es equivalente para este uso.
+    # Si `optree` aparece, se usa el de verdad.
+    from torch.utils._pytree import tree_map as _tree_map
 
 from typing import Optional
 
@@ -36,7 +44,7 @@ class IsotropicInferenceParams:
         if self.lengths_per_sample is not None:
             self.lengths_per_sample.zero_()
 
-        optree.tree_map(
+        _tree_map(
             lambda x: x.zero_() if isinstance(x, torch.Tensor) else x,
             self.key_value_memory_dict,
         )
