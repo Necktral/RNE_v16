@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from .trace_integrity import assess_trace_integrity
+
 TransferVerdict = Literal[
     "certified_local",
     "certified_transfer_safe",
@@ -45,6 +47,10 @@ class TransferAssessment:
     canonical_scope: str = "local_safe"
     failure_mode_count: int = 0
     morphism_score: float = 0.0
+    # B1: integridad de traza REALMENTE verificada (antes era constante True e
+    # invisible para el llamador). `trace_integrity_reason` dice por qué.
+    trace_integrity: bool = False
+    trace_integrity_reason: str = "trace_missing"
 
 
 def assess_transfer(
@@ -147,9 +153,13 @@ def assess_transfer(
         policy_conf = float(posterior_data.get("policy_confidence", 0.5))
         causal_supp = float(posterior_data.get("causal_support_confidence", 0.5))
 
-    # Trace integrity (estimate from episode)
-    trace = episode.get("trace", [])
-    trace_integrity = len(trace) > 0 if trace else True
+    # Trace integrity — verificación REAL (B1).
+    # Antes: `len(trace) > 0 if trace else True` → True en ambas ramas (constante
+    # disfrazada de medición): inflaba la likelihood del posterior y volvía
+    # inalcanzable el failure mode `trace_discontinuity`. Ahora se verifica
+    # presencia, buena formación y continuidad contra la secuencia ejecutada.
+    trace_result = assess_trace_integrity(episode)
+    trace_integrity = trace_result.integral
 
     # ── Bayesian posterior path (RTCME-v2) ────────────────────────────────
     transfer_post = 0.0
@@ -208,6 +218,8 @@ def assess_transfer(
         canonical_scope=_canonical_scope_from_legacy(cert_scope),
         failure_mode_count=fm_count,
         morphism_score=round(m_score, 4),
+        trace_integrity=trace_integrity,
+        trace_integrity_reason=trace_result.reason,
     )
 
 
