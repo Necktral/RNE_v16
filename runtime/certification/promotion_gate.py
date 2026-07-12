@@ -141,6 +141,21 @@ class PromotionGate:
             "lower_confidence_bound": transfer.lower_confidence_bound,
             "certificate_scope": transfer.certificate_scope,
             "failure_mode_count": transfer.failure_mode_count,
+            # P9.6 — las patologías entran al certificado con NOMBRE y severidad, no como un
+            # contador mudo. Siguen siendo METADATA: no gatean veredicto ni candidatura
+            # (decisión conservadora explícita del paquete). Lo que cambia es que ahora son
+            # alcanzables y se evalúan también en episodios locales.
+            "failure_modes": [
+                {
+                    "mode": m.mode,
+                    "severity": m.severity,
+                    "evidence_score": m.evidence_score,
+                    "description": m.description,
+                }
+                for m in transfer.failure_modes
+            ],
+            "failure_mode_scope": transfer.failure_mode_scope,
+            "detector_checks_applied": list(transfer.detector_checks_applied),
         }
         causal_attestation = (episode.get("context") or {}).get("causal_attestation")
         if isinstance(causal_attestation, dict):

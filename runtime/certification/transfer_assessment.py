@@ -12,9 +12,10 @@ Verdicts:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from .failure_modes import TransferFailureMode, detect_failure_modes
 from .trace_integrity import assess_trace_integrity
 
 TransferVerdict = Literal[
@@ -51,6 +52,15 @@ class TransferAssessment:
     # invisible para el llamador). `trace_integrity_reason` dice por qué.
     trace_integrity: bool = False
     trace_integrity_reason: str = "trace_missing"
+    # P9.6 — las patologías dejan de ser un contador mudo e inalcanzable.
+    # `failure_modes`: las detectadas, con nombre y severidad (METADATA: no gatean).
+    # `failure_mode_scope`: qué familia se evaluó — `local` (episodio intra-escenario),
+    #   `all` (hubo transferencia) o `none`.
+    # `detector_checks_applied`: qué detectores SÍ pudieron correr. Los que no corrieron
+    #   NO cuentan como aprobados (patrón `trace_integrity.checks_applied`).
+    failure_modes: tuple[TransferFailureMode, ...] = ()
+    failure_mode_scope: str = "none"
+    detector_checks_applied: tuple[str, ...] = ()
 
 
 def retrieval_metrics_from_hits(hits: Any) -> dict | None:
@@ -212,12 +222,42 @@ def assess_transfer(
         transfer_post = posterior_result.transfer_posterior
         lcb = posterior_result.lower_confidence_bound
         cert_scope = posterior_result.certificate_scope
-        fm_count = len(posterior_result.failure_modes.detected_modes)
+        fm_assessment = posterior_result.failure_modes
+        fm_count = len(fm_assessment.detected_modes)
+        fm_scope = "all"
 
         # Verdict from posterior
         verdict = _verdict_from_scope(cert_scope)
     else:
-        # Local episode — no transfer
+        # ── Episodio LOCAL (intra-escenario) ─────────────────────────────────
+        # P9.6 paso 2 — ABRIR EL GATE. Antes, esta rama era un `pass`: `detect_failure_modes`
+        # solo se alcanzaba vía `compute_transfer_posterior`, que corre únicamente dentro de
+        # `if is_cross:`. Es decir: en un episodio intra-escenario con memoria limpia —que es
+        # DONDE EL ORGANISMO VIVE— no se evaluaba ninguna patología. Contaminación de memoria,
+        # deriva de política y colapso de creencias estaban archivadas detrás de un gate de
+        # TRANSFERENCIA, y por eso el organismo nunca se veía enfermo: no se miraba.
+        #
+        # Ahora las patologías LOCALES se evalúan igual. Lo de transferencia NO se mezcla:
+        # `causal_inversion` y `morphism_failure` exigen un morfismo dirigido que en un
+        # episodio local no existe — pedirlos acá sería inventar transferencia donde no hay.
+        #
+        # NO GATEA (decisión conservadora explícita de P9.6): el veredicto local sigue siendo
+        # `certified_local` aunque se detecten patologías. Los failure modes entran al
+        # certificado como METADATA, igual que antes; lo que cambia es que ahora son
+        # ALCANZABLES y REALES en vez de inalcanzables. Convertirlos en compuerta es otra
+        # decisión, y no es esta.
+        fm_assessment = detect_failure_modes(
+            memory_purity=purity,
+            belief_shift_kl=shift_kl,
+            policy_confidence=policy_conf,
+            causal_support=causal_supp,
+            trace_integrity=trace_integrity,
+            morphism_score=None,      # no hay morfismo en un episodio local
+            polarity_inversion=False,
+            scope="local",
+        )
+        fm_count = len(fm_assessment.detected_modes)
+        fm_scope = "local"
         verdict = "certified_local"
         cert_scope = "local_only"
 
@@ -241,6 +281,9 @@ def assess_transfer(
         morphism_score=round(m_score, 4),
         trace_integrity=trace_integrity,
         trace_integrity_reason=trace_result.reason,
+        failure_modes=fm_assessment.detected_modes,
+        failure_mode_scope=fm_scope,
+        detector_checks_applied=fm_assessment.checks_applied,
     )
 
 
