@@ -144,3 +144,74 @@ def test_isolated_dip_is_not_a_collapse(tmp_path: Path):
     assert certificate.continuity_score < 0.35, "la continuidad cae..."
     assert certificate.metadata["collapse_detected"] is False, "...pero un bache aislado NO es colapso"
     assert certificate.verdict == "certified"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EFECTO LATERAL NO BUSCADO: darle ojos al colapso ESTRECHÓ EL REFUGIO.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _ioc_and_risk(*, continuity: float, collapse: bool) -> tuple[float, float]:
+    """Reproduce la cadena real: IoCProxy.compute -> risk_score de certificate_builder.
+
+    closure y traza CAÍDOS (el régimen degradado), incertidumbre en su default 0.2.
+    """
+    from runtime.certification.ioc_proxy import IoCProxy
+
+    ioc = IoCProxy().compute(
+        continuity_score=continuity,
+        closure_passed=False,
+        trace_integrity=False,
+        collapse_detected=collapse,
+        uncertainty=0.2,
+    )
+    # `certificate_builder.py:44-54`, misma fórmula.
+    risk = max(0.0, min(1.0,
+        0.55 * (1.0 - continuity)
+        + 0.30 * (1.0 - ioc)
+        + 0.10 * 1.0          # trace caída
+        + 0.05 * 0.2
+        + (0.08 if collapse else 0.0)
+    ))
+    return ioc, risk
+
+
+def test_collapse_wiring_narrowed_the_refuge_band():
+    """DEUDA CONOCIDA Y DELIBERADA: el refugio se estrechó donde MÁS se necesita.
+
+    `collapse_detected` era constante False en el camino vivo. Al cablearlo (paso 4), se
+    encendieron por PRIMERA VEZ dos penalizaciones **preexistentes** que ese flag ya
+    alimentaba: `ioc_proxy.py` (-0.14 al IoC) y `certificate_builder.py` (+0.08 al riesgo).
+    Y `risk_score < 0.50` es un eje del refugio (`contracts.py`, `is_restorable`).
+
+    Consecuencia NO buscada: con closure y traza caídos, la continuidad mínima para
+    conservar refugio se corrió de **0.75** (el umbral del propio eje) a **~0.855**. La
+    banda [0.75, 0.855) PERDIÓ el refugio.
+
+    Y ese es, textualmente, el régimen que `contracts.py` describe como el habitual en vida
+    real ("las certificaciones suelen quedar rejected por closure/trace") — el mismo que
+    dejó a aeon-01 atascado en cuarentena.
+
+    Este test NO bendice el cambio: lo hace VISIBLE. Si el humano decide que un organismo
+    con closure y traza caídos NO debe refugiarse en ese estado, esto es correcto y el test
+    lo documenta. Si decide lo contrario (que perder el refugio ahí es peor que refugiarse
+    en un estado degradado), hay que compensar la penalización — y este test se cae, que es
+    justo lo que debe pasar.
+    """
+    # Continuidad 0.80: DENTRO de la banda perdida.
+    ioc_antes, risk_antes = _ioc_and_risk(continuity=0.80, collapse=False)
+    ioc_ahora, risk_ahora = _ioc_and_risk(continuity=0.80, collapse=True)
+
+    # Antes de cablear el colapso: había refugio.
+    assert round(ioc_antes, 4) == 0.348
+    assert round(risk_antes, 4) == 0.4156
+    assert risk_antes < 0.50  # eje del refugio: PASA
+
+    # Después de cablearlo: el mismo organismo pierde el refugio.
+    assert round(ioc_ahora, 4) == 0.208
+    assert round(risk_ahora, 4) == 0.5376
+    assert risk_ahora >= 0.50  # eje del refugio: FALLA
+
+    # El punto de equilibrio se corrió: con continuidad alta el refugio sobrevive.
+    _, risk_sano = _ioc_and_risk(continuity=0.98, collapse=True)
+    assert risk_sano < 0.50  # por eso la corrida viva da 12/12 healthy y no se ve el problema

@@ -396,9 +396,39 @@ def assess_transfer(
         transfer_post = posterior_result.transfer_posterior
         lcb = posterior_result.lower_confidence_bound
         cert_scope = posterior_result.certificate_scope
-        fm_assessment = posterior_result.failure_modes
+
+        # P9.6 (fix) — EL CERTIFICADO NO PUEDE DECLARAR QUE CHEQUEÓ LO QUE CONFIESA NO HABER
+        # MEDIDO. El posterior necesita NÚMEROS, y por eso corre su aritmética sobre los
+        # priores neutros DECLARADOS (arriba). Pero `posterior_result.failure_modes` venía de
+        # esa MISMA corrida, así que el certificado terminaba afirmando haber chequeado
+        # `belief_collapse` (sobre un `kl = 0.0` fabricado) o `morphism_failure` (sobre un
+        # morfismo inexistente) mientras EL MISMO dict listaba esos campos en
+        # `unmeasured_fields`. Se autocontradecía — y justo en el vocabulario que este paquete
+        # inventó para impedir que la ausencia se lea como salud.
+        #
+        # Re-derivamos la evaluación con la evidencia REAL: `None` donde no se midió (el
+        # detector se ABSTIENE) y sin modos de transferencia cuando no hay con qué evaluarlos.
+        # `compatibility.overall_score` SÍ es una medición real y se usa; el `0.5` de relleno,
+        # no. Los neutros están todos del lado que NO dispara, así que los modos detectados
+        # son los mismos: lo único que cambia es que el certificado deja de mentir sobre qué
+        # verificó. Cero cambio en el posterior, en el scope ni en el veredicto.
+        detect_morphism_score = (
+            m_score
+            if morphism is not None
+            else (compatibility.overall_score if compatibility is not None else None)
+        )
+        fm_assessment = detect_failure_modes(
+            memory_purity=purity,
+            belief_shift_kl=shift_kl,
+            policy_confidence=policy_conf,
+            causal_support=causal_supp,
+            trace_integrity=trace_integrity,
+            morphism_score=detect_morphism_score,
+            polarity_inversion=polarity_inv,
+            scope="all" if detect_morphism_score is not None else "local",
+        )
         fm_count = len(fm_assessment.detected_modes)
-        fm_scope = "all"
+        fm_scope = "all" if detect_morphism_score is not None else "local"
 
         # Verdict from posterior
         verdict = _verdict_from_scope(cert_scope)

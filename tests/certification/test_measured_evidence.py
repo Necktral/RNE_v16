@@ -217,3 +217,66 @@ def test_earned_purity_is_distinguishable_from_vacuous_purity():
     assert basis["hits"] == 3
     assert basis["cross_scenario_hits"] == 0
     assert basis["contamination_opportunity"] is True, "hubo oportunidad y se verificó"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TRIPWIRE: el certificado no puede declarar que chequeó lo que confiesa no medir.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Qué evidencia necesita cada detector para poder correr.
+_MODE_EVIDENCE = {
+    "memory_contamination": "memory_purity",
+    "policy_drift": "policy_confidence",
+    "belief_collapse": "belief_shift_kl",
+    "causal_inversion": "causal_support",
+    "morphism_failure": "morphism_score",
+    "trace_discontinuity": "trace_integrity",
+}
+
+
+def _assert_certificate_does_not_contradict_itself(result) -> None:
+    """La invariante central del vocabulario de honestidad de P9/P9.6.
+
+    `detector_checks_applied` (qué se verificó) y `unmeasured_fields` (qué no se midió) son
+    dos campos del MISMO certificado. Si un detector aparece en el primero mientras su
+    evidencia aparece en el segundo, el certificado se autocontradice: afirma haber
+    chequeado algo que confiesa no haber medido.
+
+    Ese era el bug: en la rama cross, los detectores corrían sobre los PRIORES NEUTROS (que
+    el posterior necesita para su aritmética) y después el certificado declaraba esos
+    chequeos como si se hubieran hecho sobre evidencia. Es exactamente la mentira que el
+    paquete vino a matar, reintroducida en el vocabulario inventado para matarla.
+    """
+    unmeasured = set(result.unmeasured_fields)
+    for mode in result.detector_checks_applied:
+        evidence = _MODE_EVIDENCE[mode]
+        assert evidence not in unmeasured, (
+            f"El certificado dice haber chequeado '{mode}' pero declara que su evidencia "
+            f"('{evidence}') NO se midió. checks_applied={result.detector_checks_applied} "
+            f"unmeasured_fields={result.unmeasured_fields}"
+        )
+
+
+def test_certificate_never_claims_to_have_checked_what_it_did_not_measure():
+    """Sobre el episodio local (sin memoria: varias evidencias ausentes)."""
+    _assert_certificate_does_not_contradict_itself(
+        assess_transfer(episode_result=_episode())
+    )
+
+
+def test_cross_branch_certificate_does_not_contradict_itself_either():
+    """LA RAMA DEL BUG: cross, donde el posterior corre sobre priores neutros.
+
+    Un episodio con evidencia cross (memoria contaminada) abre `is_cross`, y ahí el
+    posterior rellena las evidencias ausentes con neutros para poder hacer su aritmética.
+    Los DETECTORES no deben heredar esos rellenos, y el certificado no debe declararlos
+    como chequeos hechos.
+    """
+    result = assess_transfer(
+        episode_result=_episode(memory=_contaminated_memory(same=3, cross=2))
+    )
+    _assert_certificate_does_not_contradict_itself(result)
+    # Y sin morfismo, los modos de TRANSFERENCIA no pueden darse por chequeados.
+    if result.morphism_score is None:
+        assert "morphism_failure" not in result.detector_checks_applied
+        assert "causal_inversion" not in result.detector_checks_applied
