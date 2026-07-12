@@ -67,9 +67,24 @@ class MSRCController:
         probe_result: Optional[ProbeResult] = None,
         probe_executor=None,
     ) -> Dict[str, Any]:
+        # SSOT del commit de escala (CANON §3.1.6, atomicidad).
+        #
+        # `source_scale_id` se captura ANTES de decidir y es la única verdad sobre
+        # dónde estaba el organismo en este step. El commit de la escala nueva
+        # ocurre en UN SOLO lugar —más abajo, con lo que devuelve el transition
+        # manager— y solo en el camino de éxito; si la transición aborta, el
+        # manager devuelve el origen y la escala queda intacta.
+        #
+        # No leemos `state.current_scale_id` después de `decide()` para eso: el
+        # policy engine es un decisor, no un aplicador. Si alguna vez volviera a
+        # escribir la escala en el state, este capture evita que un abort deje
+        # pegada una escala que nunca se aplicó (era exactamente el bug: el abort
+        # registraba `rollback_applied=True` y se quedaba en la escala nueva).
+        source_scale_id = state.current_scale_id
+
         vram_snapshot = self.vram_sampler.sample()
         estimate = self.estimator.estimate(
-            current_scale_id=state.current_scale_id,
+            current_scale_id=source_scale_id,
             observation=observation,
             viability_margin=viability_margin,
             certification_verdict=certification_verdict,
@@ -90,7 +105,7 @@ class MSRCController:
                 run_id=run_id,
                 payload={
                     "episode_id": episode_id,
-                    "source_scale_id": state.current_scale_id,
+                    "source_scale_id": source_scale_id,
                     "target_scale_id": action.target_scale_id,
                     "reason": action.reason,
                     "estimate": estimate.to_dict(),
@@ -100,10 +115,14 @@ class MSRCController:
         transition_result = self.transition_manager.execute_action(
             run_id=run_id,
             episode_id=episode_id,
-            current_scale_id=state.current_scale_id,
+            current_scale_id=source_scale_id,
             action=action,
             estimate=estimate,
             probe_executor=probe_executor,
+            # El ProbeResult pendiente (medido en el fork_probe de un step previo)
+            # llega hasta acá para que `commit_probe_result` commitee LO QUE EL
+            # PROBE MIDIÓ y no la estimación del catálogo.
+            probe_result=probe_result,
         )
 
         selected_scale_id = transition_result["selected_scale_id"]
@@ -127,6 +146,9 @@ class MSRCController:
                     "episode_id": episode_id,
                     "target_scale_id": action.target_scale_id,
                     "metadata": action.metadata,
+                    # Qué se commiteó realmente: medición del probe o nada medido.
+                    "cost_measurement_source": transition_record.cost_measurement_source,
+                    "unmeasured_costs": list(transition_record.unmeasured_costs),
                 },
             )
         if action.action_type == "discard_probe_result":
@@ -139,6 +161,9 @@ class MSRCController:
                 },
             )
 
+        # ÚNICO punto de commit de la escala en todo MSRC (ver docstring del
+        # transition manager). En el abort, `selected_scale_id` es el origen: la
+        # escala queda como estaba y la atomicidad de CANON §3.1.6 se cumple.
         state.current_scale_id = selected_scale_id
 
         decision_record = ScaleDecisionRecord(
