@@ -137,6 +137,23 @@ def test_keep_scale_does_not_move_the_organism():
     assert out["transition_record"].transition_aborted is False
 
 
+def test_trace_group_links_decision_transition_and_audit_events():
+    action = ScaleAction(action_type="keep_scale", target_scale_id="1x1", reason="estable")
+    controller, storage, _ = _controller(action)
+    out = _step(
+        controller,
+        ScalePolicyState(current_scale_id="1x1"),
+        trace_group_id="trace-msrc-neural-1",
+    )
+
+    assert out["trace_group_id"] == "trace-msrc-neural-1"
+    assert out["decision_record"].metadata["trace_group_id"] == "trace-msrc-neural-1"
+    assert out["transition_record"].metadata["trace_group_id"] == "trace-msrc-neural-1"
+    linked = [event for event in storage.events if event["event_type"] in {"msrc.decision", "msrc.transition"}]
+    assert len(linked) == 2
+    assert all(event["payload"]["metadata"]["trace_group_id"] == "trace-msrc-neural-1" for event in linked)
+
+
 def test_lock_scale_for_n_steps_does_not_move_the_organism():
     action = ScaleAction(action_type="lock_scale_for_n_steps", target_scale_id="1x1", reason="lock", lock_steps=3)
     controller, _, _ = _controller(action)

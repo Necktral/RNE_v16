@@ -411,6 +411,16 @@ class ScenarioEpisodeRunner:
         if self._neural.config != config:
             self._neural = SymbioticNeuralCoordinator(storage=self.storage, config=config)
 
+    def export_neural_state(self) -> Dict[str, Any]:
+        """Estado mínimo N3 apto para checkpoint; no incluye modelos ni buffers."""
+
+        return self._neural.export_temporal_state()
+
+    def restore_neural_state(self, payload: Dict[str, Any] | None) -> int:
+        """Restaura continuidad N3 mediante el contrato versionado del coordinador."""
+
+        return self._neural.restore_temporal_state(payload)
+
     def _symbiosis_identity(
         self,
         *,

@@ -167,6 +167,27 @@ def test_resource_pressure_degrades_optional_organs_but_keeps_ingestion_and_cont
     storage.close()
 
 
+def test_missing_msrc_budget_prevents_all_neural_execution(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("RNFE_NEURAL_MODE", "shadow")
+    storage = _storage(tmp_path, "no-msrc-budget")
+    runner = ScenarioEpisodeRunner(
+        storage=storage, run_id="run-no-budget", scenario="thermal_homeostasis"
+    )
+    runner.set_resource_signals(
+        {"msrc_budget_available": False, "msrc_scale_id": "1x1"}
+    )
+    result = runner.run_episode(external_input=0.04)
+
+    assert all(
+        entry["fallback_reason"] == "msrc_budget_unavailable"
+        for entry in result["neural_symbiosis_trace"]["organs"]
+    )
+    assert result["episode"]["context"]["neural_ingestion"]["smg_sign_ids"] == []
+    storage.close()
+
+
 @pytest.mark.parametrize("disabled", ["N1", "N2", "N3", "N4", "N5", "N6"])
 def test_each_organ_ablation_changes_downstream_evidence(
     tmp_path: Path, monkeypatch, disabled: str

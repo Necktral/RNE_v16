@@ -57,6 +57,7 @@ class CheckpointManager:
         decision: AutonomyDecision | None = None,
         runner_knobs: Dict[str, Any] | None = None,
         scale_state: Dict[str, Any] | None = None,
+        neural_state: Dict[str, Any] | None = None,
         metadata: Dict[str, Any] | None = None,
     ) -> ArtifactRecord:
         checkpoint_id = f"life-ckpt-{uuid4().hex[:12]}"
@@ -84,6 +85,7 @@ class CheckpointManager:
             "decision": decision.to_dict() if decision is not None else None,
             "runner_knobs": dict(runner_knobs or {}),
             "scale_state": dict(scale_state or {}),
+            "neural_state": dict(neural_state or {}),
             "metadata": dict(metadata or {}),
         }
         blob = json.dumps(jsonable(payload), ensure_ascii=True, sort_keys=True, indent=2)

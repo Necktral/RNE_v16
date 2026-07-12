@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Dict, Optional
 
 from runtime.storage.records import utc_now_iso
@@ -66,6 +67,7 @@ class MSRCController:
         alarm_threshold: float = 0.85,
         probe_result: Optional[ProbeResult] = None,
         probe_executor=None,
+        trace_group_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         # SSOT del commit de escala (CANON §3.1.6, atomicidad).
         #
@@ -109,6 +111,7 @@ class MSRCController:
                     "target_scale_id": action.target_scale_id,
                     "reason": action.reason,
                     "estimate": estimate.to_dict(),
+                    "trace_group_id": trace_group_id,
                 },
             )
 
@@ -127,6 +130,14 @@ class MSRCController:
 
         selected_scale_id = transition_result["selected_scale_id"]
         transition_record = transition_result["transition_record"]
+        if trace_group_id:
+            transition_record = replace(
+                transition_record,
+                metadata={
+                    **dict(transition_record.metadata or {}),
+                    "trace_group_id": trace_group_id,
+                },
+            )
         maybe_probe = transition_result.get("probe_result")
 
         if maybe_probe is not None:
@@ -136,6 +147,7 @@ class MSRCController:
                     "episode_id": episode_id,
                     "target_scale_id": maybe_probe.target_scale_id,
                     "probe_result": maybe_probe.to_dict(),
+                    "trace_group_id": trace_group_id,
                 },
             )
 
@@ -149,6 +161,7 @@ class MSRCController:
                     # Qué se commiteó realmente: medición del probe o nada medido.
                     "cost_measurement_source": transition_record.cost_measurement_source,
                     "unmeasured_costs": list(transition_record.unmeasured_costs),
+                    "trace_group_id": trace_group_id,
                 },
             )
         if action.action_type == "discard_probe_result":
@@ -158,6 +171,7 @@ class MSRCController:
                     "episode_id": episode_id,
                     "target_scale_id": action.target_scale_id,
                     "metadata": action.metadata,
+                    "trace_group_id": trace_group_id,
                 },
             )
 
@@ -178,6 +192,7 @@ class MSRCController:
             metadata={
                 "vram_snapshot": vram_snapshot,
                 "policy_state": state.to_dict(),
+                "trace_group_id": trace_group_id,
             },
         )
 
@@ -191,6 +206,7 @@ class MSRCController:
                     "episode_id": episode_id,
                     "oscillation_events": state.oscillation_events,
                     "last_actions": list(state.last_actions),
+                    "trace_group_id": trace_group_id,
                 },
             )
 
@@ -201,6 +217,7 @@ class MSRCController:
                     "episode_id": episode_id,
                     "upgrade_regret": state.upgrade_regret,
                     "downgrade_regret": state.downgrade_regret,
+                    "trace_group_id": trace_group_id,
                 },
             )
 
@@ -213,6 +230,7 @@ class MSRCController:
             "transition_record": transition_record,
             "probe_result": maybe_probe,
             "vram_snapshot": vram_snapshot,
+            "trace_group_id": trace_group_id,
         }
 
     def sanitize_cross_scale_memory(

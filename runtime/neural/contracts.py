@@ -192,6 +192,8 @@ class ResourceSnapshot:
     vram_used_gb: float | None = None
     vram_total_gb: float | None = None
     gpu_temperature_c: float | None = None
+    msrc_budget_available: bool = True
+    msrc_scale_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("cpu_pressure", "memory_pressure", "thermal_pressure", "vram_pressure"):
@@ -215,6 +217,12 @@ class ResourceSnapshot:
             vram_total_gb=_optional_float(data.get("vram_total_gb", data.get("total_gb"))),
             gpu_temperature_c=_optional_float(
                 data.get("gpu_temperature_c", data.get("temperature_c"))
+            ),
+            msrc_budget_available=bool(data.get("msrc_budget_available", True)),
+            msrc_scale_id=(
+                str(data["msrc_scale_id"])
+                if data.get("msrc_scale_id") is not None
+                else None
             ),
         )
 

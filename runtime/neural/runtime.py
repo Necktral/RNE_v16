@@ -315,14 +315,30 @@ class NeuralRuntime:
                 fallback_output=fallback_output,
                 reason="experimental_mode_is_lab_only",
             )
+        if not request.resources.msrc_budget_available:
+            return self._fallback(
+                request,
+                requested_mode=requested_mode,
+                effective_mode=NeuralMode.SHADOW,
+                fallback_output=fallback_output,
+                reason="msrc_budget_unavailable",
+            )
         # Degradación ordenada: N5/N3 son puertos CPU mínimos de ingestión y
         # continuidad; las propuestas opcionales se abstienen bajo presión alta.
         pressure = max(
             request.resources.cpu_pressure,
             request.resources.memory_pressure,
             request.resources.thermal_pressure,
+            (
+                request.resources.vram_pressure
+                if request.resources.gpu_available
+                else 0.0
+            ),
         )
-        if request.organ in {"N1", "N2", "N4", "N6"} and pressure >= 0.90:
+        if (
+            request.organ in {"N1", "N2", "N4", "N6"}
+            and pressure >= self.config.reject_vram_pressure
+        ):
             return self._fallback(
                 request,
                 requested_mode=requested_mode,

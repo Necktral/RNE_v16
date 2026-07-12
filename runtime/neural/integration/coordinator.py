@@ -252,8 +252,47 @@ class SymbioticNeuralCoordinator:
             },
             "trace_completeness": session.trace.is_complete,
             "trace_health": asdict(self.runtime.trace_health),
+            "resource_snapshot": dict(session.inputs.get("resources") or {}),
             "verdict_influence": "none",
         }
+
+    def export_temporal_state(self) -> dict[str, Any]:
+        """Serializa solo el estado N3 determinista para el checkpoint soberano."""
+
+        return {
+            "schema_version": "n3-temporal-checkpoint-v1",
+            "entries": [
+                {"state_key": list(key), "state": dict(state)}
+                for key, state in sorted(self._temporal.items())
+            ],
+        }
+
+    def restore_temporal_state(self, payload: Mapping[str, Any] | None) -> int:
+        """Restaura N3 validando la clave fuerte; ignora entradas mal formadas."""
+
+        data = dict(payload or {})
+        if data.get("schema_version") != "n3-temporal-checkpoint-v1":
+            return 0
+        restored = 0
+        for item in data.get("entries") or []:
+            if not isinstance(item, Mapping):
+                continue
+            raw_key = item.get("state_key")
+            raw_state = item.get("state")
+            if (
+                not isinstance(raw_key, (list, tuple))
+                or len(raw_key) != 3
+                or not all(str(value or "").strip() for value in raw_key)
+                or not isinstance(raw_state, Mapping)
+            ):
+                continue
+            key = tuple(str(value) for value in raw_key)
+            state = dict(raw_state)
+            if list(key) != list(state.get("state_key") or []):
+                continue
+            self._temporal[key] = state
+            restored += 1
+        return restored
 
     def finalize_episode(
         self,

@@ -76,6 +76,22 @@ La matriz ejecutable y el gate de callers/consumidores viven en
 - OFF no llama productores ni adquiere artefactos.
 - La presión alta conserva N5/N3 CPU y degrada N1/N2/N4/N6 de forma visible.
 
+## Consolidación con MSRC
+
+MSRC sigue siendo la única autoridad de escala. `LifeKernel` transmite el mismo
+snapshot normalizado que reciben vitales y reasoning, añadiendo únicamente
+`msrc_budget_available` y `msrc_scale_id`. El coordinador no elige escala ni define
+umbrales; N0 aplica su presupuesto neuronal configurado.
+
+Si MSRC falla, el siguiente episodio recibe `msrc_budget_available=false` y N0 no
+ejecuta ningún órgano sin presupuesto. Una recuperación posterior de MSRC reabre el
+presupuesto sin intervención manual. Las decisiones y transiciones MSRC incorporan
+el mismo `run_id`, `episode_id` y `trace_group_id` que la traza simbiótica.
+
+El checkpoint soberano incluye `n3-temporal-checkpoint-v1`: únicamente estado
+determinista y claves `(organism_id, scenario_id, lineage_id)`, nunca pesos, modelos o
+buffers. Esto conserva continuidad N3 entre corridas con nuevo `run_id`.
+
 ## Clasificación del gate estático anti-stub
 
 La búsqueda obligatoria `return .*idle|if False|pass$|NotImplemented` no encuentra

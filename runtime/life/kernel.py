@@ -78,6 +78,8 @@ class LifeKernelConfig:
     enable_operational_conjunction: bool = True
     max_compute_tier: ComputeTier = "tier_2_specialized"
     autonomy_policy: str = "bounded"
+    # Inyección pública para campañas controladas. None usa sensado real/opt-in.
+    resource_snapshot_override: Dict[str, Any] | None = None
 
 
 class LifeKernel:
@@ -126,6 +128,8 @@ class LifeKernel:
         self._runner_key: tuple | None = None
         self._msrc_controller = None
         self._scale_state = None
+        self._msrc_budget_available = True
+        self._neural_state: Dict[str, Any] = {}
         # Sensado de recursos (host + GPU), opt-in por RNFE_HOST_SENSING.
         self._host_sampler = None
         self._vram_sampler = None
@@ -277,7 +281,14 @@ class LifeKernel:
         )
         # A3: el runner inyecta el snapshot de recursos en el contexto de razonamiento.
         runner.set_neural_config(NeuralRuntimeConfig.from_env())
-        runner.set_resource_signals(self._resource_snapshot)
+        neural_resources = {
+            **self._resource_snapshot,
+            "msrc_budget_available": self._msrc_budget_available,
+            "msrc_scale_id": (
+                self._scale_state.current_scale_id if self._scale_state is not None else None
+            ),
+        }
+        runner.set_resource_signals(neural_resources)
         runner.set_external_reasoner_enabled(external_reasoner_enabled)
         # Experiencia: identidad cross-vida + lecciones del maestro para sesgar el episodio.
         # B41: el namespace es el GENOMA (organism_id), no la corrida (run_id).
@@ -286,6 +297,7 @@ class LifeKernel:
         runner.set_causal_context(causal.to_dict() if causal is not None else None)
         runner.set_experience_lessons(self._experience_lessons)
         episode_result = runner.run_episode(external_input=input_value)
+        self._neural_state = runner.export_neural_state()
         self._consecutive_quarantine = 0  # actuó sano ⇒ ya no está atascado
         # Reflexión continua (E2): el maestro reflexiona si el episodio hirió, o cada
         # cierto tiempo — la reflexión es parte de su vida en todo momento. Off hot-path
@@ -373,6 +385,10 @@ class LifeKernel:
         vivo permanece byte-idéntico. On, compone CPU/RAM del host con la VRAM
         real (``NvidiaVRAMSampler``) cuando hay GPU.
         """
+        if self.config.resource_snapshot_override is not None:
+            self._resource_snapshot = dict(self.config.resource_snapshot_override)
+            return dict(self._resource_snapshot)
+
         from runtime.control.msrc.host_sampler import (
             HostResourceSampler,
             build_resource_snapshot,
@@ -755,6 +771,8 @@ class LifeKernel:
         scale_state = payload.get("scale_state")
         if isinstance(scale_state, dict) and scale_state.get("current_scale_id"):
             self._scale_state = self._scale_state_from_payload(scale_state)
+        neural_state = payload.get("neural_state")
+        self._neural_state = dict(neural_state) if isinstance(neural_state, dict) else {}
 
     def _genesis(self) -> None:
         # organism_id (genoma) por precedencia: config gana sobre entorno →
@@ -813,6 +831,8 @@ class LifeKernel:
             organism_state=self.organism_state,
             lineage=self.lineage,
         )
+        if self._neural_state:
+            self._runner.restore_neural_state(self._neural_state)
         # El tier ejecutable (B3) puede fijar el límite de recuperación de memoria;
         # None conserva el default del runner (byte-idéntico).
         if memory_retrieval_limit is not None:
@@ -860,6 +880,7 @@ class LifeKernel:
                 "closure_profile": self.config.closure_profile,
             },
             scale_state=self._scale_state.to_dict() if self._scale_state is not None else {},
+            neural_state=dict(self._neural_state),
             metadata={"reason": reason},
         )
 
@@ -894,6 +915,8 @@ class LifeKernel:
         self.total_steps = int(payload.get("total_steps", self.total_steps))
         self.scenario_index = int(payload.get("scenario_index", self.scenario_index))
         self.scenario_episode_index = int(payload.get("scenario_episode_index", 0))
+        neural_state = payload.get("neural_state")
+        self._neural_state = dict(neural_state) if isinstance(neural_state, dict) else {}
         self._runner = None
         self._runner_key = None
         # B18: el payload del rollback se emite con la FORMA de `contracts/rollback.schema.json`
@@ -1053,6 +1076,7 @@ class LifeKernel:
             from runtime.control.msrc import MSRCController, ProbeResult, ScalePolicyState
             from runtime.control.msrc.vram_sampler import NullVRAMSampler
         except Exception:
+            self._msrc_budget_available = False
             return {"status": "unavailable"}
         if self._scale_state is None:
             self._scale_state = ScalePolicyState(current_scale_id="1x1")
@@ -1070,6 +1094,12 @@ class LifeKernel:
         episode = episode_result.get("episode") or {}
         episode_id = str(episode.get("episode_id") or f"life-step-{self.total_steps}")
         observation = ((episode.get("context") or {}).get("observation") or {})
+        neural_trace = episode_result.get("neural_symbiosis_trace") or {}
+        trace_group_id = str(
+            (episode.get("causal_context") or {}).get("trace_group_id")
+            or neural_trace.get("trace_group_id")
+            or f"trace-{episode_id}"
+        )
 
         def probe_executor(target_scale_id: str):
             gain = max(0.0, vitals.cognitive_quality - 0.50)
@@ -1096,21 +1126,43 @@ class LifeKernel:
                     "memory_purity": vitals.memory_purity,
                 },
                 probe_executor=probe_executor,
+                trace_group_id=trace_group_id,
             )
         except Exception as exc:
+            self._msrc_budget_available = False
             self.storage.append_event(
                 event_type="life.msrc.error",
                 run_id=self.run_id,
                 source="life_kernel",
-                payload={"episode_id": episode_id, "error": f"{type(exc).__name__}: {exc}"},
+                payload={
+                    "episode_id": episode_id,
+                    "trace_group_id": trace_group_id,
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
             )
             return {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
+        self._msrc_budget_available = True
         self._scale_state = out["state"]
+        transition = out["transition_record"]
         return {
+            "status": "ok",
+            "run_id": self.run_id,
+            "episode_id": episode_id,
+            "trace_group_id": trace_group_id,
             "selected_scale_id": out["selected_scale_id"],
             "action": out["action"].to_dict(),
             "estimate": out["estimate"].to_dict(),
             "state": self._scale_state.to_dict(),
+            "transition": transition.to_dict(),
+            "atomic": (
+                out["selected_scale_id"] == transition.source_scale_id
+                if (
+                    transition.transition_aborted
+                    or out["action"].action_type
+                    in {"keep_scale", "lock_scale_for_n_steps", "discard_probe_result", "fork_probe"}
+                )
+                else out["selected_scale_id"] == transition.target_scale_id
+            ),
         }
 
     @staticmethod
