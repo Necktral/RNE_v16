@@ -338,6 +338,7 @@ class SymbiosisTrace:
     certificate_reference: str | None = None
     final_event_persisted: bool = False
     final_event_contains_receipts: bool = False
+    connectome_activity: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self, *, include_candidates: bool = True) -> dict[str, Any]:
         return {
@@ -367,6 +368,11 @@ class SymbiosisTrace:
             "persistence_degraded": self.persistence_degraded,
             "final_event_persisted": self.final_event_persisted,
             "final_event_contains_receipts": self.final_event_contains_receipts,
+            **(
+                {"connectome_activity": dict(self.connectome_activity)}
+                if self.connectome_activity
+                else {}
+            ),
             "episode_result": dict(self.episode_result or {}),
             "certificate": dict(self.certificate or {}),
             "trace_health": dict(self.trace_health),
@@ -442,6 +448,7 @@ class SymbiosisTrace:
             certificate_reference=raw.get("certificate_reference"),
             final_event_persisted=bool(raw.get("final_event_persisted")),
             final_event_contains_receipts=bool(raw.get("final_event_contains_receipts")),
+            connectome_activity=dict(raw.get("connectome_activity") or {}),
         )
 
     @property

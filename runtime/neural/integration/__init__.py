@@ -14,6 +14,12 @@ from .contracts import (
     validate_consumer_receipt,
 )
 from .coordinator import SymbioticNeuralCoordinator
+from runtime.neural.connectome import (
+    CONNECTOME_ACTIVITY_SCHEMA_VERSION,
+    CONNECTOME_SCHEMA_VERSION,
+    ConnectomeRuntime,
+    canonical_connectome,
+)
 
 __all__ = [
     "ComponentClass",
@@ -31,4 +37,8 @@ __all__ = [
     "integration_census",
     "validate_active_census",
     "validate_consumer_receipt",
+    "CONNECTOME_ACTIVITY_SCHEMA_VERSION",
+    "CONNECTOME_SCHEMA_VERSION",
+    "ConnectomeRuntime",
+    "canonical_connectome",
 ]

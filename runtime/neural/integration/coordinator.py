@@ -10,6 +10,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from runtime.neural.config import NeuralRuntimeConfig
+from runtime.neural.connectome import ConnectomeRuntime
 from runtime.neural.contracts import (
     CausalContextView,
     InferenceScope,
@@ -63,6 +64,7 @@ class SymbioticNeuralCoordinator:
         )
         self._sessions: dict[str, _EpisodeSession] = {}
         self._adapters = canonical_adapter_registry()
+        self.connectome = ConnectomeRuntime()
         self._disabled_organs = {
             item.strip().upper()
             for item in os.environ.get("RNFE_NEURAL_DISABLED_ORGANS", "").split(",")
@@ -313,6 +315,7 @@ class SymbioticNeuralCoordinator:
 
     def certification_block(self, episode_id: str) -> dict[str, Any]:
         session = self._session(episode_id)
+        connectome_activity = self._refresh_connectome(session)
         entries = [entry.to_dict(include_candidate=True) for entry in session.trace.organs]
         return {
             "schema_version": "neural-symbiosis-certificate-v1",
@@ -350,6 +353,7 @@ class SymbioticNeuralCoordinator:
             "trace_health": asdict(self.runtime.trace_health),
             "resource_snapshot": dict(session.inputs.get("resources") or {}),
             "verdict_influence": "none",
+            **({"connectome_activity": connectome_activity} if connectome_activity else {}),
         }
 
     def export_temporal_state(self) -> dict[str, Any]:
@@ -367,6 +371,12 @@ class SymbioticNeuralCoordinator:
         if not isinstance(adapter, N3Adapter):
             raise RuntimeError("canonical_n3_adapter_type_mismatch")
         return adapter.restore_state(payload)
+
+    def export_connectome_state(self) -> dict[str, Any]:
+        return self.connectome.export_state()
+
+    def restore_connectome_state(self, payload: Mapping[str, Any] | None) -> int:
+        return self.connectome.restore_state(payload)
 
     def finalize_episode(
         self,
@@ -439,6 +449,7 @@ class SymbioticNeuralCoordinator:
             certificate.get("certificate_id") or certificate.get("id") or "episode-certificate"
         )
         session.trace.trace_health = asdict(self.runtime.trace_health)
+        self._refresh_connectome(session)
         payload = session.trace.to_dict(include_candidates=True)
         payload["trace_persisted"] = False
         payload["trace_health"] = asdict(self.runtime.trace_health)
@@ -470,6 +481,7 @@ class SymbioticNeuralCoordinator:
         # El payload final siempre contiene explícitamente la lista (incluso vacía en OFF).
         trace.final_event_contains_receipts = True
         trace.trace_health = asdict(self.runtime.trace_health)
+        self._refresh_connectome(session)
         payload = trace.to_dict(include_candidates=True)
         persisted = self.runtime.persist_symbiosis_event(
             event_type="neural.symbiosis.completed",
@@ -533,6 +545,24 @@ class SymbioticNeuralCoordinator:
         """Indica si existe un candidato hasheado que pueda recibir recibos."""
 
         return self._session(episode_id).entries[organ].candidate_hash is not None
+
+    def connectome_topology(self) -> dict[str, Any]:
+        """Expone la topología declarada sin permitir mutarla."""
+
+        return self.connectome.topology.to_dict()
+
+    def _refresh_connectome(self, session: _EpisodeSession) -> dict[str, Any]:
+        if self.config.mode is NeuralMode.OFF:
+            session.trace.connectome_activity = {}
+            return {}
+        snapshot = self.connectome.observe(
+            identity=session.trace.identity,
+            organs=session.trace.organs,
+            receipts=session.trace.consumer_receipts,
+            mode=self.config.mode,
+        )
+        session.trace.connectome_activity = snapshot.to_dict()
+        return dict(session.trace.connectome_activity)
 
     def _execute(
         self,
