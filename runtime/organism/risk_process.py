@@ -99,8 +99,19 @@ class ConstitutionalRiskProcess:
         delta_purity: float,
         delta_modification: float,
         erosion: float,
-        renorm_residual: float,
+        renorm_residual: float | None,
     ) -> RiskUpdate:
+        """Actualiza el riesgo del scope.
+
+        B26.2: ``renorm_residual`` puede ser ``None`` = NO MEDIDO. En ese caso el
+        término de riesgo de renormalización **se omite** (no se suma nada) en vez
+        de sumar ``0.12 * 0.0``. Numéricamente es lo mismo, pero el significado no:
+        el `None` queda declarado en ``atlas.unmeasured_axes``, de modo que ningún
+        consumidor pueda leer este riesgo como "renormalización sin residual".
+        El riesgo así calculado es un riesgo **incompleto**, no un riesgo bajo — y
+        el veredicto (court_runtime._scope_from_risk) tiene prohibido certificar
+        transferencia sobre un cruce con este eje sin medir.
+        """
         key = (scope_type, scope_key)
         prev = self._state.get(key)
         prev_risk = prev.risk_score if prev is not None else 0.15
@@ -125,8 +136,9 @@ class ConstitutionalRiskProcess:
             + 0.12 * max(0.0, delta_modification)
             + 0.10 * atlas.total_risk
             + 0.14 * max(0.0, erosion)
-            + 0.12 * max(0.0, renorm_residual)
         )
+        if renorm_residual is not None:
+            updated += 0.12 * max(0.0, renorm_residual)
         updated = max(0.0, min(1.0, updated))
 
         new_state = RiskState(

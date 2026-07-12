@@ -28,9 +28,22 @@ class FailureClass:
 class FailureAtlas:
     events: tuple[FailureClass, ...]
 
+    # B26.2 — ejes que NO se pudieron evaluar porque la evidencia era `None`
+    # (NO MEDIDO). Un atlas sin eventos pero con `unmeasured_axes` no vacío NO es
+    # un certificado de salud: es un certificado con agujeros declarados.
+    # Patrón: `checks_applied` (certification/trace_integrity.py), `unmeasured_vitals`
+    # (control/homeostasis/life_monitor.py), `unmeasured_fields`
+    # (certification/transfer_assessment.py).
+    unmeasured_axes: tuple[str, ...] = ()
+
     @property
     def critical_count(self) -> int:
         return sum(1 for event in self.events if event.severity == "critical")
+
+    @property
+    def is_complete(self) -> bool:
+        """True si TODOS los ejes pudieron evaluarse. Falso => hay abstenciones."""
+        return not self.unmeasured_axes
 
     @property
     def total_risk(self) -> float:
@@ -48,9 +61,20 @@ def detect_failure_atlas(
     memory_purity: float,
     modification_impact: float,
     erosion: float,
-    renorm_residual: float,
+    renorm_residual: float | None,
 ) -> FailureAtlas:
+    """Detecta clases de falla constitucional.
+
+    B26.2: ``renorm_residual`` puede ser ``None`` = NO MEDIDO (el cruce de régimen
+    no era renormalizable porque alguno de los dos escenarios no tiene régimen
+    latente conocido). Ante ``None`` el detector **se abstiene**: no dispara
+    `renorm_residual_spike` (sería una falsa alarma: "no sé renormalizar esto" no
+    es "la renormalización falló catastróficamente") y **tampoco** lo lee como
+    residual 0.0 (que era la mentira vieja: ausencia de dato = evidencia
+    favorable). La abstención queda declarada en ``FailureAtlas.unmeasured_axes``.
+    """
     events: list[FailureClass] = []
+    unmeasured: list[str] = []
 
     if erosion > 0.55:
         events.append(
@@ -99,7 +123,11 @@ def detect_failure_atlas(
             )
         )
 
-    if renorm_residual > 0.55:
+    # B26.2 — ABSTENCIÓN. `None` no entra a la comparación: no dispara la falla
+    # (falso pánico) ni la descarta (falsa salud). Se declara y se sigue.
+    if renorm_residual is None:
+        unmeasured.append("renorm_residual")
+    elif renorm_residual > 0.55:
         events.append(
             FailureClass(
                 name="adversarial_transfer_illusion",
@@ -132,4 +160,4 @@ def detect_failure_atlas(
             )
         )
 
-    return FailureAtlas(events=tuple(events))
+    return FailureAtlas(events=tuple(events), unmeasured_axes=tuple(unmeasured))
