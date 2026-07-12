@@ -116,7 +116,10 @@ class ResourceScenario(CognitiveScenario):
             observable_variables=frozenset({"stock_level", "production_active"}),
             control_variables=frozenset({"production_active"}),
             main_variable="stock_level",
-            optimization_direction="maximize",
+            # Regula, no maximiza: la política sólo produce bajo alerta de escasez y
+            # estar sobre el umbral BASTA (acumular stock sin fin no es el objetivo).
+            # La polaridad sigue siendo `higher_is_better`: la región segura está arriba.
+            optimization_direction="target_band",
             causal_polarity="higher_is_better",
             alarm_semantics="threshold_below",
             intervention_effects=(
@@ -261,21 +264,12 @@ class ResourceScenario(CognitiveScenario):
             return "START_PRODUCTION"
         return "KEEP_IDLE"
 
-    def evaluate_relation_kind(
-        self,
-        *,
-        factual: ScenarioTransition,
-        counterfactual: ScenarioTransition,
-    ) -> str:
-        """Evalúa relación - en recursos, más stock es mejor."""
-        main_var = self.config.main_variable
-        factual_val = factual.state.get(main_var, 0.0)
-        counterfactual_val = counterfactual.state.get(main_var, 0.0)
-
-        # Si factual tiene más o igual stock que contrafactual, es support
-        if factual_val >= counterfactual_val:
-            return "support"
-        return "contradiction"
+    # `evaluate_relation_kind` NO se sobreescribe. El override anterior existía sólo
+    # para invertir el monótono del default (`>=` en vez de `<=`, porque acá más stock
+    # es mejor): duplicaba el MISMO error con el signo dado vuelta. El criterio único de
+    # `CognitiveScenario.evaluate_relation_kind` juzga contra el objetivo regulatorio
+    # —la alarma de escasez que este escenario ya computa con su propio umbral y su
+    # `alarm_semantics="threshold_below"`— y por eso vale igual acá sin invertir nada.
 
 
 # Factory function

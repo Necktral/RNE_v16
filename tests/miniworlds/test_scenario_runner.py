@@ -29,6 +29,29 @@ def _storage(tmp_path: Path):
     return StorageFactory.create_facade(config)
 
 
+#: Argumento de arranque de cada escenario (su variable principal).
+_INITIAL_KWARG = {
+    ThermalScenario: "initial_temperature",
+    ResourceScenario: "initial_stock",
+}
+
+
+def _relation(cls, initial, factual_intervention, counter_intervention, external):
+    """`relation_kind` del contraste entre dos acciones desde el MISMO estado inicial.
+
+    Ambas ramas se simulan sobre instancias frescas: el contrafactual debe contrastar con
+    el factual desde el estado pre-acción, no arrastrar la mutación de la otra rama.
+    """
+    scenario = cls(**{_INITIAL_KWARG[cls]: initial})
+    factual = scenario.simulate_counterfactual(
+        intervention=factual_intervention, external_input=external
+    )
+    counterfactual = scenario.simulate_counterfactual(
+        intervention=counter_intervention, external_input=external
+    )
+    return scenario.evaluate_relation_kind(factual=factual, counterfactual=counterfactual)
+
+
 class TestScenarioRegistry:
     """Tests para el registro de escenarios."""
 
@@ -107,18 +130,51 @@ class TestThermalScenario:
         assert "TEMP_HIGH" in formula
         assert "ACTIVATE_COOLING" in formula
 
-    def test_evaluate_relation_kind_support(self):
-        """evaluate_relation_kind() retorna support cuando factual es mejor."""
-        scenario = ThermalScenario(initial_temperature=0.9)
-        factual = scenario.factual_transition(intervention="activate_cooling", external_input=0.03)
+    def test_support_when_only_the_factual_stays_safe(self):
+        """support = el factual mantuvo seguro donde el contrafactual HABRÍA ROTO.
 
-        scenario2 = ThermalScenario(initial_temperature=0.9)
-        counterfactual = scenario2.simulate_counterfactual(
-            intervention="deactivate_cooling", external_input=0.03
-        )
-
-        kind = scenario.evaluate_relation_kind(factual=factual, counterfactual=counterfactual)
+        0.86 en alarma (umbral 0.85), calor 0.04:
+          enfriar   -> 0.86 + 0.04 - 0.07 = 0.83  (SEGURO)
+          no actuar -> 0.86 + 0.04        = 0.90  (ROTO)
+        El contrafactual DISCRIMINA y la acción elegida es la que salva: evidencia ganada.
+        """
+        kind = _relation(ThermalScenario, 0.86, "activate_cooling", "deactivate_cooling", 0.04)
         assert kind == "support"
+
+    def test_contradiction_when_only_the_factual_breaks(self):
+        """contradiction = el factual rompió donde el contrafactual habría mantenido seguro.
+
+        0.82 SIN alarma, calor 0.04. La política reactiva no actúa (correcto según su
+        propia regla) y aun así cruza el umbral:
+          no actuar -> 0.82 + 0.04        = 0.86  (ROTO: >= 0.85)
+          enfriar   -> 0.82 + 0.04 - 0.07 = 0.79  (SEGURO)
+        Evidencia REAL de que su modelo causal falla: su política llega un paso tarde.
+        """
+        kind = _relation(ThermalScenario, 0.82, "deactivate_cooling", "activate_cooling", 0.04)
+        assert kind == "contradiction"
+
+    def test_no_discriminating_evidence_when_both_stay_safe(self):
+        """Ambas acciones dejan al organismo seguro ⇒ el contrafactual NO ENSEÑA NADA.
+
+        0.50, calor 0.04: no actuar -> 0.54 y enfriar -> 0.47. Las dos bajo el umbral.
+        Bajo el monótono viejo esto era `contradiction` (0.54 > 0.47 ⇒ "perdiste"): el
+        organismo se acusaba de contradecir su modelo causal por NO actuar estando cómodo.
+        No hay soporte causal que medir: se DECLARA, no se puntúa.
+        """
+        kind = _relation(ThermalScenario, 0.50, "deactivate_cooling", "activate_cooling", 0.04)
+        assert kind == "no_discriminating_evidence"
+
+    def test_no_discriminating_evidence_when_both_break(self):
+        """Ambas acciones rompen el objetivo ⇒ tampoco hay nada que aprender.
+
+        0.90, calor 0.03: enfriar -> 0.86 y no actuar -> 0.93. Las DOS en alarma.
+        Enfriar quedó "más frío", pero no salvó al organismo: contra el objetivo
+        regulatorio el contrafactual no discrimina. Bajo el monótono viejo esto era
+        `support` — un soporte causal 0.90 afirmado en un episodio donde la intervención
+        NO logró el objetivo.
+        """
+        kind = _relation(ThermalScenario, 0.90, "activate_cooling", "deactivate_cooling", 0.03)
+        assert kind == "no_discriminating_evidence"
 
 
 class TestResourceScenario:
@@ -160,18 +216,31 @@ class TestResourceScenario:
         intervention = scenario.select_intervention(obs)
         assert intervention == "start_production"
 
-    def test_evaluate_relation_kind_support_for_resources(self):
-        """evaluate_relation_kind() en recursos: más stock es support."""
-        scenario = ResourceScenario(initial_stock=0.15)
-        factual = scenario.factual_transition(intervention="start_production", external_input=0.03)
+    def test_support_for_resources_without_inverting_any_monotone(self):
+        """El MISMO criterio vale en recursos, sin override y sin invertir nada.
 
-        scenario2 = ResourceScenario(initial_stock=0.15)
-        counterfactual = scenario2.simulate_counterfactual(
-            intervention="stop_production", external_input=0.03
-        )
+        Recursos tiene `alarm_semantics='threshold_below'` (escasez = alarma abajo), la
+        semántica opuesta a térmico. El criterio no compara valores: compara si cada acción
+        deja al organismo DENTRO de su región segura, que cada escenario ya juzga con su
+        propia alarma. Por eso `ResourceScenario` ya no necesita el override que antes daba
+        vuelta el `<=` en `>=` — duplicaba el mismo error con el signo cambiado.
 
-        kind = scenario.evaluate_relation_kind(factual=factual, counterfactual=counterfactual)
+        0.17 en escasez (umbral 0.20), consumo 0.04:
+          producir  -> 0.17 - 0.04 + 0.08 = 0.21  (SEGURO: > 0.20)
+          no actuar -> 0.17 - 0.04        = 0.13  (ROTO)
+        """
+        kind = _relation(ResourceScenario, 0.17, "start_production", "stop_production", 0.04)
         assert kind == "support"
+
+    def test_no_discriminating_evidence_for_resources_when_both_break(self):
+        """0.15, consumo 0.03: producir -> 0.20 (aún en escasez) y parar -> 0.12. Ambas rotas.
+
+        Producir dejó MÁS stock, pero no sacó al organismo de la escasez: contra el objetivo
+        regulatorio no hay discriminación. El override monótono viejo (`factual >= ctf`)
+        cantaba `support` acá — soporte causal 0.90 en un episodio que no logró nada.
+        """
+        kind = _relation(ResourceScenario, 0.15, "start_production", "stop_production", 0.03)
+        assert kind == "no_discriminating_evidence"
 
 
 class TestScenarioEpisodeRunner:

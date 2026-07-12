@@ -6,6 +6,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING
 
+from runtime.smg.smg_min import (  # SSOT del vocabulario de relaciones semióticas
+    CONTRADICTION,
+    NO_DISCRIMINATING_EVIDENCE,
+    SUPPORT,
+)
+
 if TYPE_CHECKING:
     from .compatibility import ScenarioStructuralProfile
     from .causal_signature import ScenarioCausalSignature
@@ -195,29 +201,63 @@ class CognitiveScenario(ABC):
         factual: ScenarioTransition,
         counterfactual: ScenarioTransition,
     ) -> str:
-        """Evalúa tipo de relación entre factual y contrafactual.
+        """Evalúa el soporte causal del contraste factual/contrafactual.
 
-        Default implementation assumes lower values are better (e.g., temperature
-        in thermal scenarios where lower = cooler = better). Scenarios with different
-        optimization goals (e.g., resources where higher stock = better) should
-        override this method to provide appropriate comparison logic.
+        CRITERIO ÚNICO PARA TODOS LOS ESCENARIOS (no se sobreescribe): se juzga
+        contra el **objetivo regulatorio** que el escenario declara —mantenerse en
+        la región segura, es decir FUERA de alarma— y no contra un monótono.
+
+        Por qué NO el monótono. La implementación anterior comparaba el valor de la
+        variable principal (`factual <= counterfactual` ⇒ support) asumiendo "más
+        frío siempre es mejor". Pero la firma causal declara a la vez
+        `optimization_direction` (monótono) y `alarm_semantics` + `alarm_threshold`
+        (umbral), y **son objetivos distintos**. La política real del organismo es
+        la segunda: sólo actúa bajo alarma. Juzgar sus actos contra la primera lo
+        hacía perder en calma —no-actuar siempre queda "peor" que actuar— y
+        acusarse de `contradiction` justo cuando cumplía su política.
+
+        `ScenarioTransition.alarm` es el juicio que CADA escenario ya emite sobre su
+        propia región segura, con su propio umbral y su propia semántica
+        (`threshold_above` / `threshold_below`). Compararlo es leer el objetivo
+        declarado, no inventar uno nuevo: por eso el criterio vale igual para
+        térmico, recursos, grid y carga diferida, y por eso ningún escenario
+        necesita override.
+
+        Las TRES salidas:
+
+        - ``support``: el factual mantuvo al organismo seguro donde el contrafactual
+          habría roto el objetivo. **Evidencia causal ganada**: la acción elegida
+          marcó la diferencia.
+        - ``contradiction``: el factual rompió el objetivo donde el contrafactual lo
+          habría mantenido seguro. **Evidencia real de que el modelo causal falla**.
+        - ``no_discriminating_evidence``: ambas acciones dejan al organismo del mismo
+          lado del objetivo (ambas seguras, o ambas rotas). El contrafactual **no
+          enseña nada**: no hay soporte causal que medir. NO es `support` (falsa
+          salud) ni `contradiction` (falso pánico); es un NO MEDIDO que se **declara**
+          —mismo idioma que `checks_applied`, `unmeasured_vitals`, `unverified_fields`
+          y `unmeasured_fields` en el resto del organismo.
+
+        El tercer estado también absorbe, sin fingir, el caso en que el contraste no
+        existe (contrafactual == factual porque el escenario no admite alterna): sin
+        contraste no puede haber evidencia discriminante.
 
         Args:
             factual: Transición factual.
             counterfactual: Transición contrafactual.
 
         Returns:
-            'support' o 'contradiction'.
+            ``'support'``, ``'contradiction'`` o ``'no_discriminating_evidence'``.
         """
-        main_var = self.config.main_variable
-        factual_val = factual.state.get(main_var, 0.0)
-        counterfactual_val = counterfactual.state.get(main_var, 0.0)
+        factual_safe = not bool(factual.alarm)
+        counterfactual_safe = not bool(counterfactual.alarm)
 
-        # Default: lower values are better (suitable for thermal scenario)
-        # Override in scenarios where higher values are better
-        if factual_val <= counterfactual_val:
-            return "support"
-        return "contradiction"
+        if factual_safe == counterfactual_safe:
+            # El contrafactual no discrimina: ambos caminos caen del mismo lado del
+            # objetivo. No hay nada que aprender de este acto. Se declara.
+            return NO_DISCRIMINATING_EVIDENCE
+        if factual_safe:
+            return SUPPORT
+        return CONTRADICTION
 
     def to_observation_dict(self, observation: ScenarioObservation) -> Dict[str, Any]:
         """Convierte observación a diccionario para persistencia.
