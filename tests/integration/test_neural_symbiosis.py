@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from runtime.neural.integration import SymbiosisIdentity, SymbioticNeuralCoordinator
+from runtime.neural.integration import (
+    SymbiosisIdentity,
+    SymbiosisTrace,
+    SymbioticNeuralCoordinator,
+)
 from runtime.storage import StorageConfig, StorageFactory
 from runtime.world import ScenarioEpisodeRunner
 
@@ -64,6 +68,9 @@ def test_multiple_live_episodes_share_trace_and_close_all_consumption_loops(
     second_trace = second["neural_symbiosis_trace"]
     assert first_trace["trace_complete"] is True
     assert second_trace["trace_complete"] is True
+    assert first_trace["semantic_complete"] is True
+    assert first_trace["durably_complete"] is True
+    assert first_trace["persistence_degraded"] is False
     assert second_trace["schema_version"] == "neural-symbiosis-trace-v2"
     receipt_organs = {receipt["organ"] for receipt in second_trace["consumer_receipts"]}
     assert receipt_organs == {"N1", "N2", "N3", "N4", "N5", "N6"}
@@ -79,6 +86,11 @@ def test_multiple_live_episodes_share_trace_and_close_all_consumption_loops(
     assert second_transition["previous_transition_hash"] == first_transition["transition_hash"]
     assert second_trace["life_transition_id"] == second_transition["transition_id"]
     assert second_trace["state_after_hash"] == second["dynamic_state"]["state_hash"]
+    dropped = SymbiosisTrace.from_dict(second_trace)
+    dropped.trace_health = {**dropped.trace_health, "dropped_events": 1}
+    assert dropped.semantic_complete is True
+    assert dropped.durably_complete is False
+    assert dropped.persistence_degraded is True
     assert {entry["trace_group_id"] for entry in second_trace["organs"]} == {"trace-e2e-2"}
     assert {entry["organ"] for entry in second_trace["organs"]} == {
         "N1", "N2", "N3", "N4", "N5", "N6"
@@ -260,6 +272,9 @@ def test_neural_trace_storage_failure_is_visible_and_episode_still_finishes(
     assert result["certification"]["verdict"] in {"certified", "rejected"}
     trace = result["neural_symbiosis_trace"]
     assert trace["trace_persisted"] is False
+    assert trace["semantic_complete"] is True
+    assert trace["durably_complete"] is False
+    assert trace["persistence_degraded"] is True
     assert trace["trace_health"]["degraded"] is True
     assert trace["trace_health"]["persistence_failures"] > 0
     assert trace["trace_health"]["pending_events"] > 0

@@ -23,6 +23,7 @@ from runtime.neural.runtime import NeuralRuntime
 from .adapters import N3Adapter, N4Adapter, canonical_adapter_registry
 from .contracts import (
     AuthorityEffect,
+    ConsumerVerdictClass,
     ConsumerReceipt,
     OrganTrace,
     SymbiosisIdentity,
@@ -139,7 +140,8 @@ class SymbioticNeuralCoordinator:
                 consumer_id="next_episode_state",
                 consumer_input={"previous_state": n3.get("previous_state")},
                 consumer_output={"state_key": n3.get("state_key"), "episode_count": n3.get("episode_count")},
-                verdict="state_updated_for_longitudinal_context",
+                verdict_class=ConsumerVerdictClass.OBSERVED,
+                verdict_detail="state_updated_for_longitudinal_context",
                 evidence_refs=(identity.episode_id,),
             )
             self.record_consumer_receipt(
@@ -148,7 +150,8 @@ class SymbioticNeuralCoordinator:
                 consumer_id="checkpoint_continuity",
                 consumer_input={"state_key": n3.get("state_key")},
                 consumer_output=self.export_temporal_state(),
-                verdict="checkpoint_projection_serialized",
+                verdict_class=ConsumerVerdictClass.OBSERVED,
+                verdict_detail="checkpoint_projection_serialized",
                 evidence_refs=("n3-temporal-checkpoint-v1",),
             )
         n1 = self._execute(
@@ -195,7 +198,8 @@ class SymbioticNeuralCoordinator:
                 consumer_id="scheduler_comparison",
                 consumer_input={"proposed": sorted(proposed), "scheduler_selected": selected},
                 consumer_output={"overlap": overlap, "scheduler_authority_preserved": True},
-                verdict="proposal_compared_without_scheduler_influence",
+                verdict_class=ConsumerVerdictClass.COMPARED,
+                verdict_detail="proposal_compared_without_scheduler_influence",
                 evidence_refs=(f"decision:{session.trace.identity.decision_id or 'unlinked'}",),
             )
 
@@ -224,7 +228,12 @@ class SymbioticNeuralCoordinator:
                     consumer_id=consumer_id,
                     consumer_input={"proposition": n2.get("proposition")},
                     consumer_output={"authority": authority, "accepted": accepted},
-                    verdict="accepted" if accepted else "rejected",
+                    verdict_class=(
+                        ConsumerVerdictClass.ACCEPTED
+                        if accepted
+                        else ConsumerVerdictClass.REJECTED
+                    ),
+                    verdict_detail="accepted" if accepted else "rejected",
                     evidence_refs=(authority,),
                 )
 
@@ -244,7 +253,12 @@ class SymbioticNeuralCoordinator:
                 consumer_id="canonical_causal_comparator",
                 consumer_input={"candidate_hash": n4_entry.candidate_hash},
                 consumer_output=n4_comparison,
-                verdict=str(n4_comparison["verdict"]),
+                verdict_class=(
+                    ConsumerVerdictClass.COMPARED
+                    if n4_comparison.get("agreement") is not None
+                    else ConsumerVerdictClass.UNAVAILABLE
+                ),
+                verdict_detail=str(n4_comparison["verdict"]),
                 evidence_refs=("CAU", "CTF", "C-GWM"),
             )
 
@@ -285,7 +299,12 @@ class SymbioticNeuralCoordinator:
                 consumer_id="sandbox",
                 consumer_input={"proposal": n6.get("proposal")},
                 consumer_output=n6.get("sandbox") or {},
-                verdict=str(n6.get("sandbox_verdict") or "abstained"),
+                verdict_class=(
+                    ConsumerVerdictClass.ABSTAINED
+                    if n6.get("status") == "abstained"
+                    else ConsumerVerdictClass.OBSERVED
+                ),
+                verdict_detail=str(n6.get("sandbox_verdict") or "abstained"),
                 evidence_refs=("shadow-sandbox",),
             )
         health = asdict(self.runtime.trace_health)
@@ -325,6 +344,9 @@ class SymbioticNeuralCoordinator:
                 row["organ"]: row["authority_ceiling"] for row in entries
             },
             "trace_completeness": session.trace.is_complete,
+            "semantic_complete": session.trace.semantic_complete,
+            "durably_complete": session.trace.durably_complete,
+            "persistence_degraded": session.trace.persistence_degraded,
             "trace_health": asdict(self.runtime.trace_health),
             "resource_snapshot": dict(session.inputs.get("resources") or {}),
             "verdict_influence": "none",
@@ -372,7 +394,12 @@ class SymbioticNeuralCoordinator:
                 consumer_id="delayed_outcome_observer",
                 consumer_input={"reward": reward.get("reward")},
                 consumer_output={"certificate_verdict": certificate.get("verdict")},
-                verdict="observed_without_policy_update",
+                verdict_class=ConsumerVerdictClass.OBSERVED,
+                verdict_detail=(
+                    "observed_without_policy_update"
+                    if _number(reward_value) is not None
+                    else "reward_unmeasured_without_policy_update"
+                ),
                 evidence_refs=("reward", "certificate"),
             )
         n4 = session.entries["N4"]
@@ -384,7 +411,8 @@ class SymbioticNeuralCoordinator:
                 consumer_id="certification_metadata",
                 consumer_input={"candidate_hash": n4.candidate_hash},
                 consumer_output={"certificate_verdict": certificate.get("verdict")},
-                verdict="metadata_observed_no_verdict_influence",
+                verdict_class=ConsumerVerdictClass.OBSERVED,
+                verdict_detail="metadata_observed_no_verdict_influence",
                 evidence_refs=("certificate",),
             )
         n6 = session.entries["N6"]
@@ -397,7 +425,8 @@ class SymbioticNeuralCoordinator:
                     consumer_id=consumer_id,
                     consumer_input={"proposal": (n6.candidate or {}).get("proposal")},
                     consumer_output={"certificate_verdict": certificate.get("verdict"), "applied": False},
-                    verdict="evidence_only_not_applied",
+                    verdict_class=ConsumerVerdictClass.OBSERVED,
+                    verdict_detail="evidence_only_not_applied",
                     evidence_refs=(consumer_id,),
                 )
         session.trace.episode_result = {
@@ -438,12 +467,18 @@ class SymbioticNeuralCoordinator:
         trace.active_regime = active_regime
         trace.memory_write_references = memory_write_references
         trace.policy_versions = dict(policy_versions)
+        # El payload final siempre contiene explícitamente la lista (incluso vacía en OFF).
+        trace.final_event_contains_receipts = True
+        trace.trace_health = asdict(self.runtime.trace_health)
         payload = trace.to_dict(include_candidates=True)
         persisted = self.runtime.persist_symbiosis_event(
             event_type="neural.symbiosis.completed",
             payload=payload,
             run_id=trace.identity.run_id,
         )
+        trace.final_event_persisted = persisted
+        trace.trace_health = asdict(self.runtime.trace_health)
+        payload = trace.to_dict(include_candidates=True)
         payload["trace_persisted"] = persisted
         payload["trace_health"] = asdict(self.runtime.trace_health)
         return payload
@@ -456,7 +491,8 @@ class SymbioticNeuralCoordinator:
         consumer_id: str,
         consumer_input: Any,
         consumer_output: Any,
-        verdict: str,
+        verdict_class: ConsumerVerdictClass,
+        verdict_detail: str | None,
         evidence_refs: tuple[str, ...],
         authority_effect: AuthorityEffect = AuthorityEffect.EVIDENCE_ONLY,
     ) -> ConsumerReceipt:
@@ -475,7 +511,8 @@ class SymbioticNeuralCoordinator:
             consumer_contract_version=f"{consumer_id}-v1",
             consumer_input_hash=canonical_sha256(consumer_input),
             consumer_output_hash=canonical_sha256(consumer_output),
-            verdict=verdict,
+            verdict_class=verdict_class,
+            verdict_detail=verdict_detail,
             evidence_refs=evidence_refs,
             authority_effect=authority_effect,
             persisted=False,
@@ -543,6 +580,8 @@ class SymbioticNeuralCoordinator:
             consumer=adapter.consumer,
             consumer_verdict=("disabled" if result.effective_mode is NeuralMode.OFF else "pending"),
             latency_ms=result.latency_ms,
+            confidence=result.confidence,
+            uncertainty=result.uncertainty,
             ram_mb=_number(result.cost.get("ram_mb")),
             vram_mb=_number(result.cost.get("vram_mb")),
             fallback_reason=result.fallback_reason,

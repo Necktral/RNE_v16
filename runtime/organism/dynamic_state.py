@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
@@ -12,8 +10,10 @@ DYNAMIC_STATE_SCHEMA_VERSION = "organism-dynamic-state-v1"
 
 
 def canonical_hash(value: Any) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    # Import diferido evita acoplar el arranque del paquete organism al coordinador.
+    from runtime.neural.integration.contracts import canonical_sha256
+
+    return canonical_sha256(value)
 
 
 @dataclass(frozen=True, slots=True)

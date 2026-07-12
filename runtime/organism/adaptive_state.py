@@ -25,8 +25,13 @@ class OrganAdaptiveState:
     backend_id: str
     participation_count: int = 0
     abstention_count: int = 0
-    accepted_receipts: int = 0
-    observed_receipts: int = 0
+    accepted_count: int = 0
+    rejected_count: int = 0
+    receipt_abstained_count: int = 0
+    observed_count: int = 0
+    compared_count: int = 0
+    unavailable_count: int = 0
+    persistence_degraded_count: int = 0
     delayed_reward_count: int = 0
     delayed_reward_mean: float | None = None
     certificate_outcomes: dict[str, int] = field(default_factory=dict)
@@ -45,11 +50,12 @@ class OrganAdaptiveState:
 
     @property
     def consumer_acceptance_rate(self) -> float | None:
-        return (
-            self.accepted_receipts / self.observed_receipts
-            if self.observed_receipts
-            else None
-        )
+        denominator = self.acceptance_denominator
+        return self.accepted_count / denominator if denominator else None
+
+    @property
+    def acceptance_denominator(self) -> int:
+        return self.accepted_count + self.rejected_count
 
     @property
     def causal_disagreement_rate(self) -> float | None:
@@ -71,6 +77,7 @@ class OrganAdaptiveState:
         return {
             **asdict(self),
             "consumer_acceptance_rate": self.consumer_acceptance_rate,
+            "acceptance_denominator": self.acceptance_denominator,
             "causal_disagreement_rate": self.causal_disagreement_rate,
             "fallback_rate": self.fallback_rate,
         }
@@ -83,6 +90,8 @@ class AdaptiveStateStore:
         self.states: dict[tuple[str, str, str], OrganAdaptiveState] = {}
 
     def update(self, transition: LifeTransition, symbiosis_trace: Mapping[str, Any]) -> list[OrganAdaptiveState]:
+        from runtime.neural.integration.contracts import ConsumerVerdictClass
+
         if transition.status != "committed":
             return []
         regime_id = str(transition.regime_after.get("regime_id") or "unmapped")
@@ -114,10 +123,28 @@ class AdaptiveStateStore:
                 state.abstention_count += 1
             organ_receipts = [item for item in receipts if item.get("organ") == organ_id]
             for receipt in organ_receipts:
-                state.observed_receipts += 1
-                verdict = str(receipt.get("verdict") or "").lower()
-                if not any(token in verdict for token in ("reject", "disagreement", "invalid")):
-                    state.accepted_receipts += 1
+                try:
+                    verdict = ConsumerVerdictClass(str(receipt.get("verdict_class") or "invalid"))
+                except ValueError:
+                    verdict = ConsumerVerdictClass.INVALID
+                if verdict is ConsumerVerdictClass.ACCEPTED:
+                    state.accepted_count += 1
+                elif verdict in {ConsumerVerdictClass.REJECTED, ConsumerVerdictClass.INVALID}:
+                    state.rejected_count += 1
+                elif verdict is ConsumerVerdictClass.ABSTAINED:
+                    state.receipt_abstained_count += 1
+                elif verdict is ConsumerVerdictClass.OBSERVED:
+                    state.observed_count += 1
+                elif verdict is ConsumerVerdictClass.COMPARED:
+                    state.compared_count += 1
+                elif verdict is ConsumerVerdictClass.UNAVAILABLE:
+                    state.unavailable_count += 1
+                elif verdict is ConsumerVerdictClass.PERSISTENCE_DEGRADED:
+                    state.persistence_degraded_count += 1
+                if not bool(receipt.get("persisted")) and bool(
+                    symbiosis_trace.get("persistence_degraded")
+                ):
+                    state.persistence_degraded_count += 1
             if reward_value is not None:
                 reward = float(reward_value)
                 state.delayed_reward_count += 1
@@ -185,6 +212,11 @@ class AdaptiveStateStore:
             }
             known["latency_tail_ms"] = tuple(known.get("latency_tail_ms") or ())
             known["change_point_indicators"] = tuple(known.get("change_point_indicators") or ())
+            if "accepted_count" not in known and "accepted_receipts" in raw_state:
+                # El checkpoint legado usó heurística textual optimista: no se hereda
+                # como aceptación verificable.
+                known["accepted_count"] = 0
+                known["observed_count"] = int(raw_state.get("observed_receipts", 0) or 0)
             state = OrganAdaptiveState(**known)
             self.states[(state.regime_id, state.organ_id, state.backend_id)] = state
         return len(self.states)

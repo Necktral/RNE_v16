@@ -15,6 +15,7 @@ from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
 from runtime.neural import NeuralRuntimeConfig
 from runtime.neural.integration import (
+    ConsumerVerdictClass,
     SymbiosisIdentity,
     SymbioticNeuralCoordinator,
 )
@@ -931,7 +932,12 @@ class ScenarioEpisodeRunner:
                 consumer_id="smg_write_result",
                 consumer_input={"chunks": n5_ingestion.get("chunks", [])},
                 consumer_output={"smg_sign_ids": n5_sign_ids},
-                verdict="written" if n5_sign_ids else "no_nonempty_chunks",
+                verdict_class=(
+                    ConsumerVerdictClass.ACCEPTED
+                    if n5_sign_ids
+                    else ConsumerVerdictClass.UNAVAILABLE
+                ),
+                verdict_detail="written" if n5_sign_ids else "no_nonempty_chunks",
                 evidence_refs=tuple(f"smg:{sign_id}" for sign_id in n5_sign_ids) or ("smg:no-write",),
             )
             self._neural.record_consumer_receipt(
@@ -940,7 +946,8 @@ class ScenarioEpisodeRunner:
                 consumer_id="mfm_candidate_gate",
                 consumer_input={"memory_candidates": n5_ingestion.get("memory_candidates", [])},
                 consumer_output={"promotion": "requires_existing_mfm_gate", "direct_write": False},
-                verdict="candidate_deferred_to_existing_gate",
+                verdict_class=ConsumerVerdictClass.OBSERVED,
+                verdict_detail="candidate_deferred_to_existing_gate",
                 evidence_refs=("MFM",),
             )
 
@@ -1462,6 +1469,16 @@ class ScenarioEpisodeRunner:
                 {
                     "organ": organ,
                     "candidate_hash": row.get("candidate_hash"),
+                    "backend_id": (
+                        symbiosis_trace.get("backend_identities") or {}
+                    ).get(organ),
+                    "historical_uncertainty": row.get("uncertainty"),
+                    "historical_cost": row.get("cost") or {},
+                    "historical_causal_comparison": (
+                        (row.get("candidate") or {}).get("canonical_comparison")
+                        if isinstance(row.get("candidate"), Mapping)
+                        else None
+                    ),
                     "effective_mode": row.get("effective_mode"),
                     "authority_ceiling": row.get("authority_ceiling"),
                 }

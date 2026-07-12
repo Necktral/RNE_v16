@@ -6,7 +6,6 @@ declarada. Ninguno selecciona acciones, certifica, muta grafos ni promociona mem
 
 from __future__ import annotations
 
-import json
 import math
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
@@ -19,7 +18,7 @@ from runtime.neural.organs.n4_causal import (
 )
 from runtime.neural.organs.n5_ingest import DeterministicChunker
 
-from .contracts import SymbiosisIdentity
+from .contracts import SymbiosisIdentity, canonical_json_bytes
 
 
 OPTIONAL_FAMILIES = ("IND", "PLAN", "OPT", "NESY", "IMAGINATION", "EVO_SEARCH")
@@ -424,7 +423,7 @@ class N5Adapter:
     def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
         inputs = context["inputs"]
         memory_text = " ".join(
-            json.dumps(item.get("structure", {}), sort_keys=True, default=str)[:512]
+            canonical_json_bytes(item.get("structure", {})).decode("utf-8")[:512]
             for item in inputs.get("memory_hits", [])[:3]
         )
         content = "\n".join(

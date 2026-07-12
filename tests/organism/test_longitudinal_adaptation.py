@@ -76,6 +76,11 @@ def test_shadow_replay_uses_fresh_adapters_and_does_not_touch_chain(
     assert before["last_transition_hash"] == after["last_transition_hash"]
     assert before["transition_index"] == after["transition_index"]
     assert len(replay["results"]) == 2
+    assert all(row["uncertainty_measurement_status"] == "measured" for row in replay["results"])
+    assert all(row["uncertainty_difference"] is not None for row in replay["results"])
+    assert all(row["cost_measurement_status"] == "measured" for row in replay["results"])
+    assert all("observable_regret" not in row for row in replay["results"])
+    assert all("historical_reward" in row for row in replay["results"])
     storage.close()
 
 
@@ -95,6 +100,13 @@ def test_absent_reward_is_not_counted_as_zero_and_planner_actions_are_closed(
     assert all(state.delayed_reward_count == 0 for state in states)
     assert all(state.delayed_reward_mean is None for state in states)
 
+    n1 = next(state for state in states if state.organ_id == "N1")
+    assert n1.accepted_count == 0
+    assert n1.compared_count >= 1
+    assert n1.observed_count >= 1
+    assert n1.consumer_acceptance_rate is None
+    assert n1.acceptance_denominator == 0
+
     causal = OrganAdaptiveState(
         organism_id="organism-longitudinal",
         lineage_id=runner.lineage.lineage_id,
@@ -108,6 +120,53 @@ def test_absent_reward_is_not_counted_as_zero_and_planner_actions_are_closed(
     plans = AdaptationPlanner().plan([causal])
     assert plans[0]["allowed_action"] == "quarantine_candidate"
     assert {item["allowed_action"] for item in plans}.issubset(ALLOWED_ADAPTATION_ACTIONS)
+    storage.close()
+
+
+def test_adaptive_receipt_rates_use_only_typed_accept_reject_denominator(
+    tmp_path: Path, monkeypatch
+) -> None:
+    storage, runner = _runner_with_two_episodes(tmp_path, monkeypatch)
+    transition = LifeTransition.from_dict(
+        runner.run_episode(external_input=0.04)["life_transition"]
+    )
+    trace = {
+        "backend_identities": {"N1": "reference"},
+        "persistence_degraded": True,
+        "organs": [
+            {
+                "organ": "N1",
+                "candidate": {},
+                "abstained": False,
+                "latency": 0.1,
+                "RAM": 0.1,
+                "fallback_reason": None,
+            }
+        ],
+        "consumer_receipts": [
+            {"organ": "N1", "verdict_class": verdict, "persisted": True}
+            for verdict in (
+                "rejected",
+                "abstained",
+                "observed",
+                "unavailable",
+                "persistence_degraded",
+            )
+        ],
+    }
+    store = AdaptiveStateStore(
+        organism_id="organism-longitudinal",
+        lineage_id=runner.lineage.lineage_id,
+    )
+    state = store.update(transition, trace)[0]
+    assert state.accepted_count == 0
+    assert state.rejected_count == 1
+    assert state.receipt_abstained_count == 1
+    assert state.observed_count == 1
+    assert state.unavailable_count == 1
+    assert state.persistence_degraded_count == 1
+    assert state.acceptance_denominator == 1
+    assert state.consumer_acceptance_rate == 0.0
     storage.close()
 
 

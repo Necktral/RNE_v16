@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -20,6 +21,17 @@ class AuthorityEffect(str, Enum):
     EVIDENCE_ONLY = "evidence_only"
     BOUNDED_PROPOSAL = "bounded_proposal"
     AUTHORITATIVE = "authoritative"
+
+
+class ConsumerVerdictClass(str, Enum):
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    ABSTAINED = "abstained"
+    OBSERVED = "observed"
+    COMPARED = "compared"
+    UNAVAILABLE = "unavailable"
+    PERSISTENCE_DEGRADED = "persistence_degraded"
+    INVALID = "invalid"
 
 
 _AUTHORITY_RANK = {
@@ -60,9 +72,40 @@ _MODE_AUTHORITY_CEILINGS = {
 }
 
 
+def canonicalize(value: Any) -> Any:
+    """Normaliza únicamente el dominio JSON canónico permitido por la trayectoria."""
+
+    if value is None or isinstance(value, (bool, str)):
+        return value
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("canonical_float_must_be_finite")
+        return 0.0 if value == 0.0 else value
+    if isinstance(value, (list, tuple)):
+        return [canonicalize(item) for item in value]
+    if isinstance(value, Mapping):
+        if any(not isinstance(key, str) for key in value):
+            raise ValueError("canonical_mapping_keys_must_be_strings")
+        return {key: canonicalize(item) for key, item in value.items()}
+    raise ValueError(f"canonical_type_unsupported:{type(value).__name__}")
+
+
+def canonical_json_bytes(value: Any) -> bytes:
+    normalized = canonicalize(value)
+    payload = json.dumps(
+        normalized,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+    return payload.encode("utf-8")
+
+
 def canonical_sha256(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
 
 
 def utc_now_iso() -> str:
@@ -109,6 +152,8 @@ class OrganTrace:
     consumer: str
     consumer_verdict: str
     latency_ms: float
+    confidence: float | None = None
+    uncertainty: float | None = None
     ram_mb: float | None = None
     vram_mb: float | None = None
     fallback_reason: str | None = None
@@ -132,6 +177,8 @@ class OrganTrace:
             "consumer": self.consumer,
             "consumer_verdict": self.consumer_verdict,
             "latency": round(float(self.latency_ms), 6),
+            "confidence": self.confidence,
+            "uncertainty": self.uncertainty,
             "RAM": self.ram_mb,
             "VRAM": self.vram_mb,
             "fallback_reason": self.fallback_reason,
@@ -157,7 +204,8 @@ class ConsumerReceipt:
     consumer_contract_version: str
     consumer_input_hash: str
     consumer_output_hash: str
-    verdict: str
+    verdict_class: ConsumerVerdictClass
+    verdict_detail: str | None
     evidence_refs: tuple[str, ...]
     authority_effect: AuthorityEffect
     persisted: bool
@@ -175,14 +223,17 @@ class ConsumerReceipt:
             "consumer_contract_version": self.consumer_contract_version,
             "consumer_input_hash": self.consumer_input_hash,
             "consumer_output_hash": self.consumer_output_hash,
-            "verdict": self.verdict,
             "generated_at": self.generated_at,
         }
         missing = [name for name, value in required.items() if not str(value or "").strip()]
         if missing:
             raise ValueError(f"consumer_receipt_missing:{','.join(missing)}")
         object.__setattr__(self, "organ", self.organ.upper())
-        object.__setattr__(self, "evidence_refs", tuple(str(item) for item in self.evidence_refs))
+        if not isinstance(self.verdict_class, ConsumerVerdictClass):
+            raise ValueError("consumer_receipt_verdict_class_invalid")
+        if any(not isinstance(item, str) or not item for item in self.evidence_refs):
+            raise ValueError("consumer_receipt_evidence_refs_invalid")
+        object.__setattr__(self, "evidence_refs", tuple(self.evidence_refs))
         try:
             datetime.fromisoformat(self.generated_at.replace("Z", "+00:00"))
         except ValueError as exc:
@@ -199,7 +250,9 @@ class ConsumerReceipt:
             "consumer_contract_version": self.consumer_contract_version,
             "consumer_input_hash": self.consumer_input_hash,
             "consumer_output_hash": self.consumer_output_hash,
-            "verdict": self.verdict,
+            "verdict_class": self.verdict_class.value,
+            "verdict_detail": self.verdict_detail,
+            "verdict": self.verdict_detail or self.verdict_class.value,
             "evidence_refs": list(self.evidence_refs),
             "authority_effect": self.authority_effect.value,
             "persisted": self.persisted,
@@ -208,6 +261,7 @@ class ConsumerReceipt:
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "ConsumerReceipt":
+        verdict_class = _parse_verdict_class(raw)
         return cls(
             receipt_id=str(raw.get("receipt_id") or ""),
             identity=SymbiosisIdentity(**{name: raw.get(name) for name in _IDENTITY_FIELDS}),
@@ -217,8 +271,13 @@ class ConsumerReceipt:
             consumer_contract_version=str(raw.get("consumer_contract_version") or ""),
             consumer_input_hash=str(raw.get("consumer_input_hash") or ""),
             consumer_output_hash=str(raw.get("consumer_output_hash") or ""),
-            verdict=str(raw.get("verdict") or ""),
-            evidence_refs=tuple(str(item) for item in raw.get("evidence_refs") or ()),
+            verdict_class=verdict_class,
+            verdict_detail=(
+                str(raw["verdict_detail"])
+                if raw.get("verdict_detail") is not None
+                else str(raw.get("verdict") or "") or None
+            ),
+            evidence_refs=tuple(raw.get("evidence_refs") or ()),
             authority_effect=AuthorityEffect(str(raw.get("authority_effect") or "none")),
             persisted=bool(raw.get("persisted")),
             generated_at=str(raw.get("generated_at") or ""),
@@ -232,6 +291,8 @@ def validate_consumer_receipt(
     trace_identity: SymbiosisIdentity,
     organ_trace: OrganTrace,
 ) -> None:
+    if receipt.verdict_class is ConsumerVerdictClass.INVALID:
+        raise ValueError("consumer_receipt_verdict_invalid")
     if receipt.identity != trace_identity or organ_trace.identity != trace_identity:
         raise ValueError("consumer_receipt_identity_mismatch")
     if receipt.organ != organ_trace.organ:
@@ -275,6 +336,8 @@ class SymbiosisTrace:
     unmeasured_fields: tuple[str, ...] = ()
     not_applicable_fields: tuple[str, ...] = ()
     certificate_reference: str | None = None
+    final_event_persisted: bool = False
+    final_event_contains_receipts: bool = False
 
     def to_dict(self, *, include_candidates: bool = True) -> dict[str, Any]:
         return {
@@ -299,10 +362,15 @@ class SymbiosisTrace:
             "unmeasured_fields": list(self.unmeasured_fields),
             "not_applicable_fields": list(self.not_applicable_fields),
             "certificate_reference": self.certificate_reference,
+            "semantic_complete": self.semantic_complete,
+            "durably_complete": self.durably_complete,
+            "persistence_degraded": self.persistence_degraded,
+            "final_event_persisted": self.final_event_persisted,
+            "final_event_contains_receipts": self.final_event_contains_receipts,
             "episode_result": dict(self.episode_result or {}),
             "certificate": dict(self.certificate or {}),
             "trace_health": dict(self.trace_health),
-            "trace_complete": self.is_complete,
+            "trace_complete": self.semantic_complete,
         }
 
     @classmethod
@@ -331,6 +399,12 @@ class SymbiosisTrace:
                     consumer=str(item.get("consumer") or ""),
                     consumer_verdict=str(item.get("consumer_verdict") or ""),
                     latency_ms=float(item.get("latency", item.get("latency_ms", 0.0)) or 0.0),
+                    confidence=(
+                        float(item["confidence"]) if item.get("confidence") is not None else None
+                    ),
+                    uncertainty=(
+                        float(item["uncertainty"]) if item.get("uncertainty") is not None else None
+                    ),
                     ram_mb=item.get("RAM", item.get("ram_mb")),
                     vram_mb=item.get("VRAM", item.get("vram_mb")),
                     fallback_reason=item.get("fallback_reason"),
@@ -366,10 +440,12 @@ class SymbiosisTrace:
             unmeasured_fields=tuple(raw.get("unmeasured_fields") or ()),
             not_applicable_fields=tuple(raw.get("not_applicable_fields") or ()),
             certificate_reference=raw.get("certificate_reference"),
+            final_event_persisted=bool(raw.get("final_event_persisted")),
+            final_event_contains_receipts=bool(raw.get("final_event_contains_receipts")),
         )
 
     @property
-    def is_complete(self) -> bool:
+    def semantic_complete(self) -> bool:
         expected = {"N1", "N2", "N3", "N4", "N5", "N6"}
         present = {entry.organ for entry in self.organs}
         if not expected.issubset(present):
@@ -400,6 +476,37 @@ class SymbiosisTrace:
                 return False
         return True
 
+    @property
+    def is_complete(self) -> bool:
+        """Alias histórico: completitud semántica, no promesa de durabilidad."""
+
+        return self.semantic_complete
+
+    @property
+    def durably_complete(self) -> bool:
+        health = dict(self.trace_health or {})
+        return bool(
+            self.semantic_complete
+            and self.final_event_persisted
+            and self.final_event_contains_receipts
+            and int(health.get("pending_events", 0) or 0) == 0
+            and int(health.get("dropped_events", 0) or 0) == 0
+        )
+
+    @property
+    def persistence_degraded(self) -> bool:
+        health = dict(self.trace_health or {})
+        receipt_loss_uncovered = any(
+            not receipt.persisted for receipt in self.consumer_receipts
+        ) and not (self.final_event_persisted and self.final_event_contains_receipts)
+        return bool(
+            health.get("degraded")
+            or int(health.get("pending_events", 0) or 0) > 0
+            or int(health.get("dropped_events", 0) or 0) > 0
+            or receipt_loss_uncovered
+            or (self.semantic_complete and not self.final_event_persisted)
+        )
+
 
 _IDENTITY_FIELDS = (
     "trace_group_id",
@@ -410,3 +517,30 @@ _IDENTITY_FIELDS = (
     "scenario_id",
     "decision_id",
 )
+
+
+def _parse_verdict_class(raw: Mapping[str, Any]) -> ConsumerVerdictClass:
+    typed = raw.get("verdict_class")
+    if typed is not None:
+        try:
+            return ConsumerVerdictClass(str(typed))
+        except ValueError:
+            return ConsumerVerdictClass.INVALID
+    legacy = str(raw.get("verdict") or "").strip().lower()
+    if legacy in {"accepted", "written"} or legacy.startswith("accepted_as_"):
+        return ConsumerVerdictClass.ACCEPTED
+    if legacy == "rejected" or legacy.startswith("rejected_"):
+        return ConsumerVerdictClass.REJECTED
+    if legacy == "abstained":
+        return ConsumerVerdictClass.ABSTAINED
+    if legacy in {"agreement", "disagreement"} or legacy.startswith("proposal_compared"):
+        return ConsumerVerdictClass.COMPARED
+    if legacy in {"disabled", "unavailable", "no_nonempty_chunks"}:
+        return ConsumerVerdictClass.UNAVAILABLE
+    if legacy.startswith(("state_updated", "checkpoint_projection", "candidate_deferred")):
+        return ConsumerVerdictClass.OBSERVED
+    if legacy.startswith(("observed", "metadata_observed", "evidence_only", "shadow_safe")):
+        return ConsumerVerdictClass.OBSERVED
+    if legacy.startswith("persistence_degraded"):
+        return ConsumerVerdictClass.PERSISTENCE_DEGRADED
+    return ConsumerVerdictClass.INVALID

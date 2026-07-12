@@ -9,6 +9,7 @@ import pytest
 from runtime.neural.integration import (
     AuthorityEffect,
     ConsumerReceipt,
+    ConsumerVerdictClass,
     OrganTrace,
     SYMBIOSIS_TRACE_SCHEMA_VERSION,
     SymbiosisIdentity,
@@ -18,6 +19,7 @@ from runtime.neural.integration import (
     validate_active_census,
     validate_consumer_receipt,
 )
+from runtime.neural.integration.contracts import canonical_json_bytes, canonical_sha256
 
 
 def test_symbiosis_contract_is_versioned_and_active_census_has_no_stub() -> None:
@@ -86,7 +88,8 @@ def _receipt_fixture() -> tuple[SymbiosisIdentity, OrganTrace, ConsumerReceipt]:
         consumer_contract_version="scheduler-comparison-v1",
         consumer_input_hash="input",
         consumer_output_hash="output",
-        verdict="compared",
+        verdict_class=ConsumerVerdictClass.COMPARED,
+        verdict_detail="compared",
         evidence_refs=("scheduler",),
         authority_effect=AuthorityEffect.EVIDENCE_ONLY,
         persisted=True,
@@ -150,3 +153,36 @@ def test_trace_v1_remains_readable_but_cannot_claim_v2_completeness() -> None:
     assert restored.identity == identity
     assert restored.consumer_receipts == []
     assert restored.is_complete is False
+
+
+def test_legacy_unknown_verdict_is_never_mapped_to_acceptance() -> None:
+    identity, organ, receipt = _receipt_fixture()
+    raw = receipt.to_dict()
+    raw.pop("verdict_class")
+    raw.pop("verdict_detail")
+    raw["verdict"] = "looks_fine_probably"
+    restored = ConsumerReceipt.from_dict(raw)
+    assert restored.verdict_class is ConsumerVerdictClass.INVALID
+    with pytest.raises(ValueError, match="verdict_invalid"):
+        validate_consumer_receipt(
+            restored, trace_identity=identity, organ_trace=organ
+        )
+
+
+def test_strict_canonical_hash_accepts_only_explicit_json_domain() -> None:
+    left = {"b": [1, 2.0, None], "a": "ñ"}
+    right = {"a": "ñ", "b": (1, 2.0, None)}
+    assert canonical_json_bytes(left) == canonical_json_bytes(right)
+    assert canonical_sha256(left) == canonical_sha256(right)
+    assert canonical_sha256({"value": 1}) != canonical_sha256({"value": 2})
+
+    for invalid in (
+        float("nan"),
+        float("inf"),
+        {"values": {1, 2}},
+        {"payload": object()},
+        {1: "non-string-key"},
+        b"raw-bytes",
+    ):
+        with pytest.raises(ValueError, match="canonical_"):
+            canonical_sha256(invalid)

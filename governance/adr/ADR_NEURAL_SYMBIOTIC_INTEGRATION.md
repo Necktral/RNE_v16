@@ -25,6 +25,16 @@ autoridad cerrado. Un consumidor desconocido, una identidad/hash incorrectos, un
 marca temporal anterior al candidato o autoridad excesiva fallan cerrados. N1, N2,
 N4 y N6 permanecen como máximo en `evidence_only`.
 
+El veredicto es tipado mediante `ConsumerVerdictClass`: accepted, rejected,
+abstained, observed, compared, unavailable, persistence_degraded o invalid. El detalle
+humano no gobierna contadores ni autoridad. La lectura v1 mapea solamente formas
+conocidas; una forma desconocida se vuelve `invalid` y no satisface completitud.
+
+La traza separa `semantic_complete` de `durably_complete`. `trace_complete` queda como
+alias documentado de la primera. Durabilidad exige evento final confirmado, receipts
+embebidos, buffer vacío y cero descartes; `persistence_degraded` hace visible cualquier
+pendiente o pérdida sin impedir que el organismo termine de procesar el episodio.
+
 El coordinador no contiene productores `_n1`…`_n6`. Cada entrada del registro tiene
 un único adaptador, capacidad, techo de autoridad, fallback y consumidor declarados;
 un registro incompleto o duplicado falla durante la construcción.
