@@ -270,15 +270,24 @@ def test_assess_transfer_penaliza_episodio_con_traza_rota():
     assert broken.failure_mode_count > intact.failure_mode_count
 
 
-# ── 5. El IoC* PUEDE bajar por traza no íntegra (antes: imposible) ───────────
+# ── 5. El chequeo real, encadenado al IoC* ──────────────────────────────────
 
 
 def test_ioc_star_baja_cuando_la_traza_no_es_integra():
-    """El término de traza del IoC* ya no aporta siempre su máximo.
+    """El chequeo REAL de integridad, encadenado al IoC*, distingue traza rota de íntegra.
 
-    Encadena la verificación real con el IoC*: con la tautología anterior,
-    `trace_integrity` era True para CUALQUIER episodio (incluso sin traza), así
-    que este test no podía distinguir los dos casos.
+    HONESTIDAD SOBRE LO QUE ESTE TEST PRUEBA (y sobre lo que NO):
+    esto es una composición **sintética** de `assess_trace_integrity` + `IoCProxy`. NO
+    demuestra que "antes el IoC* no podía bajar": en producción el IoC* **ya** podía bajar,
+    porque su único llamador (`promotion_gate.py:76-82`) le pasa el chequeo real del
+    evaluator (`runtime/reality/evaluator.py:314`), no el bool tautológico de
+    `transfer_assessment`.
+
+    Lo que la tautología SÍ rompía —y esto es lo que el paquete arregla— era el otro
+    camino: `transfer_assessment` -> posterior de transferencia (`transfer_posterior.py:128`,
+    `trace_val` 1.0 en vez de 0.3) y `trace_discontinuity` **inalcanzable por construcción**
+    (`failure_modes.py:136`). Ese es el daño real; decirlo de más sería reintroducir en el
+    test la misma clase de mentira que P9 vino a matar.
     """
     proxy = IoCProxy()
     intact_episode = _episode(trace=_steps(_SEQUENCE))["episode"]

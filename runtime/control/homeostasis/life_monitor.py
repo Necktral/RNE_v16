@@ -214,9 +214,23 @@ class LifeMonitor:
         **inalcanzable**: el organismo no podía detectar una crisis de eficiencia
         y se veía epistémicamente perfecto siempre.
 
-        Abstenerse NO es declarar salud: las demás dimensiones (entropía,
-        gradiente térmico, estabilidad) se siguen evaluando con datos reales, y la
-        no-medición queda registrada en `unmeasured_vitals`.
+        Abstenerse NO es declarar salud. La no-medición queda registrada en
+        `unmeasured_vitals` y visible en `get_current_status()`.
+
+        LETRA CHICA (no te creas que las otras dimensiones sí miden): entropía,
+        gradiente térmico y estabilidad **tampoco** se evalúan hoy con datos reales.
+        Vienen del `ThermodynamicGovernor`, que las **fabrica**:
+        `get_thermal_metrics()` devuelve `thermal_gradient`/`entropy_trend` constantes
+        en `0.0` (su propio log dice "valores simulados",
+        `thermodynamic_governor.py:130-136`); `stability_index` está **hardcodeado en
+        1.0** (`:110`); y `energy_consumption()` es `psutil.cpu_percent()/100 * tdp` con
+        fallback `tdp * 0.65` (`:56-58`) — exactamente los **vatios fabricados** que B21
+        mató en el medidor. Consecuencia: esas tres crisis son HOY tan **inalcanzables**
+        como lo era la epistémica (umbrales 0.05 y 0.7, contra constantes 0.0 y 1.0).
+        Arreglar el governor está FUERA del alcance de B21 → **backlog B79**.
+
+        Lo único que esta abstención garantiza es que la dimensión epistémica **deja de
+        mentir**. El resto del monitor sigue mintiendo, y ahora está dicho.
         """
         crisis_level = CrisisLevel.NONE
 

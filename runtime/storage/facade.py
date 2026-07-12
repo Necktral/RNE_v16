@@ -434,7 +434,16 @@ class StorageFacade:
             ioc_proxy=float(ioc_proxy) if ioc_proxy is not None else None,
             support_count=int(support_count),
             created_at=created_at or utc_now_iso(),
-            metadata=dict(metadata or {}),
+            # B24: marcador LEGIBLE POR MÁQUINA de que `no_interference` NO está computado.
+            # Declararlo solo en comentarios no alcanza: un consumidor programático —o un
+            # analista leyendo el ledger por SQL— ve `no_interference = True` y no tiene
+            # forma de distinguirlo de una medición real. Eso es exactamente lo que el
+            # paquete de honestidad (P9) vino a prohibir, así que la declaración tiene que
+            # viajar EN LOS DATOS, no en la prosa.
+            # Contract-safe: `contracts/memory_record.schema.json:26` declara `metadata` como
+            # object sin `additionalProperties: false` -> la clave es aditiva.
+            # El día que alguien compute de verdad la no-interferencia, esto pasa a True.
+            metadata={**dict(metadata or {}), "no_interference_computed": False},
         )
         return self.backend.write_memory_record(record)
 
