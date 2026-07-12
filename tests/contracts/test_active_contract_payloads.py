@@ -36,8 +36,13 @@ class _StubArtifact:
 
 
 class _StubCheckpoints:
-    def load_latest_payload(self, *, organism_id: str, healthy_only: bool):
+    def load_latest_payload(self, *, organism_id: str, healthy_only: bool, on_reject=None):
+        # B83: el kernel pasa un sumidero de rechazos (`on_reject`) para poder emitir
+        # `life.refuge.rejected` / `life.refuge.exhausted`. Acá el refugio SE ENCUENTRA, así
+        # que no se rechaza ningún candidato y el único evento emitido sigue siendo el
+        # rollback — que es lo que este test fija.
         assert healthy_only is True
+        assert on_reject is None or callable(on_reject)
         return {"total_steps": 3, "scenario_index": 1, "scenario_episode_index": 2}, _StubArtifact()
 
 

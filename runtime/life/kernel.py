@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Sequence
 from uuid import uuid4
 
 from runtime.organism.identity import (
@@ -38,10 +39,17 @@ from .serialization import lineage_from_payload, organism_from_payload
 from .supervisor import AutonomySupervisor, AutonomySupervisorConfig
 from .vitals import VitalSignsService
 
+logger = logging.getLogger(__name__)
+
 # B48: acciones que NO ejecutan episodio (las maneja la rama no-actuante de
 # ``step()``). Cualquier otra acción llega al runner, así que bajo veredicto
 # "block" debe transformarse o detenerse — jamás caer al retorno anotador.
 NON_EPISODE_ACTIONS = frozenset({"shutdown", "sleep", "quarantine", "rollback"})
+
+# B83 — cuántos rechazos entran en el payload de `life.refuge.exhausted`. La búsqueda escanea
+# hasta 400 candidatos; el evento tiene que ser LEGIBLE, no un volcado. El conteo total
+# (`candidates_examined`) SIEMPRE es exacto; el detalle se recorta.
+REFUGE_EXHAUSTED_DETAIL_LIMIT = 20
 
 
 @dataclass(frozen=True, slots=True)
@@ -856,10 +864,25 @@ class LifeKernel:
         # B41: el refugio sano (rollback/E5) se busca por GENOMA — el último yo sano del
         # organismo, aunque viva bajo otra corrida (run_id efímero). Fallback a run_id
         # legacy cubierto por load_latest_payload (§4.1).
+        #
+        # B83 — EL ORGANISMO NO PUEDE QUEDARSE SIN REFUGIO EN SILENCIO. Con el refugio
+        # estrechado (un estado con closure/traza rotos y continuidad mediocre NO es refugio),
+        # que TODOS los candidatos se rechacen es un desenlace posible — y hasta ahora esta
+        # función devolvía `False` y el organismo quedaba atascado en cuarentena SIN DEJAR
+        # RASTRO de por qué. Ese es, literalmente, el callejón sin salida (el de aeon-01) que
+        # el camino de refugio E5 existe para romper: `life.refuge` se emitía SOLO en el ÉXITO.
+        # Ahora cada rechazo queda en el ledger, y la búsqueda agotada se dice FUERTE.
+        rejections: List[Dict[str, Any]] = []
+
+        def _on_reject(rejection: Dict[str, Any]) -> None:
+            rejections.append(rejection)
+            self._emit_refuge_rejected(rejection)
+
         loaded = self.checkpoints.load_latest_payload(
-            organism_id=self.organism_id, healthy_only=True
+            organism_id=self.organism_id, healthy_only=True, on_reject=_on_reject
         )
         if loaded is None:
+            self._emit_refuge_exhausted(rejections)
             return False
         payload, artifact = loaded
         self.organism_state = organism_from_payload(payload.get("organism_state"))
@@ -888,6 +911,83 @@ class LifeKernel:
             },
         )
         return True
+
+    def _emit_refuge_rejected(self, rejection: Dict[str, Any]) -> None:
+        """B83 — POR CANDIDATO: este checkpoint no sirve de refugio, y acá está el porqué.
+
+        Lleva el `restorability_report()` (ejes chequeados, no aplicables, fallados). Desde
+        P9.5 ese informe existía y se logueaba con `logger.warning`; ahora es EVENTO, que es
+        lo único que sobrevive a la corrida y puede auditarse.
+        """
+        self._emit_refuge_event(
+            "life.refuge.rejected",
+            {
+                "step_index": self.total_steps,
+                "organism_id": self.organism_id,
+                "artifact_id": rejection.get("artifact_id"),
+                "reason": rejection.get("reason"),
+                "detail": rejection.get("detail") or "",
+                "restorability_report": rejection.get("report"),
+            },
+        )
+
+    def _emit_refuge_exhausted(self, rejections: List[Dict[str, Any]]) -> None:
+        """B83 — BÚSQUEDA AGOTADA: "me quedé sin a dónde volver".
+
+        La señal más importante que el organismo puede emitir sobre su propia supervivencia:
+        no queda NINGÚN estado al que replegarse. Dice cuántos candidatos examinó y por qué
+        cayó cada uno. Sin esto, el refugio estrechado (decisión del humano: un estado con
+        closure/traza rotos NO es refugio) puede dejar al organismo mudo en cuarentena.
+        """
+        self._emit_refuge_event(
+            "life.refuge.exhausted",
+            {
+                "step_index": self.total_steps,
+                "organism_id": self.organism_id,
+                "lineage_id": self.lineage_id,
+                "reason": "no_restorable_checkpoint",
+                "candidates_examined": len(rejections),
+                "rejections": [
+                    {
+                        "artifact_id": r.get("artifact_id"),
+                        "reason": r.get("reason"),
+                        "failed_axes": list((r.get("report") or {}).get("failed_axes") or []),
+                        "unverified_axes": list(
+                            (r.get("report") or {}).get("unverified_axes") or []
+                        ),
+                    }
+                    for r in rejections[:REFUGE_EXHAUSTED_DETAIL_LIMIT]
+                ],
+                "rejections_truncated": max(
+                    0, len(rejections) - REFUGE_EXHAUSTED_DETAIL_LIMIT
+                ),
+            },
+        )
+
+    def _emit_refuge_event(self, event_type: str, payload: Dict[str, Any]) -> None:
+        """Emisión de telemetría del refugio — que JAMÁS puede matar el lazo vital.
+
+        P7 / CANON §13: `life.refuge.*` NO está entre los 5 contratos activos, así que
+        `contract_validation` no lo valida (y NO debe agregarse a `EVENT_CONTRACTS`: hay un
+        tripwire para eso). Aun así el `append_event` se blinda: estos eventos se emiten en
+        el momento MÁS frágil de la vida del organismo —cuando se está quedando sin refugio—
+        y una excepción del storage acá lo mataría justo ahí. Decir que no tenés a dónde
+        volver no puede ser la causa de tu muerte.
+        """
+        try:
+            self.storage.append_event(
+                event_type=event_type,
+                run_id=self.run_id,
+                source="life_kernel",
+                payload=payload,
+            )
+        except Exception as exc:  # noqa: BLE001 - la telemetría no puede costar el lazo vital
+            logger.warning(
+                "[life.refuge] no se pudo emitir %s (%s: %s). El lazo vital CONTINÚA.",
+                event_type,
+                type(exc).__name__,
+                exc,
+            )
 
     def _current_scenario(self) -> str:
         scenarios = list(self.config.scenarios or ("thermal_homeostasis",))

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 from uuid import uuid4
 
 from runtime.core.checkpoint_kinds import LIFE_CHECKPOINT_KIND
@@ -20,6 +20,17 @@ from .serialization import jsonable, lineage_to_payload, organism_to_payload
 logger = logging.getLogger(__name__)
 
 LIFE_CHECKPOINT_VERSION = "1.0.0"
+
+# B83 — por qué un candidato a refugio NO sirve. El rechazo por VITALES trae además el
+# `restorability_report()` completo (contracts.py), que dice qué ejes se chequearon, cuáles
+# no aplicaban y cuáles fallaron. Estos motivos NO se emiten desde acá: `checkpoints.py` es
+# el camino de LECTURA y no escribe eventos (P9.5 lo evitó a propósito). La compuerta
+# DEVUELVE el rechazo —vía `on_reject`— y el KERNEL, que ya emite eventos, lo publica.
+REFUGE_ARTIFACT_MISSING = "artifact_missing"
+REFUGE_PAYLOAD_UNREADABLE = "payload_unreadable"
+REFUGE_PAYLOAD_INVALID = "payload_invalid"
+REFUGE_VITALS_MISSING = "vitals_missing"
+REFUGE_VITALS_UNREADABLE = "vitals_unreadable"
 
 
 class CheckpointManager:
@@ -116,7 +127,24 @@ class CheckpointManager:
         run_id: str | None = None,
         organism_id: str | None = None,
         healthy_only: bool = False,
+        on_reject: Callable[[Dict[str, Any]], None] | None = None,
     ) -> tuple[Dict[str, Any], ArtifactRecord] | None:
+        """Último checkpoint (opcionalmente, el último SANO) del organismo.
+
+        B83 — ``on_reject``: callback invocado UNA VEZ POR CANDIDATO RECHAZADO durante la
+        búsqueda de refugio (``healthy_only=True``), con un dict
+        ``{artifact_id, reason, report}``. Existe porque hasta ahora el organismo podía
+        descartar TODOS sus refugios y quedarse atascado en cuarentena SIN DEJAR RASTRO de
+        por qué: el callejón sin salida que el camino E5 existe justamente para romper.
+
+        Este módulo NO emite eventos (es el camino de lectura): DEVUELVE el rechazo y el
+        kernel lo publica en el ledger. Y el callback es FAIL-SAFE — si el emisor falla, se
+        loguea y la búsqueda SIGUE: la telemetría del refugio jamás puede costar el refugio.
+
+        Nota: solo se reportan los candidatos que el índice daba por sanos
+        (``metadata["healthy"]``) y son de este organismo. Un checkpoint guardado como NO
+        sano nunca fue candidato a refugio; contarlo como "rechazo" sería ruido.
+        """
         # B41 (§3.8): el descubrimiento se puede scopear por GENOMA (organism_id) en vez
         # de por corrida. Con run_id efímero, "el último checkpoint de cualquier corrida"
         # es incorrecto; debe ser "el último de ESTE organismo". Cuando se da organism_id,
@@ -142,27 +170,73 @@ class CheckpointManager:
                 art_org = str((artifact.metadata or {}).get("organism_id") or artifact.run_id or "")
                 if art_org != organism_id:
                     continue
+            artifact_id = str(getattr(artifact, "artifact_id", "?"))
+            reject = self._rejection_sink(on_reject if healthy_only else None, artifact_id)
             path = Path(artifact.abs_path)
             if not path.exists() or not path.is_file():
+                reject(REFUGE_ARTIFACT_MISSING)
                 continue
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+            except (OSError, json.JSONDecodeError) as exc:
+                reject(REFUGE_PAYLOAD_UNREADABLE, detail=f"{type(exc).__name__}: {exc}")
                 continue
             if not isinstance(payload, dict) or not payload.get("version"):
+                reject(REFUGE_PAYLOAD_INVALID)
                 continue
             # B73: si esto es la búsqueda de un REFUGIO, la salud se re-deriva del
-            # CONTENIDO del archivo, no del flag de metadata (ver _payload_is_restorable).
-            if healthy_only and not self._payload_is_restorable(
-                payload, artifact_id=getattr(artifact, "artifact_id", "?")
-            ):
-                continue
+            # CONTENIDO del archivo, no del flag de metadata (ver _restorability_rejection).
+            if healthy_only:
+                rejection = self._restorability_rejection(payload, artifact_id=artifact_id)
+                if rejection is not None:
+                    reject(rejection["reason"], report=rejection.get("report"))
+                    continue
             return payload, artifact
         return None
 
     @staticmethod
-    def _payload_is_restorable(payload: Dict[str, Any], *, artifact_id: str = "?") -> bool:
+    def _rejection_sink(
+        on_reject: Callable[[Dict[str, Any]], None] | None, artifact_id: str
+    ) -> Callable[..., None]:
+        """Publica el rechazo de UN candidato — sin poder matar la búsqueda.
+
+        B83 + robustez P9.5: si el emisor del kernel explota (storage caído, ledger lleno),
+        el organismo NO puede perder el refugio por eso. Se loguea y se sigue buscando: la
+        constancia del rechazo es importante, pero jamás más importante que sobrevivir.
+        """
+
+        def _reject(reason: str, *, report: Dict[str, Any] | None = None, detail: str = "") -> None:
+            if on_reject is None:
+                return
+            try:
+                on_reject(
+                    {
+                        "artifact_id": artifact_id,
+                        "reason": reason,
+                        "detail": detail,
+                        "report": report,
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001 - la telemetría no puede costar el refugio
+                logger.warning(
+                    "[life.refuge] no se pudo publicar el rechazo de %s (%s: %s). "
+                    "La búsqueda de refugio CONTINÚA.",
+                    artifact_id,
+                    type(exc).__name__,
+                    exc,
+                )
+
+        return _reject
+
+    @staticmethod
+    def _restorability_rejection(
+        payload: Dict[str, Any], *, artifact_id: str = "?"
+    ) -> Dict[str, Any] | None:
         """B73 — el refugio se decide sobre el archivo, no sobre el flag guardado.
+
+        Returns:
+            ``None`` si el candidato SIRVE de refugio; si no, ``{"reason", "report"}`` — el
+            motivo del rechazo, para que el kernel lo publique (B83).
 
         ``metadata["healthy"]`` se escribe al GUARDAR, con el snapshot completo en memoria:
         es un índice para no leer todos los artifacts, no una prueba de que el archivo que
@@ -185,6 +259,12 @@ class CheckpointManager:
 
         Y el rechazo **deja constancia**: negarse a refugiarse sin decir por qué es el mismo
         callejón sin salida (cuarentena muda) que el camino E5 existe para romper.
+
+        B83 — y la constancia deja de ser SOLO un `logger.warning`. Esta función DEVUELVE el
+        motivo (``None`` ⇒ el candidato sirve; dict ⇒ por qué no), y el kernel lo publica como
+        ``life.refuge.rejected``. `restorability_report()` —el informe honesto de POR QUÉ se
+        rechaza un refugio— existía desde P9.5 y **no tenía ningún llamador en runtime**:
+        capacidad sin emisión, la misma patología que el backlog condena en B78.
         """
         vital_payload = payload.get("vital_signs")
         if not isinstance(vital_payload, dict):
@@ -193,7 +273,7 @@ class CheckpointManager:
                 "(checkpoint truncado o ajeno). No sirve de refugio.",
                 artifact_id,
             )
-            return False
+            return {"reason": REFUGE_VITALS_MISSING, "report": None}
         try:
             vitals = VitalSignsSnapshot.from_dict(vital_payload)
         except Exception as exc:  # noqa: BLE001 - candidato ilegible: se saltea, no se muere
@@ -204,12 +284,12 @@ class CheckpointManager:
                 type(exc).__name__,
                 exc,
             )
-            return False
+            return {
+                "reason": REFUGE_VITALS_UNREADABLE,
+                "report": {"error": f"{type(exc).__name__}: {exc}"},
+            }
         if vitals.is_restorable:
-            return True
-        logger.warning(
-            "[life.refuge] candidato %s RECHAZADO: %s",
-            artifact_id,
-            vitals.restorability_report(),
-        )
-        return False
+            return None
+        report = vitals.restorability_report()
+        logger.warning("[life.refuge] candidato %s RECHAZADO: %s", artifact_id, report)
+        return {"reason": str(report.get("reason") or "not_restorable"), "report": report}
