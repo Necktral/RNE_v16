@@ -8,8 +8,13 @@ from uuid import uuid4
 from runtime.memory.mfm_lite import EpisodeMemoryStore, MFMCondenser, MacroPromotion
 from runtime.organism.court_runtime import ConstitutionalCourtRuntime
 from runtime.organism.t5_mode import get_t5_mode
+from runtime.reality.collapse import CollapseDetector
 from runtime.reality.evaluator import evaluate_episode_closure
 from runtime.storage import StorageFacade
+
+# P9.6 paso 4 — ventana de historia para el detector de colapso. `CollapseDetector` exige
+# una RACHA (streak=3) de continuidad bajo umbral: un bache aislado no es un colapso.
+_COLLAPSE_HISTORY = 3
 
 from .certificate_builder import CertificateBuilder
 from .coherence_obstruction import CoherenceObstructionTracker
@@ -23,6 +28,9 @@ class PromotionGate:
         self.storage = storage
         self.builder = CertificateBuilder(storage=storage)
         self.continuity_guard = ContinuityGuard()
+        # P9.6 paso 4: el detector de colapso del propio repo (`runtime/reality/collapse.py`),
+        # que hasta ahora solo usaba el BENCH. El camino vivo no lo llamaba nunca.
+        self.collapse_detector = CollapseDetector()
         self.ioc_proxy = IoCProxy()
         self.risk_tracker = EpisodeRiskTracker(storage=storage)
         self.omega_tracker = CoherenceObstructionTracker(storage=storage)
@@ -72,7 +80,10 @@ class PromotionGate:
             storage=self.storage, run_id=run_id, result=episode_result,
             closure_profile=closure_profile,
         )
-        previous = self.storage.list_episode_certificates(run_id=run_id, limit=1)
+        # P9.6 paso 4: se traen los últimos N (no 1) — el detector de colapso necesita RACHA.
+        previous = self.storage.list_episode_certificates(
+            run_id=run_id, limit=_COLLAPSE_HISTORY
+        )
         previous_certificate = previous[0] if previous else None
         fallback_continuity = (
             float(reality_assessment.continuity_score) if reality_assessment is not None else None
@@ -83,9 +94,45 @@ class PromotionGate:
             fallback_continuity=fallback_continuity,
         )
         continuity_alert = self.continuity_guard.has_alert(continuity)
-        collapse_detected = bool(
-            getattr(reality_assessment, "collapse_detected", False)
+
+        # ── P9.6 paso 4 — EL ORGANISMO PUEDE DETECTAR SU PROPIO COLAPSO ──────────
+        # Antes:
+        #     collapse_detected = bool(getattr(reality_assessment, "collapse_detected", False))
+        # y en producción `reality_assessment` es SIEMPRE None (nadie lo construye en el
+        # camino vivo: solo lo arma el bench, `runtime/reality/service.py`). O sea:
+        # `collapse_detected` era SIEMPRE False. Y es el ÚNICO que gatea el veredicto
+        # (`certificate_builder.py:55`). El organismo era estructuralmente incapaz de
+        # detectar su propio colapso: la única compuerta que tenía estaba ciega.
+        #
+        # Ahora se ejecuta el detector REAL del repo con los datos que este gate YA TIENE
+        # medidos (no hay ningún dato nuevo que inventar):
+        #   - closure_passed / trace_integrity: de `evaluate_episode_closure` (arriba).
+        #   - continuity: del `ContinuityGuard` (arriba).
+        #   - historia: los últimos certificados de la corrida. `CollapseDetector` solo lee
+        #     `.continuity_score`, que `EpisodeCertificateRecord` expone. En el camino vivo
+        #     NADIE escribe `RealityAssessmentRecord`s, así que los certificados son la
+        #     única historia de continuidad que existe — y es real.
+        #
+        # POR QUÉ ESTO NO RECHAZA EPISODIOS SANOS (la pregunta que exige el paquete):
+        # `CollapseDetector.detect` da True en dos casos:
+        #   (a) `not closure_passed or not trace_integrity` → esos episodios YA eran
+        #       `rejected` por el propio veredicto (`certified if closure and trace and not
+        #       collapse`). No agrega NINGÚN rechazo nuevo; solo hace visible el motivo.
+        #   (b) continuidad < 0.35 sostenida en RACHA (3 episodios) → único rechazo NUEVO.
+        #       Un episodio sano tiene continuidad ≈ 0.98: no se le acerca. Y un bache
+        #       aislado tampoco alcanza: hace falta que el organismo esté realmente roto,
+        #       tres episodios seguidos.
+        #
+        # El `reality_assessment` explícito (camino del bench) se respeta y se une con OR:
+        # si el bench ya dictaminó colapso, no lo contradecimos.
+        declared_collapse = bool(getattr(reality_assessment, "collapse_detected", False))
+        measured_collapse = self.collapse_detector.detect(
+            closure_passed=closure["closure_passed"],
+            trace_integrity=closure["trace_integrity"],
+            continuity_score=continuity,
+            recent_assessments=previous,
         )
+        collapse_detected = declared_collapse or measured_collapse
         uncertainty = float(episode.get("context", {}).get("uncertainty", 0.2))
         ioc_value = self.ioc_proxy.compute(
             continuity_score=continuity,
