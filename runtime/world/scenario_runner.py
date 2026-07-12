@@ -1307,6 +1307,21 @@ class ScenarioEpisodeRunner:
             "is_fully_verified": constitutional_validation.is_fully_verified,
             "abstained_invariants": list(constitutional_validation.abstained_invariants),
             "unmeasured_axes": list(constitutional_validation.unmeasured_axes),
+            # P12.5 — el HALLAZGO causal viaja NOMBRADO y **SIN CONSUMIDOR**.
+            #
+            # `causal_finding` es el veredicto de la última medición contrafactual
+            # (0.90 soporte / 0.20 contradicción / None = no discriminó). Ya NO entra en el
+            # producto de facultades (`triadic_closure`): medir una contradicción dejó de ser
+            # una violación constitucional — el organismo puede descubrir que su modelo causal
+            # era falso sin morirse por eso.
+            #
+            # ⚠ NADIE LO CONSUME. "Contradicción persistente ⇒ mi modelo causal está mal ⇒
+            # debería bajar la ganancia de mi razonamiento" es una señal REAL que hoy no tiene
+            # a dónde ir: no existe el órgano que module la ganancia (es P-TALLO, no este
+            # paquete). Se deja MEDIDA, EXPUESTA y PERSISTIDA para que ese órgano la encuentre.
+            # Que esta clave exista NO significa que la señal esté atendida.
+            "causal_finding": constitutional_validation.causal_finding,
+            "causal_finding_measured": constitutional_validation.causal_finding_measured,
         }
         episode_result["viability_assessment"] = {
             "is_viable": viability_assessment.is_viable,
