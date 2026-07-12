@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from typing import Any, Callable
@@ -269,6 +270,171 @@ class NeuralRuntime:
                 run_id=result.run_id,
             )
         return result
+
+    def infer_reference(
+        self,
+        *,
+        request: NeuralInferenceRequest,
+        producer: Callable[[NeuralInferenceRequest], Any],
+        fallback_output: Any,
+        reference_id: str,
+        authority_ceiling: NeuralMode = NeuralMode.SHADOW,
+        enabled: bool = True,
+    ) -> NeuralInferenceResult:
+        """Ejecuta un algoritmo determinista honesto bajo las garantías de N0.
+
+        Este puerto existe para capacidades que ya tienen lógica CPU real pero no un
+        artefacto entrenado. No fabrica un ``NeuralModelManifest`` ni presenta el
+        algoritmo como modelo: ``reference_id`` se firma como identidad de código y los
+        campos de manifest/artefacto permanecen ausentes en la traza simbiótica.
+        """
+
+        requested_mode = self.config.mode
+        if requested_mode is NeuralMode.OFF:
+            return self._fallback(
+                request,
+                requested_mode=requested_mode,
+                effective_mode=NeuralMode.OFF,
+                fallback_output=fallback_output,
+                reason="neural_mode_off",
+                emit_event=False,
+            )
+        if not enabled:
+            return self._fallback(
+                request,
+                requested_mode=requested_mode,
+                effective_mode=NeuralMode.OFF,
+                fallback_output=fallback_output,
+                reason="organ_disabled_by_profile",
+            )
+        if requested_mode is NeuralMode.EXPERIMENTAL and request.scope is InferenceScope.LIVE:
+            return self._fallback(
+                request,
+                requested_mode=requested_mode,
+                effective_mode=NeuralMode.EXPERIMENTAL,
+                fallback_output=fallback_output,
+                reason="experimental_mode_is_lab_only",
+            )
+        # Degradación ordenada: N5/N3 son puertos CPU mínimos de ingestión y
+        # continuidad; las propuestas opcionales se abstienen bajo presión alta.
+        pressure = max(
+            request.resources.cpu_pressure,
+            request.resources.memory_pressure,
+            request.resources.thermal_pressure,
+        )
+        if request.organ in {"N1", "N2", "N4", "N6"} and pressure >= 0.90:
+            return self._fallback(
+                request,
+                requested_mode=requested_mode,
+                effective_mode=NeuralMode.SHADOW,
+                fallback_output=fallback_output,
+                reason="reference_degraded_by_resource_pressure",
+            )
+
+        reference_sha256 = hashlib.sha256(reference_id.encode("utf-8")).hexdigest()
+        effective_mode = requested_mode
+        if authority_ceiling is NeuralMode.SHADOW or requested_mode is NeuralMode.SHADOW:
+            effective_mode = NeuralMode.SHADOW
+        elif requested_mode is NeuralMode.PROVISIONAL:
+            context = request.causal_context
+            if (
+                self.config.require_causal_for_provisional
+                and (context is None or not context.permits_decision_influence)
+            ):
+                effective_mode = NeuralMode.SHADOW
+
+        self._persist_event(
+            "neural.reference.requested",
+            payload={
+                "inference_id": request.inference_id,
+                "organ": request.organ,
+                "capability": request.capability,
+                "reference_id": reference_id,
+                "reference_sha256": reference_sha256,
+                "requested_mode": requested_mode.value,
+            },
+            run_id=request.run_id,
+        )
+        started = time.perf_counter()
+        try:
+            raw_output = producer(request)
+            output = raw_output if hasattr(raw_output, "candidate_output") else None
+            candidate = output.candidate_output if output is not None else raw_output
+            confidence = float(getattr(output, "confidence", 1.0))
+            uncertainty = float(getattr(output, "uncertainty", 0.0))
+            cost = {
+                **dict(getattr(output, "cost", {}) or {}),
+                "reference_id": reference_id,
+                "reference_sha256": reference_sha256,
+            }
+            trace = tuple(getattr(output, "trace", ()) or ())
+        except Exception as exc:
+            return self._fallback(
+                request,
+                requested_mode=requested_mode,
+                effective_mode=effective_mode,
+                fallback_output=fallback_output,
+                reason=_exception_reason(exc),
+                manifest_sha256=None,
+                latency_ms=(time.perf_counter() - started) * 1_000.0,
+            )
+
+        latency_ms = (time.perf_counter() - started) * 1_000.0
+        if latency_ms > self.config.max_latency_ms:
+            return self._fallback(
+                request,
+                requested_mode=requested_mode,
+                effective_mode=effective_mode,
+                fallback_output=fallback_output,
+                reason="latency_budget_exceeded",
+                manifest_sha256=None,
+                latency_ms=latency_ms,
+                candidate_output=candidate,
+                confidence=confidence,
+                uncertainty=uncertainty,
+                cost=cost,
+                trace=trace,
+            )
+
+        result = NeuralInferenceResult(
+            inference_id=request.inference_id,
+            run_id=request.run_id,
+            organ=request.organ,
+            capability=request.capability,
+            requested_mode=requested_mode,
+            effective_mode=effective_mode,
+            candidate_output=candidate,
+            # Una salida shadow es evidencia consumible, no salida autoritativa.
+            effective_output=fallback_output,
+            confidence=min(max(confidence, 0.0), 1.0),
+            uncertainty=min(max(uncertainty, 0.0), 1.0),
+            device="cpu",
+            latency_ms=latency_ms,
+            cost=cost,
+            manifest_sha256=None,
+            fallback_used=False,
+            fallback_reason=(
+                "reference_authority_ceiling:shadow"
+                if effective_mode is NeuralMode.SHADOW
+                else None
+            ),
+            decision_influence=DecisionInfluence.NONE,
+            causal_linkage=request.causal_linkage,
+            trace=trace,
+        )
+        self._emit("neural.reference.completed", result)
+        return result
+
+    def persist_symbiosis_event(
+        self,
+        *,
+        event_type: str,
+        payload: dict[str, Any],
+        run_id: str,
+    ) -> bool:
+        """Persiste trazas del coordinador usando el mismo health/buffer de N0."""
+
+        return self._persist_event(event_type, payload=payload, run_id=run_id)
 
     @property
     def trace_health(self) -> TraceHealthSnapshot:

@@ -22,6 +22,7 @@ from runtime.conjunction import OperationalConjunctionLayer
 from runtime.conjunction.contracts import ComputeTier, OperationalConjunctionResult
 from runtime.conjunction.execution import routing_enforced, tier_execution_directives
 from runtime.core.checkpoint_kinds import LIFE_CHECKPOINT_KIND
+from runtime.neural import NeuralRuntimeConfig
 from runtime.storage import StorageFacade, get_storage
 from runtime.storage.records import utc_now_iso
 from runtime.world import ScenarioEpisodeRunner
@@ -275,6 +276,7 @@ class LifeKernel:
             memory_retrieval_limit=memory_retrieval_limit,
         )
         # A3: el runner inyecta el snapshot de recursos en el contexto de razonamiento.
+        runner.set_neural_config(NeuralRuntimeConfig.from_env())
         runner.set_resource_signals(self._resource_snapshot)
         runner.set_external_reasoner_enabled(external_reasoner_enabled)
         # Experiencia: identidad cross-vida + lecciones del maestro para sesgar el episodio.

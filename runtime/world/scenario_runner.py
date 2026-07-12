@@ -13,6 +13,11 @@ from runtime.certification.promotion_gate import PromotionGate
 from runtime.certification.transfer_assessment import retrieval_metrics_from_hits
 from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
+from runtime.neural import NeuralRuntimeConfig
+from runtime.neural.integration import (
+    SymbiosisIdentity,
+    SymbioticNeuralCoordinator,
+)
 from runtime.organism.autoevolution import AutoEvolutionController
 from runtime.organism.constitution import OrganismConstitution
 from runtime.organism.identity import mint_lineage_id, mint_organism_id
@@ -219,6 +224,12 @@ class ScenarioEpisodeRunner:
         # Reglas inducidas transferidas por una ecología multi-organismo
         # (modo reasoning_policy_plus_rules). None en el camino de un solo organismo.
         self._inherited_rules: list | None = None
+        # Única frontera neuronal viva. Construirla no carga modelos; N0 OFF no
+        # ejecuta productores ni adquiere artefactos.
+        self._neural = SymbioticNeuralCoordinator(
+            storage=self.storage,
+            config=NeuralRuntimeConfig.from_env(),
+        )
 
     def _maybe_override_intervention(
         self,
@@ -393,6 +404,33 @@ class ScenarioEpisodeRunner:
         aditiva en el evento ``episode.closed`` y en el contexto de razonamiento.
         """
         self._causal_context = dict(causal_context) if causal_context else None
+
+    def set_neural_config(self, config: NeuralRuntimeConfig) -> None:
+        """Inyecta desde LifeKernel modo, recursos y límites N0 sin duplicar lógica."""
+
+        if self._neural.config != config:
+            self._neural = SymbioticNeuralCoordinator(storage=self.storage, config=config)
+
+    def _symbiosis_identity(
+        self,
+        *,
+        episode_id: str,
+        scenario_metadata: Dict[str, Any],
+    ) -> SymbiosisIdentity:
+        causal = self._causal_context or {}
+        scenario_id = (
+            f"{scenario_metadata.get('scenario_name', self.scenario.config.name)}"
+            f"@{scenario_metadata.get('scenario_version', 'unknown')}"
+        )
+        return SymbiosisIdentity(
+            trace_group_id=str(causal.get("trace_group_id") or f"trace-{episode_id}"),
+            organism_id=str(causal.get("organism_id") or self._organism_id),
+            lineage_id=str(causal.get("lineage_id") or self._lineage.lineage_id),
+            run_id=str(causal.get("run_id") or self.run_id),
+            episode_id=episode_id,
+            scenario_id=scenario_id,
+            decision_id=causal.get("decision_id"),
+        )
 
     def _causal_context_signals(self) -> Dict[str, Any]:
         """Señales aditivas del sobre para el contexto de razonamiento (trazas)."""
@@ -597,6 +635,50 @@ class ScenarioEpisodeRunner:
             signature=self.scenario.causal_signature,
         )
 
+        # 8b. Simbiosis pre-razonamiento: N5 estructura la observación y alimenta
+        # SMG/MFM; N3 actualiza continuidad; N1 y N4 producen propuestas shadow.
+        symbiosis_identity = self._symbiosis_identity(
+            episode_id=episode_id,
+            scenario_metadata=scenario_metadata,
+        )
+        neural_signals = self._neural.begin_episode(
+            identity=symbiosis_identity,
+            observation=observation_dict,
+            formula=formula,
+            proposition=main_proposition,
+            memory_hits=memory_hits,
+            scenario_metadata=scenario_metadata,
+            causal_attestation=causal_attestation,
+            resources=self._resource_signals,
+        )
+        n5_ingestion = neural_signals.get("n5_ingestion") or {}
+        n5_sign_ids = []
+        for chunk in n5_ingestion.get("chunks", []):
+            content = str(chunk.get("text") or "").strip()
+            if not content:
+                continue
+            offsets = chunk.get("offsets") or {}
+            byte_offsets = offsets.get("byte") or {}
+            chunk_sign = self.smg.create_sign(
+                proposition=content,
+                observation_id=observation_ref.observation_id,
+                metadata={
+                    "origin": "N5",
+                    "chunk_index": chunk.get("index"),
+                    "byte_start": byte_offsets.get("start"),
+                    "byte_end": byte_offsets.get("end"),
+                    "trace_group_id": symbiosis_identity.trace_group_id,
+                },
+            )
+            n5_sign_ids.append(chunk_sign.sign_id)
+            self.smg.link_signs(
+                source_sign_id=chunk_sign.sign_id,
+                target_sign_id=sign_main.sign_id,
+                kind="support",
+                metadata={"origin": "N5", "consumer": "SMG"},
+            )
+        n5_ingestion["smg_sign_ids"] = n5_sign_ids
+
         # 9. Ejecutar scheduler de razonamiento
         reasoning_context = build_reasoning_context(
             episode_id=episode_id,
@@ -616,6 +698,7 @@ class ScenarioEpisodeRunner:
             extra_signals={
                 "memory_filter_mode": self.memory_filter_mode,
                 "causal_attestation": causal_attestation,
+                "neural_symbiosis_signals": neural_signals,
                 **self._resource_context_signals(),
                 **self._causal_context_signals(),
             },
@@ -638,6 +721,11 @@ class ScenarioEpisodeRunner:
             reasoning_context["family_profile"] = "core_plus_external_reasoner_gated_v1"
             reasoning_context.setdefault("regime_hint", self._trajectory_regime_label)
         reasoning = self.scheduler.run(reasoning_context)
+        neural_comparisons = self._neural.consume_reasoning(
+            episode_id=episode_id,
+            reasoning=reasoning,
+            lotf_valid=True,
+        )
 
         # 9b. Override determinista guardado (actuación del razonamiento). Gated por
         # RNFE_REASONING_ACTUATES=1 (sombra OFF ⇒ camino nominal byte-idéntico). En
@@ -729,6 +817,9 @@ class ScenarioEpisodeRunner:
                 "memory_rag_attestation": reasoning_context.get("memory_rag_attestation"),
                 "memory_filter_mode": self.memory_filter_mode,
                 "causal_attestation": causal_attestation,
+                "neural_ingestion": n5_ingestion,
+                "neural_temporal_state": neural_signals.get("n3_temporal"),
+                "neural_trace_group_id": symbiosis_identity.trace_group_id,
                 "closure_profile": self.closure_profile,
             },
             "result": {
@@ -739,6 +830,7 @@ class ScenarioEpisodeRunner:
                 "counterfactual_delta": counterfactual_delta,
                 "intervention_effect": relation_kind,
                 "alarm_transition": observation.alarm,
+                "neural_comparisons": neural_comparisons,
             },
             "trace": reasoning["trace"],
         }
@@ -829,7 +921,9 @@ class ScenarioEpisodeRunner:
 
         # Add trajectory to episode result for certification
         episode_result["organism_trajectory"] = self._organism_trajectory.to_dict()
-        episode_result["trajectory_window"] = self._organism_trajectory.get_window(window_size=5).to_dict() if False else None  # Will enable in certification update
+        episode_result["trajectory_window"] = self._organism_trajectory.get_window(
+            window_size=5
+        ).to_dict()
         episode_result["constitutional_validation"] = {
             "is_valid": constitutional_validation.is_valid,
             "verdict": constitutional_validation.verdict,
@@ -843,6 +937,14 @@ class ScenarioEpisodeRunner:
             "distance_to_edge": viability_assessment.distance_to_edge,
             "rollback_required": viability_assessment.rollback_required,
         }
+        # N6 observa evidencia viva y solo produce/evalúa una propuesta shadow. El
+        # bloque completo entra al certificado como metadata aditiva sin cambiar su
+        # veredicto ni su candidatura de promoción.
+        episode_result["neural_symbiosis"] = self._neural.prepare_certification(
+            episode_id=episode_id,
+            viability=episode_result["viability_assessment"],
+            reasoning=reasoning,
+        )
 
         # 12e. P9.6 — MEDIR, NO FABRICAR.
         # Los productores existían (`compute_belief_shift`, `compute_transition_vector`) y
@@ -1012,6 +1114,37 @@ class ScenarioEpisodeRunner:
                     payload={"episode_id": episode_id, "situation_key": exp.situation_key,
                              **self._experience_bias},
                 )
+
+        cert = certification["certificate"]
+        symbiosis_trace = self._neural.finalize_episode(
+            episode_id=episode_id,
+            outcome={
+                "intervention": intervention,
+                "relation_kind": relation_kind,
+            },
+            certificate={
+                "certificate_id": cert.certificate_id,
+                "verdict": cert.verdict,
+                "promotion_candidate": cert.promotion_candidate,
+            },
+            reward=reasoning_reward,
+        )
+        episode_result["neural_symbiosis_trace"] = symbiosis_trace
+        if "experience" in episode_result:
+            episode_result["experience"]["neural_symbiosis"] = {
+                "trace_group_id": symbiosis_identity.trace_group_id,
+                "organs": [
+                    entry.get("organ") for entry in symbiosis_trace.get("organs", [])
+                ],
+                "n4_consumer_verdict": next(
+                    (
+                        entry.get("consumer_verdict")
+                        for entry in symbiosis_trace.get("organs", [])
+                        if entry.get("organ") == "N4"
+                    ),
+                    None,
+                ),
+            }
 
         # 14. EML shadow (opcional)
         eml_shadow = {"enabled": False, "status": "disabled"}
