@@ -51,16 +51,44 @@ class InvariantViolation:
 
 
 @dataclass(frozen=True)
+class InvariantAbstention:
+    """Invariante que NO PUDO EVALUARSE porque le faltó un eje de evidencia.
+
+    No es una violación (no dispara: sería falso pánico) y **no es una aprobación**
+    (sería la mentira original). Es la tercera salida: el invariante se abstiene y lo
+    declara. **Un invariante que no pudo evaluarse NO es un invariante satisfecho.**
+
+    Attributes:
+        invariant_name: Invariante que se abstuvo.
+        severity: Severidad que HABRÍA tenido de haber podido evaluarse.
+        unmeasured_axes: Ejes de evidencia ausentes, por nombre.
+        description: Motivo legible.
+    """
+
+    invariant_name: str
+    severity: InvariantSeverity
+    unmeasured_axes: Tuple[str, ...]
+    description: str
+
+
+#: Resultado de un chequeo: violación, abstención, o nada (satisfecho y verificado).
+CheckOutcome = "InvariantViolation | InvariantAbstention | None"
+
+
+@dataclass(frozen=True)
 class ConstitutionalValidation:
     """Resultado de validación constitucional.
 
     Attributes:
-        is_valid: True si no hay violaciones hard.
+        is_valid: True si no se DETECTÓ ninguna violación hard.  **No significa
+            "verificado sano"**: si `abstained_invariants` no está vacío, hay invariantes
+            que no pudieron evaluarse.  Para "sano y verificado" está `is_fully_verified`.
         verdict: 'valid', 'quarantine', 'rollback'.
         violations: Lista de violaciones detectadas.
+        abstentions: Invariantes que no pudieron evaluarse por falta de evidencia.
         hard_violation_count: Número de violaciones hard.
         soft_violation_count: Número de violaciones soft.
-        margin_to_threshold: Margen mínimo sobre cualquier invariante hard.
+        margin_to_threshold: Margen mínimo sobre cualquier invariante hard EVALUABLE.
     """
 
     is_valid: bool
@@ -69,15 +97,67 @@ class ConstitutionalValidation:
     hard_violation_count: int
     soft_violation_count: int
     margin_to_threshold: float
+    abstentions: Tuple[InvariantAbstention, ...] = ()
+
+    @property
+    def abstained_invariants(self) -> Tuple[str, ...]:
+        """Nombres de los invariantes que no pudieron evaluarse."""
+        return tuple(a.invariant_name for a in self.abstentions)
+
+    @property
+    def unmeasured_axes(self) -> Tuple[str, ...]:
+        """Ejes de evidencia ausentes que forzaron alguna abstención."""
+        axes: List[str] = []
+        for abstention in self.abstentions:
+            for axis in abstention.unmeasured_axes:
+                if axis not in axes:
+                    axes.append(axis)
+        return tuple(axes)
+
+    @property
+    def is_fully_verified(self) -> bool:
+        """True sólo si NO hubo violaciones hard **y** todos los invariantes se evaluaron.
+
+        `is_valid` responde "¿se detectó algo malo?".  Esta responde "¿se pudo mirar?".
+        Confundirlas es leer "sin violación" como "verificado sano".
+        """
+        return self.is_valid and not self.abstentions
 
 
 # ── Hard invariant checks ────────────────────────────────────────────────────
 
-def _check_triadic_closure(state: OrganismState, config: Dict[str, float]) -> InvariantViolation | None:
-    """Cierre triádico válido: causal support + trace integrity + memory purity."""
+def _check_triadic_closure(state: OrganismState, config: Dict[str, float]):
+    """Cierre triádico: causal support × trace integrity × memory purity.
+
+    DETECTOR, NO COMPUERTA.  El producto sólo puede computarse si sus TRES factores
+    fueron medidos.  Cuando el eje causal NO SE MIDIÓ (el contrafactual no discriminó:
+    ambas acciones dejaban al organismo del mismo lado de su objetivo), el invariante:
+
+      - **no dispara** — hacerlo sería falso pánico: acusar de cierre triádico roto a un
+        organismo que simplemente no tuvo contraste que medir. Ése era el bug: el eje
+        causal caía a 0.20 por "contradicción" y arrastraba el producto bajo el umbral,
+        mandando a cuarentena a un organismo sano y bloqueando su autoevolución.
+      - **NO cuenta como aprobado** — hacerlo sería la mentira original: dar por
+        satisfecho un invariante que nadie pudo evaluar.
+
+    Se abstiene y lo declara.  El umbral (0.50) NO SE TOCA: el problema nunca fue el
+    número, fue evaluarlo con un factor inventado.
+    """
     threshold = config.get("triadic_closure_threshold", 0.50)
+    causal = state.belief.causal_support_confidence
+    if causal is None:
+        return InvariantAbstention(
+            invariant_name="triadic_closure",
+            severity="hard",
+            unmeasured_axes=("causal_support_confidence",),
+            description=(
+                "Cierre triádico NO EVALUABLE: el eje causal no se midió "
+                "(el contrafactual no discriminó). Sin violación detectada y sin "
+                "invariante satisfecho."
+            ),
+        )
     value = (
-        state.belief.causal_support_confidence
+        causal
         * state.belief.trace_integrity_confidence
         * state.belief.memory_purity_estimate
     )
@@ -144,16 +224,33 @@ def _check_rollback_available(state: OrganismState, config: Dict[str, float]) ->
     return None
 
 
-def _check_coherence(state: OrganismState, config: Dict[str, float]) -> InvariantViolation | None:
-    """Coherencia factual/contrafactual: causal_support > threshold."""
+def _check_coherence(state: OrganismState, config: Dict[str, float]):
+    """Coherencia factual/contrafactual: causal_support >= threshold.
+
+    Mismo criterio que el cierre triádico: si el eje causal no se midió, este invariante
+    no puede evaluarse. Se abstiene y lo declara — no dispara (falso pánico) y no aprueba
+    (mentira). Sin contrafactual discriminante no hay coherencia factual/contrafactual
+    que juzgar: no hay contraste.
+    """
     threshold = config.get("min_causal_support", 0.20)
-    if state.belief.causal_support_confidence < threshold:
+    causal = state.belief.causal_support_confidence
+    if causal is None:
+        return InvariantAbstention(
+            invariant_name="factual_counterfactual_coherence",
+            severity="hard",
+            unmeasured_axes=("causal_support_confidence",),
+            description=(
+                "Coherencia factual/contrafactual NO EVALUABLE: el contrafactual no "
+                "discriminó, no hay contraste que juzgar."
+            ),
+        )
+    if causal < threshold:
         return InvariantViolation(
             invariant_name="factual_counterfactual_coherence",
             severity="hard",
-            evidence_value=round(state.belief.causal_support_confidence, 4),
+            evidence_value=round(causal, 4),
             threshold=threshold,
-            description=f"Causal support {state.belief.causal_support_confidence:.4f} < {threshold}",
+            description=f"Causal support {causal:.4f} < {threshold}",
         )
     return None
 
@@ -312,20 +409,22 @@ class OrganismConstitution:
     def validate(self, state: OrganismState) -> ConstitutionalValidation:
         """Valida el estado del organismo contra la constitución.
 
+        Un chequeo tiene TRES resultados posibles: violación, abstención (no pudo
+        evaluarse por falta de evidencia) o silencio (satisfecho y verificado). Las
+        abstenciones NO cuentan como violación ni como aprobación: se declaran.
+
         Returns:
-            ConstitutionalValidation con violaciones y verdict.
+            ConstitutionalValidation con violaciones, abstenciones y verdict.
         """
         violations: List[InvariantViolation] = []
+        abstentions: List[InvariantAbstention] = []
 
-        for check in _HARD_CHECKS:
-            v = check(state, self.config)
-            if v is not None:
-                violations.append(v)
-
-        for check in _SOFT_CHECKS:
-            v = check(state, self.config)
-            if v is not None:
-                violations.append(v)
+        for check in _HARD_CHECKS + _SOFT_CHECKS:
+            outcome = check(state, self.config)
+            if isinstance(outcome, InvariantAbstention):
+                abstentions.append(outcome)
+            elif outcome is not None:
+                violations.append(outcome)
 
         hard_count = sum(1 for v in violations if v.severity == "hard")
         soft_count = sum(1 for v in violations if v.severity == "soft")
@@ -335,21 +434,25 @@ class OrganismConstitution:
         else:
             verdict = "valid"
 
-        # Margin to threshold: minimum distance any hard invariant is from its threshold
+        # Margen al umbral: la menor distancia de un invariante hard EVALUABLE a su
+        # umbral. Los invariantes que se abstuvieron no aportan margen (no se puede
+        # medir la distancia a un umbral que no se pudo evaluar) — y tampoco lo inflan.
         margin = 1.0
-        for check in _HARD_CHECKS:
-            v = check(state, self.config)
-            if v is None:
-                continue
-            # If violated, margin is negative
-            margin = min(margin, v.threshold - v.evidence_value if v.severity == "hard" else margin)
+        for v in violations:
+            if v.severity == "hard":
+                margin = min(margin, v.threshold - v.evidence_value)
         if not violations:
-            margin = min(
+            margins = [
                 state.belief.memory_purity_estimate - self.config.get("min_memory_purity", 0.40),
                 state.belief.trace_integrity_confidence - self.config.get("min_trace_integrity", 0.30),
-                state.belief.causal_support_confidence - self.config.get("min_causal_support", 0.20),
                 1.0 - state.viability.accumulated_degradation / max(self.config.get("max_degradation", 0.80), 0.01),
-            )
+            ]
+            if state.belief.causal_support_confidence is not None:
+                margins.append(
+                    state.belief.causal_support_confidence
+                    - self.config.get("min_causal_support", 0.20)
+                )
+            margin = min(margins)
 
         return ConstitutionalValidation(
             is_valid=hard_count == 0,
@@ -358,6 +461,7 @@ class OrganismConstitution:
             hard_violation_count=hard_count,
             soft_violation_count=soft_count,
             margin_to_threshold=round(margin, 4),
+            abstentions=tuple(abstentions),
         )
 
     def is_mutable(self, component: str) -> bool:

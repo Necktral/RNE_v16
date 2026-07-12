@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from runtime.smg.smg_min import SUPPORT, is_measured_relation
+
 from .snapshot import OrganismSnapshot
 from .state import OrganismBeliefState, OrganismState, PolicyState, ViabilityState
 from .trajectory import OrganismTrajectory
@@ -49,19 +51,29 @@ class TrajectoryStateMachine:
         )
         uncertainty_decay = max(0.80, min(0.99, 0.92 + 0.04 * trajectory_factor))
 
+        # Eje causal: se MIDE o se declara NO MEDIDO. Nunca se rellena.
+        #
+        # P12 — `relation_kind` tiene tres valores (`runtime/smg/smg_min.py`). Ante
+        # `no_discriminating_evidence` (el contrafactual no discriminó: ambas acciones
+        # dejaban al organismo del mismo lado de su objetivo) NO hay soporte causal que
+        # puntuar, y el 0.5 que había acá fingía una medición neutra que nadie hizo.
+        # `posterior_data` (el BeliefState del episodio) ya emite `None` en ese caso; si la
+        # clave está presente con valor None, ese None MANDA — es la abstención, no un
+        # dato faltante.
+        if "causal_support_confidence" in posterior_data:
+            raw_causal = posterior_data["causal_support_confidence"]
+        elif is_measured_relation(relation_kind):
+            raw_causal = 0.9 if relation_kind == SUPPORT else 0.2
+        else:
+            raw_causal = None
+        causal_support = None if raw_causal is None else float(raw_causal)
+
         new_belief = OrganismBeliefState(
             alarm_probability=0.9 if alarm else 0.1,
             intervention_efficacy=float(
                 posterior_data.get("policy_confidence", current.belief.intervention_efficacy)
             ),
-            causal_support_confidence=float(
-                posterior_data.get(
-                    "causal_support_confidence",
-                    0.9
-                    if relation_kind == "support"
-                    else (0.2 if relation_kind == "contradiction" else 0.5),
-                )
-            ),
+            causal_support_confidence=causal_support,
             memory_purity_estimate=max(
                 0.0,
                 min(

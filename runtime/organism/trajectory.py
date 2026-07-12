@@ -20,7 +20,8 @@ from .state import OrganismState
 class BeliefHistory:
     alarm_probability: tuple[float, ...]
     intervention_efficacy: tuple[float, ...]
-    causal_support_confidence: tuple[float, ...]
+    #: Puede contener ``None`` en los episodios donde el eje causal no se midió.
+    causal_support_confidence: tuple[float | None, ...]
     memory_purity_estimate: tuple[float, ...]
     trace_integrity_confidence: tuple[float, ...]
 

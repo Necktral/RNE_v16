@@ -28,7 +28,8 @@ class ConstraintTransform:
 class BeliefProjectionField:
     projected_alarm: float
     projected_efficacy: float
-    projected_causal_support: float
+    #: ``None`` si el origen no midió el eje causal: no hay soporte que renormalizar.
+    projected_causal_support: float | None
 
 
 @dataclass(frozen=True)
@@ -103,9 +104,20 @@ class RegimeRenormalizationEngine:
             0.0,
             min(1.0, snapshot.belief.intervention_efficacy * comp.transport_feasibility / max(0.5, asymmetry)),
         )
-        projected_causal = max(
-            0.0,
-            min(1.0, snapshot.belief.causal_support_confidence * comp.transport_feasibility / max(0.6, asymmetry)),
+        # Eje causal no medido en el origen ⇒ proyección no medida (None). Renormalizar
+        # una ausencia produciría un número con apariencia de dato.
+        projected_causal = (
+            None
+            if snapshot.belief.causal_support_confidence is None
+            else max(
+                0.0,
+                min(
+                    1.0,
+                    snapshot.belief.causal_support_confidence
+                    * comp.transport_feasibility
+                    / max(0.6, asymmetry),
+                ),
+            )
         )
 
         projected_control_class = snapshot.policy.control_class if comp.topology_match else "reactive"
@@ -140,7 +152,9 @@ class RegimeRenormalizationEngine:
             belief_projection=BeliefProjectionField(
                 projected_alarm=round(projected_alarm, 4),
                 projected_efficacy=round(projected_efficacy, 4),
-                projected_causal_support=round(projected_causal, 4),
+                projected_causal_support=(
+                    None if projected_causal is None else round(projected_causal, 4)
+                ),
             ),
             policy_phase_transform=PolicyPhaseTransform(
                 projected_control_class=projected_control_class,

@@ -233,7 +233,7 @@ def compute_transfer_posterior(
     eml_concurrence: float = 0.5,
     polarity_inversion: bool = False,
     policy_confidence: float = 0.5,
-    causal_support: float = 0.5,
+    causal_support: float | None = 0.5,
     belief_shift_kl: float = 0.0,
     historical_success_rate: float | None = None,
     n_historical: int = 0,
@@ -255,7 +255,9 @@ def compute_transfer_posterior(
         eml_concurrence: Concordancia EML [0, 1].
         polarity_inversion: Si hay inversión de polaridad causal.
         policy_confidence: Confianza en la política [0, 1].
-        causal_support: Soporte causal [0, 1].
+        causal_support: Soporte causal [0, 1], o ``None`` si el episodio NO LO MIDIÓ
+            (el contrafactual no discriminó). ``detect_failure_modes`` ya sabe leer el
+            ``None`` y lo declara como eje no medido en vez de puntuarlo.
         belief_shift_kl: KL divergence del belief shift [0, 1].
         historical_success_rate: Tasa histórica de éxito.
         n_historical: Número de observaciones históricas.
@@ -264,7 +266,9 @@ def compute_transfer_posterior(
     Returns:
         TransferPosterior con prior, likelihood, posterior, bounds y scope.
     """
-    # 1. Failure mode detection
+    # 1. Failure mode detection — recibe el eje causal CRUDO: si es None lo declara como
+    # no medido (`unmeasured`) en vez de puntuarlo. Es el único lugar donde el hecho de que
+    # no haya medición es información en sí misma.
     failure_assessment = detect_failure_modes(
         memory_purity=memory_purity,
         morphism_score=morphism_score,
@@ -274,6 +278,12 @@ def compute_transfer_posterior(
         trace_integrity=trace_integrity,
         polarity_inversion=polarity_inversion,
     )
+
+    # Para la ARITMÉTICA (que necesita un float) el eje no medido entra como neutro
+    # explícito — igual que ya hace `transfer_assessment._NEUTRAL_CONFIDENCE`. No es una
+    # medición: es la ausencia de presión de evidencia en cualquiera de los dos sentidos,
+    # y el hecho quedó declarado arriba.
+    causal_support_arith = 0.5 if causal_support is None else causal_support
 
     # 2. Prior
     prior = _compute_prior(
@@ -307,7 +317,7 @@ def compute_transfer_posterior(
             drift_policy=max(0.0, min(1.0, 1.0 - policy_confidence)),
             delta_viability=max(-1.0, min(1.0, transfer_stability - 0.5)),
             delta_purity=max(0.0, min(1.0, 1.0 - memory_purity)),
-            delta_modification=max(0.0, min(1.0, 1.0 - causal_support)),
+            delta_modification=max(0.0, min(1.0, 1.0 - causal_support_arith)),
             erosion=max(0.0, min(1.0, failure_assessment.total_risk)),
             renorm_residual=max(0.0, min(1.0, 1.0 - morphism_score)),
         )

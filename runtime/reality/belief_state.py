@@ -18,14 +18,17 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, Literal, Sequence
+from typing import Any, Dict, Literal, Sequence, Tuple
+
+from runtime.smg.smg_min import CONTRADICTION, SUPPORT
 
 
 @dataclass(frozen=True)
 class BeliefState:
     """Estado compacto de creencia del organismo tras un episodio.
 
-    Cada componente es una probabilidad / confianza en [0, 1].
+    Cada componente es una probabilidad / confianza en [0, 1] — salvo las que NO SE
+    PUDIERON MEDIR, que valen ``None`` y se declaran por nombre en ``unmeasured_fields``.
     """
 
     scenario_name: str
@@ -33,21 +36,42 @@ class BeliefState:
     main_variable_estimate: float
     alarm_probability: float
     policy_confidence: float
-    causal_support_confidence: float
+    #: ``None`` cuando el contrafactual no discriminó: el eje causal NO SE MIDIÓ.
+    causal_support_confidence: float | None
     trace_confidence: float
     memory_purity_confidence: float
     timestamp: str = ""
+    #: Ejes que el episodio no pudo medir, declarados por nombre (nunca rellenados).
+    unmeasured_fields: Tuple[str, ...] = ()
+
+    @property
+    def causal_support_measured(self) -> bool:
+        """True si el eje causal fue efectivamente medido en este episodio."""
+        return self.causal_support_confidence is not None
 
     @property
     def composite_confidence(self) -> float:
-        """Confianza compuesta ponderada."""
-        return min(1.0, (
-            0.20 * self.policy_confidence
-            + 0.25 * self.causal_support_confidence
-            + 0.20 * self.trace_confidence
-            + 0.15 * self.memory_purity_confidence
-            + 0.20 * (1.0 - self.alarm_probability)  # Low alarm → high confidence
-        ))
+        """Confianza compuesta ponderada sobre los ejes EFECTIVAMENTE MEDIDOS.
+
+        Si el eje causal no se midió, su peso NO se rellena con un valor: se retira del
+        promedio y los pesos restantes se renormalizan. Rellenarlo con 0.90 sería falsa
+        salud; con 0.20, falso pánico; con 0.50, fingir una medición neutra que nadie
+        hizo. La confianza compuesta pasa entonces a decir "esto es lo que sé con lo que
+        pude medir", que es la única lectura honesta.
+        """
+        terms: list[Tuple[float, float]] = [
+            (0.20, self.policy_confidence),
+            (0.20, self.trace_confidence),
+            (0.15, self.memory_purity_confidence),
+            (0.20, 1.0 - self.alarm_probability),  # Low alarm → high confidence
+        ]
+        if self.causal_support_confidence is not None:
+            terms.append((0.25, self.causal_support_confidence))
+
+        total_weight = sum(w for w, _ in terms)
+        if total_weight <= 0.0:
+            return 0.0
+        return min(1.0, sum(w * v for w, v in terms) / total_weight)
 
 
 @dataclass(frozen=True)
@@ -62,12 +86,14 @@ class BeliefShift:
     delta_main_variable: float
     delta_alarm: float
     delta_policy: float
-    delta_causal_support: float
+    #: ``None`` si alguno de los dos extremos no midió el eje causal: no hay delta que medir.
+    delta_causal_support: float | None
     delta_trace: float
     delta_memory_purity: float
     kl_divergence_approx: float
     stability_score: float
     recovery_needed: bool
+    unmeasured_fields: Tuple[str, ...] = ()
 
     @property
     def is_large_shift(self) -> bool:
@@ -84,13 +110,16 @@ class TransitionEvidenceVector:
     source_scenario: str
     target_scenario: str
     semantic_retention: float
-    effect_retention: float
+    #: ``None`` si el eje causal no se midió (el contrafactual no discriminó).
+    effect_retention: float | None
     policy_retention: float
-    counterfactual_consistency: float
+    #: ``None`` si el eje causal no se midió.
+    counterfactual_consistency: float | None
     memory_purity: float
     trace_integrity: float
     composite_evidence: float
     transition_type: str
+    unmeasured_fields: Tuple[str, ...] = ()
 
 
 # ── Builders ─────────────────────────────────────────────────────────────────
@@ -170,14 +199,35 @@ def build_belief_state(
             min(1.0, 0.5 + 0.2 * support_count - 0.2 * contradiction_count),
         )
 
-    # Causal support confidence
+    # Causal support confidence — SE MIDE O SE DECLARA NO MEDIDA. Nunca se rellena.
+    #
+    # P12 — el eje causal sólo existe cuando el contrafactual DISCRIMINÓ. `relation_kind`
+    # tiene ahora tres valores (`runtime/smg/smg_min.py`):
+    #   - `support`       ⇒ el factual mantuvo seguro donde el contrafactual habría roto.
+    #   - `contradiction` ⇒ el factual rompió donde el contrafactual habría mantenido seguro.
+    #   - `no_discriminating_evidence` ⇒ ambas acciones caían del mismo lado del objetivo:
+    #     el contrafactual NO ENSEÑÓ NADA sobre el modelo causal.
+    #
+    # Ante el tercero, la creencia se ABSTIENE (`None`) y lo declara por nombre. Rellenarlo
+    # con 0.90 sería FALSA SALUD (afirmar un soporte que nadie midió — exactamente la
+    # enfermedad que B5 destapó: antes del fix el contrafactual colisionaba con el factual y
+    # `support` era una CONSTANTE). Rellenarlo con 0.20 sería FALSO PÁNICO (acusar al
+    # organismo de contradecirse cuando simplemente no hubo contraste). Y el 0.50 anterior
+    # fingía una medición neutra que tampoco existió.
+    #
+    # Mismo idioma que `unmeasured_vitals` (control/homeostasis/life_monitor.py),
+    # `unverified_fields` (life/contracts.py) y `unmeasured_fields`
+    # (certification/transfer_assessment.py, que YA sabe leer este None).
     relation_kind = result_data.get("relation_kind")
-    if relation_kind == "support":
+    unmeasured: list[str] = []
+    causal_conf: float | None
+    if relation_kind == SUPPORT:
         causal_conf = 0.90
-    elif relation_kind == "contradiction":
+    elif relation_kind == CONTRADICTION:
         causal_conf = 0.20
     else:
-        causal_conf = 0.50
+        causal_conf = None
+        unmeasured.append("causal_support_confidence")
 
     # Trace confidence
     trace = episode.get("trace", [])
@@ -206,10 +256,11 @@ def build_belief_state(
         main_variable_estimate=round(main_val, 4),
         alarm_probability=round(alarm_prob, 4),
         policy_confidence=round(policy_conf, 4),
-        causal_support_confidence=round(causal_conf, 4),
+        causal_support_confidence=None if causal_conf is None else round(causal_conf, 4),
         trace_confidence=round(trace_conf, 4),
         memory_purity_confidence=round(purity_conf, 4),
         timestamp=ts,
+        unmeasured_fields=tuple(unmeasured),
     )
 
 
@@ -233,14 +284,27 @@ def compute_belief_shift(
     d_main = abs(posterior.main_variable_estimate - prior.main_variable_estimate)
     d_alarm = abs(posterior.alarm_probability - prior.alarm_probability)
     d_policy = abs(posterior.policy_confidence - prior.policy_confidence)
-    d_causal = abs(posterior.causal_support_confidence - prior.causal_support_confidence)
     d_trace = abs(posterior.trace_confidence - prior.trace_confidence)
     d_purity = abs(posterior.memory_purity_confidence - prior.memory_purity_confidence)
 
+    # El delta causal sólo existe si AMBOS extremos midieron el eje. Si alguno se abstuvo,
+    # no hay distancia que computar: se declara no medido y se excluye del promedio (no se
+    # rellena con 0.0, que se leería como "la creencia causal no se movió" — una afirmación
+    # sobre algo que nunca se observó).
+    unmeasured: list[str] = []
+    d_causal: float | None
+    if prior.causal_support_confidence is None or posterior.causal_support_confidence is None:
+        d_causal = None
+        unmeasured.append("causal_support")
+    else:
+        d_causal = abs(posterior.causal_support_confidence - prior.causal_support_confidence)
+
     # Approximation of KL divergence using component-wise differences
     # KL ≈ sum of |p_i - q_i| * log(max(p_i, ε) / max(q_i, ε))
-    # Simplified to a weighted L1 distance for stability
-    components = [d_main, d_alarm, d_policy, d_causal, d_trace, d_purity]
+    # Simplified to a weighted L1 distance for stability, over the MEASURED components.
+    components = [d_main, d_alarm, d_policy, d_trace, d_purity]
+    if d_causal is not None:
+        components.append(d_causal)
     kl_approx = sum(components) / len(components)
 
     # Stability score: 1 - normalized shift
@@ -255,12 +319,13 @@ def compute_belief_shift(
         delta_main_variable=round(d_main, 4),
         delta_alarm=round(d_alarm, 4),
         delta_policy=round(d_policy, 4),
-        delta_causal_support=round(d_causal, 4),
+        delta_causal_support=None if d_causal is None else round(d_causal, 4),
         delta_trace=round(d_trace, 4),
         delta_memory_purity=round(d_purity, 4),
         kl_divergence_approx=round(kl_approx, 4),
         stability_score=round(stability, 4),
         recovery_needed=recovery_needed,
+        unmeasured_fields=tuple(unmeasured),
     )
 
 
@@ -289,14 +354,8 @@ def compute_transition_evidence(
     # Semantic retention: based on policy stability
     semantic = max(0.0, 1.0 - shift.delta_policy)
 
-    # Effect retention: based on causal support stability
-    effect = max(0.0, 1.0 - shift.delta_causal_support)
-
     # Policy retention: direct from belief
     policy = posterior.policy_confidence
-
-    # Counterfactual consistency: based on causal support confidence
-    cf_consistency = posterior.causal_support_confidence
 
     # Memory purity
     purity = posterior.memory_purity_confidence
@@ -304,15 +363,37 @@ def compute_transition_evidence(
     # Trace integrity
     trace = 1.0 if trace_integrity else 0.0
 
-    # Composite evidence
-    composite = (
-        0.15 * semantic
-        + 0.20 * effect
-        + 0.20 * policy
-        + 0.15 * cf_consistency
-        + 0.15 * purity
-        + 0.15 * trace
-    ) * (0.5 + 0.5 * morphism_score)  # Morphism modulates overall evidence
+    # Los dos términos causales (`effect_retention` y `counterfactual_consistency`) sólo
+    # existen si el eje causal se midió. Si el contrafactual no discriminó, se declaran NO
+    # MEDIDOS y su peso se retira del compuesto (renormalización), en vez de inyectar un
+    # número inventado que subiría o bajaría la evidencia sin que nadie haya observado nada.
+    unmeasured: list[str] = []
+    effect: float | None
+    cf_consistency: float | None = posterior.causal_support_confidence
+    if shift.delta_causal_support is None:
+        effect = None
+        unmeasured.append("effect_retention")
+    else:
+        effect = max(0.0, 1.0 - shift.delta_causal_support)
+    if cf_consistency is None:
+        unmeasured.append("counterfactual_consistency")
+
+    terms: list[Tuple[float, float]] = [
+        (0.15, semantic),
+        (0.20, policy),
+        (0.15, purity),
+        (0.15, trace),
+    ]
+    if effect is not None:
+        terms.append((0.20, effect))
+    if cf_consistency is not None:
+        terms.append((0.15, cf_consistency))
+
+    total_weight = sum(w for w, _ in terms)
+    base = (sum(w * v for w, v in terms) / total_weight) if total_weight > 0 else 0.0
+    # Se preserva la escala original (los pesos completos suman 1.0): el compuesto sigue
+    # viviendo en [0, 1] y modulado por el morfismo, como antes.
+    composite = base * (0.5 + 0.5 * morphism_score)
 
     transition_type = "intra" if prior.scenario_name == posterior.scenario_name else "cross"
 
@@ -320,11 +401,14 @@ def compute_transition_evidence(
         source_scenario=prior.scenario_name,
         target_scenario=posterior.scenario_name,
         semantic_retention=round(semantic, 4),
-        effect_retention=round(effect, 4),
+        effect_retention=None if effect is None else round(effect, 4),
         policy_retention=round(policy, 4),
-        counterfactual_consistency=round(cf_consistency, 4),
+        counterfactual_consistency=(
+            None if cf_consistency is None else round(cf_consistency, 4)
+        ),
         memory_purity=round(purity, 4),
         trace_integrity=round(trace, 4),
         composite_evidence=round(composite, 4),
         transition_type=transition_type,
+        unmeasured_fields=tuple(unmeasured),
     )

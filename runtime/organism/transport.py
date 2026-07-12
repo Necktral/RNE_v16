@@ -57,7 +57,8 @@ class BeliefProjection:
 
     projected_alarm: float
     projected_efficacy: float
-    projected_causal_support: float
+    #: ``None`` si el origen no midió el eje causal: no hay soporte que transportar.
+    projected_causal_support: float | None
     sign_inversions: int
     scale_factor: float
     projection_loss: float
@@ -238,7 +239,14 @@ class TransportOperatorEngine:
         # Project efficacy with regime compatibility
         compatibility_factor = comp.transport_feasibility
         projected_efficacy = belief.intervention_efficacy * compatibility_factor
-        projected_causal = belief.causal_support_confidence * compatibility_factor
+        # Si el eje causal no se midió en el origen, no hay nada que transportar: la
+        # proyección también queda NO MEDIDA (None), no en 0.0 — un 0.0 se leería como
+        # "el soporte causal proyectado es nulo", que es una afirmación, no una ausencia.
+        projected_causal = (
+            None
+            if belief.causal_support_confidence is None
+            else belief.causal_support_confidence * compatibility_factor
+        )
 
         # Projection loss
         loss = comp.structural_distance * 0.5 + (1.0 - compatibility_factor) * 0.3 + (sign_inv * 0.2)
@@ -247,7 +255,11 @@ class TransportOperatorEngine:
         return BeliefProjection(
             projected_alarm=round(max(0.0, min(1.0, projected_alarm)), 4),
             projected_efficacy=round(max(0.0, min(1.0, projected_efficacy)), 4),
-            projected_causal_support=round(max(0.0, min(1.0, projected_causal)), 4),
+            projected_causal_support=(
+                None
+                if projected_causal is None
+                else round(max(0.0, min(1.0, projected_causal)), 4)
+            ),
             sign_inversions=sign_inv,
             scale_factor=round(scale, 4),
             projection_loss=round(loss, 4),
