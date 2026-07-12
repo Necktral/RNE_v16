@@ -52,6 +52,12 @@ class LifeMonitor:
         self.crisis_history = deque(maxlen=self.max_crisis_history)
         self.recovery_phase = RecoveryPhase.NONE
         self.running = False
+
+        # B21: vitales epistémicas NO MEDIDAS (el EpistemeMeter devuelve None).
+        # Arranca declarando que todavía no se midió nada: el organismo no se
+        # cree epistémicamente sano por defecto.
+        self.unmeasured_vitals: List[str] = ["efficiency", "accumulated_energy"]
+        self.epistemic_abstentions = 0
         self.resilience = ResilienceMechanism(self.config, self.preserver)
         self.lock = Lock()
         
@@ -140,12 +146,14 @@ class LifeMonitor:
         try:
             health = self._get_current_health()
             metrics = self.governor.get_thermal_metrics()
-            
-            # Evaluar eficiencia y energía acumulada
+
+            # Evaluar eficiencia y energía acumulada.
+            # B21: el EpistemeMeter puede devolver None = NO MEDIDO. `None` no es
+            # 0.0 ni 1.0: es ausencia de evidencia. No se rellena con un número.
             efficiency = self.episteme_meter.get_global_efficiency()
             energy_accum = self.episteme_meter.get_accumulated_energy()
-            logger.debug(f"[LIFE] Eficiencia: {efficiency:.4f} | Energía: {energy_accum:.2f}")
-            
+            self._record_epistemic_vitals(efficiency, energy_accum)
+
             # Evaluar crisis con múltiples dimensiones
             crisis_level = self._assess_crisis_level(health, metrics, efficiency, energy_accum)
             
@@ -162,19 +170,67 @@ class LifeMonitor:
             logger.error(f"[LifeMonitor] Error en monitoreo: {str(e)}")
             self._emergency_shutdown()
 
-    def _assess_crisis_level(self, 
-                           health: HealthStatus, 
+    def _record_epistemic_vitals(self,
+                                 efficiency: Optional[float],
+                                 energy_accum: Optional[float]) -> None:
+        """Deja VISIBLE si las vitales epistémicas fueron medidas o no (B21).
+
+        No convierte la ausencia de medición en crisis (sería falso pánico) ni la
+        oculta (sería creerse sano por defecto): la registra.
+        """
+        unmeasured = [
+            name
+            for name, value in (("efficiency", efficiency), ("accumulated_energy", energy_accum))
+            if value is None
+        ]
+        self.unmeasured_vitals = unmeasured
+        if unmeasured:
+            self.epistemic_abstentions += 1
+            logger.warning(
+                "[LIFE] Vitales epistémicas NO MEDIDAS: %s -> el umbral de colapso "
+                "epistémico se ABSTIENE (no hay evidencia; esto NO cuenta como salud)",
+                ", ".join(unmeasured),
+            )
+        else:
+            logger.debug(
+                f"[LIFE] Eficiencia: {efficiency:.4f} | Energía: {energy_accum:.2f}"
+            )
+
+    def epistemic_vitals_measured(self) -> bool:
+        """False si la última lectura de vitales epistémicas no fue una medición."""
+        return not self.unmeasured_vitals
+
+    def _assess_crisis_level(self,
+                           health: HealthStatus,
                            metrics: Dict[str, float],
-                           efficiency: float,
-                           energy_accum: float) -> CrisisLevel:
-        """Evalúa nivel de crisis usando múltiples métricas y predicción de entropía."""
+                           efficiency: Optional[float],
+                           energy_accum: Optional[float]) -> CrisisLevel:
+        """Evalúa nivel de crisis usando múltiples métricas y predicción de entropía.
+
+        B21: `efficiency`/`energy_accum` pueden ser None (= NO MEDIDO por el
+        EpistemeMeter). En ese caso el umbral de colapso epistémico **se abstiene**
+        en vez de evaluarse contra un valor inventado. Antes el meter devolvía
+        `1.0`/`0.0` fijos, así que la condición `efficiency <= 0.0` era
+        **inalcanzable**: el organismo no podía detectar una crisis de eficiencia
+        y se veía epistémicamente perfecto siempre.
+
+        Abstenerse NO es declarar salud: las demás dimensiones (entropía,
+        gradiente térmico, estabilidad) se siguen evaluando con datos reales, y la
+        no-medición queda registrada en `unmeasured_vitals`.
+        """
         crisis_level = CrisisLevel.NONE
-        
-        # Crisis por eficiencia cognitiva
-        if efficiency <= 0.0 and energy_accum >= self.energy_limit:
+
+        # Crisis por eficiencia cognitiva (solo si HAY medición de ambas).
+        if efficiency is None or energy_accum is None:
+            logger.warning(
+                "[LifeMonitor] Colapso epistémico NO EVALUADO: eficiencia/energía no medidas "
+                "(abstención, no veredicto de salud)"
+            )
+        elif efficiency <= 0.0 and energy_accum >= self.energy_limit:
             logger.critical("[LifeMonitor] 🚨 Colapso epistémico detectado.")
             return CrisisLevel.CRITICAL
-            
+
+
         # Crisis por entropía (actual y predicha)
         current_entropy = health.entropy_rate
         predicted_entropy = self.entropy_predictor(
@@ -203,10 +259,14 @@ class LifeMonitor:
 
     def _handle_crisis(self, level: CrisisLevel, health: HealthStatus):
         """Gestiona crisis con respuestas graduales y preservación de estado."""
+        # B21: puede ser None (= NO MEDIDA). Se registra tal cual, con la bandera
+        # que impide que un lector del historial la confunda con una medición.
+        efficiency = self.episteme_meter.get_global_efficiency()
         crisis_record = {
             "timestamp": time.time(),
             "level": level.name,
-            "efficiency": self.episteme_meter.get_global_efficiency(),
+            "efficiency": efficiency,
+            "efficiency_measured": efficiency is not None,
             "health": asdict(health),
             "metrics": self.governor.get_thermal_metrics()
         }
@@ -369,12 +429,19 @@ class LifeMonitor:
             logger.info("[LifeMonitor] Historial de crisis limpiado")
 
     def get_current_status(self) -> Dict[str, Any]:
-        """Retorna el estado actual del monitor."""
+        """Retorna el estado actual del monitor.
+
+        B21: expone qué vitales epistémicas NO están medidas. Ausencia de crisis
+        no equivale a salud si el organismo no está midiendo.
+        """
         return {
             "running": self.running,
             "recovery_phase": self.recovery_phase.name,
             "last_crisis": self.crisis_history[-1] if self.crisis_history else None,
-            "check_interval": self.check_interval
+            "check_interval": self.check_interval,
+            "unmeasured_vitals": list(self.unmeasured_vitals),
+            "epistemic_vitals_measured": self.epistemic_vitals_measured(),
+            "epistemic_abstentions": self.epistemic_abstentions,
         }
 
     def _get_adjusted_sleep_time(self) -> float:
