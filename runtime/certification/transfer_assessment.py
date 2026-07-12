@@ -53,6 +53,27 @@ class TransferAssessment:
     trace_integrity_reason: str = "trace_missing"
 
 
+def retrieval_metrics_from_hits(hits: Any) -> dict | None:
+    """Métricas de retrieval que el episodio registró, o ``None`` si no registró ninguna.
+
+    P9.6: ``None`` significa **NO MEDIDO** (el episodio no dejó evidencia de retrieval),
+    NO "retrieval limpio". La diferencia importa: con 0 hits no hubo *oportunidad* de
+    contaminarse, que no es lo mismo que haber verificado que no hubo contaminación.
+    Quien consume esto debe distinguir los dos casos (ver ``memory_purity_basis``).
+
+    El retriever (``runtime/memory/mfm_lite/retrieval.py``) adjunta el MISMO dict de
+    métricas a cada hit devuelto, así que alcanza con el primero que lo traiga.
+    """
+    if not isinstance(hits, (list, tuple)):
+        return None
+    for hit in hits:
+        if isinstance(hit, dict):
+            metrics = hit.get("retrieval_metrics")
+            if isinstance(metrics, dict):
+                return dict(metrics)
+    return None
+
+
 def assess_transfer(
     *,
     episode_result: dict,

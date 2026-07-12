@@ -39,7 +39,21 @@ class PromotionGate:
         reality_assessment=None,
         compatibility=None,
         transition_vector=None,
+        belief_shift=None,
+        retrieval_metrics: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
+        """Certifica un episodio.
+
+        P9.6 (paso 1 — CABLEAR): ``belief_shift`` y ``retrieval_metrics`` se suman a los
+        insumos que el gate ya aceptaba pero que NADIE le pasaba en el camino vivo
+        (``compatibility``/``transition_vector``/``reality_assessment``). Con los insumos
+        ausentes, ``assess_transfer`` los rellenaba con valores FAVORABLES —
+        ``memory_purity=1.0``, ``stability=1.0``, ``kl=0.0`` — y ningún detector podía
+        contradecirlos: el organismo se auto-certificaba sano por falta de datos.
+
+        Todos siguen siendo opcionales: un dato ausente es AUSENCIA (se registra), no un
+        número inventado. Ver ``TransferAssessment.unmeasured_fields``.
+        """
         episode = episode_result.get("episode", {})
 
         # Extract scenario_metadata with fallback
@@ -108,6 +122,8 @@ class PromotionGate:
             episode_result=episode_result,
             compatibility=compatibility,
             transition_vector=transition_vector,
+            belief_shift=belief_shift,
+            retrieval_metrics=retrieval_metrics,
         )
         t5_mode = get_t5_mode()
         t5_result = self.court_runtime.ingest_episode(

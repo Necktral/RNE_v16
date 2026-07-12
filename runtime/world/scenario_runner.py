@@ -10,6 +10,7 @@ from typing import Any, Dict
 from uuid import uuid4
 
 from runtime.certification.promotion_gate import PromotionGate
+from runtime.certification.transfer_assessment import retrieval_metrics_from_hits
 from runtime.lotf import LOTFMin
 from runtime.memory.mfm_lite.retrieval import MemoryRetrieval
 from runtime.organism.autoevolution import AutoEvolutionController
@@ -21,7 +22,8 @@ from runtime.organism.trajectory import OrganismTrajectory
 from runtime.organism.viability import ViabilityKernel
 from runtime.reasoning.context import build_reasoning_context, resolve_reasoning_mode
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
-from runtime.reality.belief_state import BeliefState, build_belief_state
+from runtime.reality.belief_state import BeliefState, build_belief_state, compute_belief_shift
+from runtime.world.compatibility import ScenarioCompatibilityGraph
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
 from runtime.storage.records import utc_now_iso
@@ -148,6 +150,15 @@ class ScenarioEpisodeRunner:
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
         self.eml_runner = EMLRunner(storage=self.storage)
         self._previous_belief: BeliefState | None = None
+        # P9.6 — el episodio anterior COMPLETO: sin él no hay transición que medir y
+        # `compute_transition_vector` (que ya existía) no se podía llamar. Es el insumo
+        # del que sale la pureza de memoria REAL que antes se fabricaba en `1.0`.
+        self._previous_result: Dict[str, Any] | None = None
+        # Compatibilidad del escenario CONSIGO MISMO: el runner vive en un escenario fijo
+        # (el kernel lo reconstruye al cambiar de escenario), así que toda transición que
+        # este runner puede observar es intra-escenario. Se COMPUTA (no se asume): si el
+        # perfil no fuera auto-equivalente, se vería.
+        self._intra_compatibility: Any | None = None
 
         # T5 SOVEREIGNTY: Initialize organism trajectory as primary runtime unit
         self._organism_state = organism_state or OrganismState(
@@ -321,6 +332,24 @@ class ScenarioEpisodeRunner:
             "alarm_threshold": cfg.alarm_threshold,
             "interventions": cfg.interventions,
         }
+
+    def _self_compatibility(self):
+        """Compatibilidad del escenario CONSIGO MISMO (la transición que este runner ve).
+
+        P9.6: `compute_transition_vector` exige un `CompatibilityAssessment`. El runner vive
+        en un escenario fijo — el kernel lo reconstruye al cambiar de escenario
+        (`kernel._runner_key`) —, así que toda transición episodio→episodio que puede
+        observar es INTRA-escenario. La compatibilidad correspondiente no se asume: se
+        COMPUTA con el grafo real sobre el perfil estructural del escenario (da
+        `equivalent`/1.0 porque el escenario es idéntico a sí mismo, no porque lo
+        hayamos escrito a mano). Se cachea: el perfil no cambia durante la vida del runner.
+        """
+        if self._intra_compatibility is None:
+            self._intra_compatibility = ScenarioCompatibilityGraph().assess(
+                self.scenario.structural_profile,
+                self.scenario.structural_profile,
+            )
+        return self._intra_compatibility
 
     def _build_eml_dataset(
         self,
@@ -815,11 +844,48 @@ class ScenarioEpisodeRunner:
             "rollback_required": viability_assessment.rollback_required,
         }
 
+        # 12e. P9.6 — MEDIR, NO FABRICAR.
+        # Los productores existían (`compute_belief_shift`, `compute_transition_vector`) y
+        # NADIE los llamaba en el camino vivo: `process_episode` se invocaba pelado y el
+        # certificador rellenaba los huecos con valores favorables (purity=1.0,
+        # stability=1.0, kl=0.0, policy=0.5). El organismo no medía: se auto-declaraba sano
+        # por ausencia de datos. Acá se computan con lo que YA está en la mano.
+        #
+        # Lo que genuinamente NO existe en este punto NO se inventa:
+        #   - `reality_assessment`: nadie lo construye en el camino vivo (solo el bench,
+        #     `runtime/reality/service.py`). Se deja ausente; el colapso lo detecta el
+        #     propio gate con los datos que sí tiene (P9.6 paso 4).
+        #   - transición CROSS-escenario: el kernel destruye el runner al cambiar de
+        #     escenario, así que este runner solo puede observar transiciones intra.
+        belief_shift = (
+            compute_belief_shift(prior=belief_prior, posterior=current_belief)
+            if belief_prior is not None
+            else None  # primer episodio: no hay prior. Ausencia, no un cero favorable.
+        )
+        # Import diferido: `runtime.reality.transition_analysis` importa
+        # `runtime.world.compatibility`, y `runtime.world.__init__` importa este módulo —
+        # a nivel de módulo sería un ciclo. Mismo patrón que `promotion_gate.assess_transfer`.
+        from runtime.reality.transition_analysis import compute_transition_vector
+
+        retrieval_metrics = retrieval_metrics_from_hits(memory_hits)
+        transition_vector = None
+        if self._previous_result is not None:
+            transition_vector = compute_transition_vector(
+                previous_result=self._previous_result,
+                current_result=episode_result,
+                compatibility=self._self_compatibility(),
+                retrieval_metrics=retrieval_metrics,
+            )
+
         # 13. Certificación
         certification = self.promotion_gate.process_episode(
             run_id=self.run_id,
             episode_result=episode_result,
+            transition_vector=transition_vector,
+            belief_shift=belief_shift,
+            retrieval_metrics=retrieval_metrics,
         )
+        self._previous_result = episode_result
 
         # 13b. R2 — lazo de autoevolución (ρₜ): el organismo observa su propio
         # certificado y decide si proponerse una modificación, monitorear una
