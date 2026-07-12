@@ -117,9 +117,16 @@ class ConstitutionalValidation:
     #: (``factual_counterfactual_coherence``) NO PUEDE DISPARAR con el set de valores que el
     #: productor emite (ver ``_check_coherence``).
     #:
-    #: ⇒ El eje causal se MIDE, se EXPONE y se PERSISTE, y **ningún consumidor actúa sobre
-    #: él**.  Está nombrado acá, y no aprobado en ningún lado.  Que esto no se lea como
-    #: "ya está resuelto" es el motivo de este comentario.
+    #: ⇒ NINGÚN INVARIANTE CONSTITUCIONAL actúa hoy sobre el eje causal: se MIDE, se EXPONE
+    #: y se PERSISTE, y ninguna compuerta lo consume.  Que esto no se lea como "ya está
+    #: resuelto" es el motivo de este comentario.
+    #:
+    #: OJO — el alcance de esa frase es la CONSTITUCIÓN, no el organismo entero.  El eje
+    #: causal SÍ tiene consumidores fuera de acá, y hay que saberlo antes de tocarlo:
+    #: ``state.py`` y ``reality/belief_state.py`` lo pesan 0.25 en ``composite_confidence``;
+    #: ``reasoning/families/core_inference.py`` lo usa en la calibración; ``reality/transport.py``
+    #: y ``reality/regime_renormalization.py`` lo proyectan; ``certification/transfer_assessment.py``
+    #: lo lee.  Lo que falta no es un lector: es un consumidor que DECIDA algo con él.
     causal_finding: float | None = None
 
     @property
@@ -206,8 +213,22 @@ def _check_triadic_closure(state: OrganismState, config: Dict[str, float]):
     el término |Φ_{M→S}·Φ_{F→M}·Φ_{S→F} − I|).  El nombre no se cambia acá porque viaja en
     ``IdentityState.active_invariants`` (``lineage.py:263``), se persiste
     (``snapshot.py:85``), alimenta la comparación de continuidad identitaria
-    (``state.py:161-167``) y entra en ``constitution_hash()``: renombrarlo mutaría la
+    (``state.py``, ``distance_to``) y entra en ``constitution_hash()``: renombrarlo mutaría la
     identidad de todo organismo ya persistido.  Es deuda de nombre, reportada, no tapada.
+
+    ADVERTENCIA para el que toque este umbral: en el CAMINO VIVO este producto es HOY EL
+    ÚNICO detector de traza degradada, porque ``min_trace_integrity`` (0.30) es INALCANZABLE
+    — el productor (``reality/belief_state.py``: ``0.80 if trace else 0.40``) tiene piso 0.40,
+    así que "no tengo traza" ya saca 0.40 y ese invariante nunca puede disparar.
+
+    Antes de P12.5 la barra efectiva sobre ``trace × purity`` no era 0.50 sino ``0.50 / causal``
+    (= 0.5556 en episodios de soporte): un umbral que NADIE declaró y que fluctuaba con una
+    variable sin relación con las facultades.  Ahora el umbral declarado ES el efectivo.  Eso
+    admite organismos en la banda [0.50, 0.5556) que la ley vieja rechazaba; el peor es
+    ``trace=0.50, purity=1.00`` — o sea SIN TRAZA (0.40) más el bonus de certificación (+0.10).
+    Subir este número a 0.5556 sería fabricar una constante para preservar un accidente: el
+    bug real está en el PRODUCTOR (chequea si la lista está vacía, no la integridad; y un
+    certificado le suma +0.10 a una traza que no existe).  Ver backlog.
     """
     threshold = config.get("triadic_closure_threshold", 0.50)
     trace = state.belief.trace_integrity_confidence
