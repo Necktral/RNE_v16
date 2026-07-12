@@ -13,7 +13,10 @@ Materialización sobre el organismo vivo:
   life-loop un run cruza regímenes ⇒ contextos genuinamente heterogéneos.
 - **Sección local ωᵢ = (σᵢ, fᵢ, wᵢ)**: símbolos proposicionales de la fórmula
   LOT-F + relation_kind (σ, significado), fórmula normalizada (f, forma), y
-  valor de la variable principal con su umbral (w, mundo).
+  valor de la variable principal con su umbral (w, mundo).  El término de
+  ``relation_kind`` en d_S sólo cuenta como DERIVA cuando es la misma pregunta
+  en el mismo mundo contestada distinto (ver ``_relation_drift``): una medición
+  que cambia porque el mundo cambió es percepción, no deriva de significado.
 - **Operador de restricción r_ij**: identidad dentro del mismo escenario; entre
   escenarios, el morfismo causal dirigido (`MorphismEngine`) transporta las
   proposiciones (proposition_map) y atenúa/penaliza por `overall_score` y
@@ -38,6 +41,8 @@ import os
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, Deque, Dict, List, Mapping, Optional, Tuple
+
+from runtime.smg.smg_min import is_measured_relation
 
 _LOTF_OPERATORS = {"->", "(", ")", "NOT", "AND", "OR"}
 
@@ -158,6 +163,67 @@ def _jaccard(a: frozenset, b: frozenset) -> float:
     return len(a & b) / len(union) if union else 1.0
 
 
+def _world_configuration(s: Section) -> Optional[bool]:
+    """Configuración del mundo relevante para la relación: ¿de qué lado del umbral está?
+
+    ``None`` si no se puede establecer (falta el valor o el umbral): sin saber en qué mundo
+    estaba el organismo, NO se puede afirmar que dos relaciones distintas sean deriva.
+    """
+    if s.value is None or s.alarm_threshold is None:
+        return None
+    return s.value >= s.alarm_threshold
+
+
+def _relation_drift(a: Section, b: Section) -> bool:
+    """¿La diferencia de ``relation_kind`` entre dos secciones es DERIVA SEMÁNTICA?
+
+    P12.5 — Ω DEJA DE CASTIGAR LA PERCEPCIÓN.
+
+    Antes, ``d_s`` sumaba 0.3 cada vez que ``relation_kind`` DIFERÍA entre dos secciones, sin
+    más condición.  Eso premiaba que la relación fuera CONSTANTE — y ``relation_kind`` no es
+    un significado: es el veredicto de una MEDICIÓN contrafactual sobre el mundo
+    (``support`` / ``contradiction`` / ``no_discriminating_evidence``).  Un regulador
+    bang-bang en su umbral necesariamente alterna: cuando el mundo cruza el umbral, la misma
+    política produce un veredicto causal distinto.  **Una medición que varía porque el mundo
+    varió no es deriva de significado: es percibir.**  Ω lo puntuaba como deriva y le cobraba
+    coherencia a un organismo sano por el sólo hecho de mirar.
+
+    Pero el término NO se borra: se lo hace PRECISO.  Hay una lectura fina y defendible de
+    "deriva semántica" que se puede computar con los datos que ``Section`` YA tiene, sin
+    inventar números ni infraestructura:
+
+        **La MISMA pregunta, en el MISMO mundo, contestada DISTINTO.**
+
+    Sólo cuenta como deriva si se cumple TODO:
+
+      1. **Mismo escenario.**  Entre escenarios la relación habla de mundos distintos; que
+         difiera es lo esperable, no deriva.  (El transporte r_ij mapea proposiciones, no
+         veredictos causales.)
+      2. **Ambas relaciones MEDIDAS** (``is_measured_relation``: ``support`` o
+         ``contradiction``).  ``no_discriminating_evidence`` es una AUSENCIA de medición, no
+         un significado alternativo: comparar "medí contradicción" contra "no pude medir" y
+         llamarlo deriva es el mismo error de categoría, en chico.
+      3. **Misma configuración del mundo**: ambos episodios del mismo lado del umbral de
+         alarma que el escenario YA declara (``alarm_threshold``, en su metadata).  No es un
+         número nuevo: es la frontera semántica que el propio mundo define.  Si el mundo
+         cambió de lado, la relación DEBE poder cambiar — eso es el organismo percibiendo.
+         Si no se puede establecer el lado (falta valor o umbral), no se afirma deriva.
+      4. **Las relaciones difieren.**
+
+    Con esas cuatro, un ``support`` que se vuelve ``contradiction`` **con el mundo en la misma
+    configuración** sí es lo que Ω quiere cazar: el mismo símbolo significando otra cosa.
+    El peso (0.3) NO SE TOCA.
+    """
+    if a.scenario != b.scenario:
+        return False
+    if not (is_measured_relation(a.relation_kind) and is_measured_relation(b.relation_kind)):
+        return False
+    conf_a, conf_b = _world_configuration(a), _world_configuration(b)
+    if conf_a is None or conf_b is None or conf_a != conf_b:
+        return False
+    return a.relation_kind != b.relation_kind
+
+
 def section_divergence(a: Section, b: Section, morphism: Any = None) -> Dict[str, Any]:
     """d_S + d_F + d_W entre dos secciones, con transporte r_ij opcional.
 
@@ -175,7 +241,7 @@ def section_divergence(a: Section, b: Section, morphism: Any = None) -> Dict[str
 
     d_s = _clamp01(
         0.7 * (1.0 - _jaccard(symbols_a, b.symbols))
-        + 0.3 * (1.0 if (a.relation_kind or "") != (b.relation_kind or "") else 0.0)
+        + 0.3 * (1.0 if _relation_drift(a, b) else 0.0)
     )
     if a.formula_norm == b.formula_norm and a.formula_norm:
         d_f = 0.0
