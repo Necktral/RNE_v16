@@ -25,6 +25,16 @@ TransferVerdict = Literal[
     "rejected_for_transfer",
 ]
 
+# P9.6 — priores NEUTROS para la aritmética del posterior Bayesiano (que no admite None).
+# NO son mediciones y NO se reportan como tales: la evidencia que los usó queda listada en
+# `TransferAssessment.unmeasured_fields`. Existen porque el posterior necesita un número,
+# no porque sepamos algo. Preservan exactamente los valores previos de la rama cross, así
+# que ningún veredicto de transferencia cambia por P9.6.
+_NEUTRAL_PURITY = 1.0
+_NEUTRAL_STABILITY = 1.0
+_NEUTRAL_CONFIDENCE = 0.5
+_NEUTRAL_SHIFT_KL = 0.0
+
 
 @dataclass(frozen=True)
 class TransferAssessment:
@@ -38,8 +48,12 @@ class TransferAssessment:
     memory_mode: str
     cross_scenario_evidence_used: bool
     analogical_source_present: bool
-    memory_purity_score: float
-    transition_stability_score: float
+    # P9.6: `None` = NO MEDIDO. Antes eran `float` y la ausencia se rellenaba con el valor
+    # más favorable (1.0), así que el certificado no podía distinguir "impecable" de
+    # "no lo miré". Quien los consuma DEBE tratar el None como ausencia de evidencia
+    # (ver `vitals.py` → `VitalSignsSnapshot.unverified_fields`).
+    memory_purity_score: float | None
+    transition_stability_score: float | None
     transfer_verdict: TransferVerdict
     # RTCME-v2 fields (optional for backward compat)
     transfer_posterior: float = 0.0
@@ -61,6 +75,14 @@ class TransferAssessment:
     failure_modes: tuple[TransferFailureMode, ...] = ()
     failure_mode_scope: str = "none"
     detector_checks_applied: tuple[str, ...] = ()
+    # P9.6 — qué NO se pudo medir en este episodio, dicho por nombre. Un certificado con
+    # `unmeasured_fields` no vacío NO es un certificado de salud: es un certificado con
+    # agujeros, y los agujeros están declarados.
+    unmeasured_fields: tuple[str, ...] = ()
+    # P9.6 — CÓMO se obtuvo la pureza. Un 1.0 sobre cero hits (`contamination_opportunity:
+    # False`) es ausencia de oportunidad de contaminarse, NO pureza verificada. El número no
+    # cambia; su sustento se vuelve legible.
+    memory_purity_basis: dict = field(default_factory=dict)
 
 
 def retrieval_metrics_from_hits(hits: Any) -> dict | None:
@@ -82,6 +104,98 @@ def retrieval_metrics_from_hits(hits: Any) -> dict | None:
             if isinstance(metrics, dict):
                 return dict(metrics)
     return None
+
+
+def _measure_memory_purity(
+    *,
+    transition_vector: Any | None,
+    retrieval_metrics: dict | None,
+    retrieved: Any,
+) -> tuple[float | None, dict]:
+    """Mide la pureza de memoria Y DEJA VISIBLE CÓMO SE OBTUVO.
+
+    P9.6 — la procedencia importa tanto como el número. Un ``memory_purity = 1.0`` calculado
+    sobre CERO hits de memoria **no es lo mismo** que uno calculado sobre 50 hits sin
+    contaminación: el primero es *ausencia de oportunidad de contaminarse*, no evidencia de
+    pureza. Los dos valen 1.0 y los dos son honestos — pero solo uno es una verificación.
+    Sin la base, nadie puede distinguirlos y un 1.0 vacuo se lee como "pureza verificada".
+
+    El número NO se toca (bajarlo sería fabricar en el otro sentido, y mataría el refugio:
+    ver el comentario de `assess_transfer`). Lo que se agrega es el sustento.
+
+    Returns:
+        ``(purity, basis)``. ``purity is None`` ⇒ NO MEDIDA (el episodio no dejó ninguna
+        evidencia de retrieval). ``basis`` describe la fuente, los hits y si hubo siquiera
+        oportunidad de contaminarse.
+    """
+    hits = retrieved if isinstance(retrieved, list) else []
+    hit_count = len(hits)
+    cross = None
+    same = None
+    if retrieval_metrics:
+        cross = retrieval_metrics.get("retrieved_cross_scenario_count")
+        same = retrieval_metrics.get("retrieved_same_scenario_count")
+
+    # 1. Grado-transferencia: el vector de transición ya midió la pureza sobre estas mismas
+    #    métricas (`transition_analysis._memory_purity`). Es la medición más rica: se usa.
+    if transition_vector is not None:
+        return (
+            float(transition_vector.memory_purity),
+            {
+                "source": "transition_vector",
+                "hits": hit_count,
+                "cross_scenario_hits": cross,
+                "same_scenario_hits": same,
+                # Sin hits no hubo NADA que pudiera contaminar: el 1.0 es vacuo, no verificado.
+                "contamination_opportunity": bool(hit_count),
+            },
+        )
+
+    # 2. Sin transición (primer episodio): la pureza sigue siendo medible, porque es una
+    #    propiedad del retrieval de ESTE episodio. Acá es donde sobrevive el refugio.
+    if retrieval_metrics:
+        cross_n = int(cross or 0)
+        same_n = int(same or 0)
+        total = cross_n + same_n
+        purity = 1.0 - (cross_n / total) if total else 1.0
+        return (
+            purity,
+            {
+                "source": "episode_retrieval_metrics",
+                "hits": hit_count,
+                "cross_scenario_hits": cross_n,
+                "same_scenario_hits": same_n,
+                "contamination_opportunity": bool(total),
+            },
+        )
+
+    # 3. El retriever no dejó métricas. Si además NO hubo hits, el episodio no consultó
+    #    memoria: no hubo oportunidad de contaminarse y la pureza es 1.0 VACUA (verdadera,
+    #    pero sin sustento). Se reporta como tal, no como pureza verificada.
+    if hit_count == 0:
+        return (
+            1.0,
+            {
+                "source": "no_memory_retrieved",
+                "hits": 0,
+                "cross_scenario_hits": 0,
+                "same_scenario_hits": 0,
+                "contamination_opportunity": False,
+            },
+        )
+
+    # 4. Hubo hits pero SIN métricas: hubo oportunidad de contaminarse y no sabemos si pasó.
+    #    Esto sí es ausencia de medición — y no se rellena con un 1.0 favorable.
+    return (
+        None,
+        {
+            "source": "unmeasured",
+            "hits": hit_count,
+            "cross_scenario_hits": None,
+            "same_scenario_hits": None,
+            "contamination_opportunity": True,
+        },
+    )
 
 
 def assess_transfer(
@@ -129,6 +243,10 @@ def assess_transfer(
 
     context = episode.get("context", {})
     retrieved = context.get("retrieved_memory", [])
+    # P9.6: si el llamador no pasó las métricas, se leen del propio episodio (el retriever las
+    # adjunta a cada hit). El dato ESTÁ: no hay por qué declararlo ausente.
+    if retrieval_metrics is None:
+        retrieval_metrics = retrieval_metrics_from_hits(retrieved)
     if isinstance(retrieved, list):
         for hit in retrieved:
             if isinstance(hit, dict):
@@ -149,15 +267,47 @@ def assess_transfer(
     if compatibility is not None:
         compat_class = compatibility.compatibility_class
 
-    # Memory purity
-    purity = 1.0
-    if transition_vector is not None:
-        purity = transition_vector.memory_purity
+    # ── P9.6 paso 5 — DES-FABRICAR ───────────────────────────────────────────
+    # Antes, cada evidencia ausente se rellenaba con su valor MÁS FAVORABLE:
+    #     purity = 1.0; stability = 1.0; shift_kl = 0.0; policy_conf = 0.5; causal_supp = 0.5
+    # Eso no era un default: era una MENTIRA con forma de medición. El certificado no podía
+    # distinguir "memoria impecable" de "nunca miré la memoria", y como los detectores leían
+    # esos mismos números, la ausencia de dato se volvía evidencia a favor del organismo.
+    #
+    # Ahora: dato medido ⇒ el número real. Dato ausente ⇒ None (AUSENCIA), registrado en
+    # `unmeasured_fields`. Los detectores se abstienen ante None (no lo leen como salud ni
+    # como enfermedad). Patrón: `checks_applied` (trace_integrity.py), `unmeasured_vitals`
+    # (control/homeostasis/life_monitor.py), `unverified_fields` (life/contracts.py).
+    unmeasured: list[str] = []
 
-    # Transition stability
-    stability = 1.0
-    if transition_vector is not None:
-        stability = transition_vector.composite_score
+    # Memory purity — LA PIEZA DELICADA.
+    # De acá cuelga el REFUGIO del organismo: memory_purity_score → metadata del certificado
+    # → vitals.py → VitalSignsSnapshot.memory_purity → is_restorable (≥0.85) →
+    # checkpoints.py (`healthy`) → kernel.py (el rollback se BLOQUEA sin healthy_checkpoint).
+    # Si la pureza quedara "no medida" en el episodio típico, NINGÚN checkpoint volvería a
+    # marcarse sano y el organismo no podría refugiarse nunca más: cambiaríamos "acepta
+    # cualquier cosa" por "no acepta nada", que es peor.
+    #
+    # La salida NO es fabricar: es MEDIR de verdad, y la pureza SÍ se puede medir en todo
+    # episodio, porque es una propiedad del retrieval de ESTE episodio (cuánta memoria de
+    # otro escenario entró), no de la transición. Dos fuentes reales, en orden:
+    #   1. El transition_vector (grado-transferencia), cuando hay episodio previo.
+    #   2. Las métricas de retrieval del propio episodio — disponibles SIEMPRE, incluso en
+    #      el primer episodio, donde no hay transición que medir.
+    # El valor honesto de un episodio limpio sigue siendo 1.0 — pero GANADO, no inventado.
+    purity, purity_basis = _measure_memory_purity(
+        transition_vector=transition_vector,
+        retrieval_metrics=retrieval_metrics,
+        retrieved=retrieved,
+    )
+    if purity is None:
+        unmeasured.append("memory_purity")
+
+    # Transition stability: SIN episodio previo NO hay transición que medir. Acá la ausencia
+    # es genuina (no hay de dónde sacarla) y no se rellena con 1.0.
+    stability = transition_vector.composite_score if transition_vector is not None else None
+    if stability is None:
+        unmeasured.append("transition_stability")
 
     # Extract morphism data
     m_score = 0.0
@@ -170,19 +320,31 @@ def assess_transfer(
         if op is not None:
             polarity_inv = getattr(op, "polarity_inversion", False)
 
-    # Extract belief shift data
-    shift_kl = 0.0
-    policy_conf = 0.5
-    causal_supp = 0.5
-    if belief_shift is not None:
-        shift_kl = getattr(belief_shift, "kl_divergence_approx", 0.0)
+    # Belief shift: sin prior no hay shift. `0.0` significaba "la creencia no se movió",
+    # que es justo lo que NO sabemos en el primer episodio.
+    shift_kl = (
+        float(getattr(belief_shift, "kl_divergence_approx", 0.0))
+        if belief_shift is not None
+        else None
+    )
+    if shift_kl is None:
+        unmeasured.append("belief_shift_kl")
 
-    # Try to get belief state for enhanced confidence
+    # Belief state: sin belief_state no hay confianza que reportar. `0.5` era un "ni sí ni
+    # no" fabricado que además caía JUSTO en el umbral de `policy_drift` (< 0.50).
+    policy_conf: float | None = None
+    causal_supp: float | None = None
     belief_data = episode_result.get("belief_state", {})
     if belief_data and belief_data.get("posterior"):
         posterior_data = belief_data["posterior"]
-        policy_conf = float(posterior_data.get("policy_confidence", 0.5))
-        causal_supp = float(posterior_data.get("causal_support_confidence", 0.5))
+        raw_policy = posterior_data.get("policy_confidence")
+        raw_causal = posterior_data.get("causal_support_confidence")
+        policy_conf = float(raw_policy) if raw_policy is not None else None
+        causal_supp = float(raw_causal) if raw_causal is not None else None
+    if policy_conf is None:
+        unmeasured.append("policy_confidence")
+    if causal_supp is None:
+        unmeasured.append("causal_support")
 
     # Trace integrity — verificación REAL (B1).
     # Antes: `len(trace) > 0 if trace else True` → True en ambas ramas (constante
@@ -203,19 +365,31 @@ def assess_transfer(
     if is_cross:
         from .transfer_posterior import compute_transfer_posterior
 
+        # El posterior Bayesiano es aritmética: necesita números, no None. Cuando una
+        # evidencia no se midió se le pasa un PRIOR NEUTRO explícito y nombrado — no un
+        # "valor favorable" disfrazado de medición. La diferencia no es cosmética: el
+        # certificado dice cuáles de estas entradas NO eran mediciones
+        # (`unmeasured_fields`), así que nadie puede leer el posterior como si se hubiera
+        # calculado sobre evidencia completa.
+        #
+        # NOTA (backlog): el camino del posterior todavía no propaga la ausencia hacia
+        # `detect_failure_modes` (los detectores de la rama cross reciben los neutros y no
+        # pueden abstenerse). La rama LOCAL —la que este paquete resucita— sí lo hace.
+        # En la práctica, en un episodio cross la pureza SIEMPRE está medida: la evidencia
+        # cross viene precisamente de hits de retrieval, que traen sus métricas.
         posterior_result = compute_transfer_posterior(
             source_scenario=source_scenario,
             target_scenario=target_scenario,
             morphism_class=m_class if morphism is not None else _compat_to_morphism_class(compat_class),
             morphism_score=m_score if morphism is not None else (compatibility.overall_score if compatibility else 0.5),
-            memory_purity=purity,
-            transfer_stability=stability,
+            memory_purity=purity if purity is not None else _NEUTRAL_PURITY,
+            transfer_stability=stability if stability is not None else _NEUTRAL_STABILITY,
             trace_integrity=trace_integrity,
             eml_concurrence=eml_concurrence,
             polarity_inversion=polarity_inv,
-            policy_confidence=policy_conf,
-            causal_support=causal_supp,
-            belief_shift_kl=shift_kl,
+            policy_confidence=policy_conf if policy_conf is not None else _NEUTRAL_CONFIDENCE,
+            causal_support=causal_supp if causal_supp is not None else _NEUTRAL_CONFIDENCE,
+            belief_shift_kl=shift_kl if shift_kl is not None else _NEUTRAL_SHIFT_KL,
             historical_success_rate=historical_success_rate,
             n_historical=n_historical,
         )
@@ -270,8 +444,8 @@ def assess_transfer(
         memory_mode=memory_mode,
         cross_scenario_evidence_used=cross_evidence,
         analogical_source_present=analogical_present,
-        memory_purity_score=round(purity, 4),
-        transition_stability_score=round(stability, 4),
+        memory_purity_score=round(purity, 4) if purity is not None else None,
+        transition_stability_score=round(stability, 4) if stability is not None else None,
         transfer_verdict=verdict,
         transfer_posterior=round(transfer_post, 4),
         lower_confidence_bound=round(lcb, 4),
@@ -284,6 +458,8 @@ def assess_transfer(
         failure_modes=fm_assessment.detected_modes,
         failure_mode_scope=fm_scope,
         detector_checks_applied=fm_assessment.checks_applied,
+        unmeasured_fields=tuple(unmeasured),
+        memory_purity_basis=purity_basis,
     )
 
 

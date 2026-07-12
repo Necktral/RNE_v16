@@ -203,6 +203,12 @@ class PromotionGate:
             ],
             "failure_mode_scope": transfer.failure_mode_scope,
             "detector_checks_applied": list(transfer.detector_checks_applied),
+            # P9.6 paso 5 — la ausencia viaja CON el certificado. `memory_purity_score: null`
+            # ya no puede leerse como 1.0 por quien lo consuma (ver `vitals.py`), y
+            # `memory_purity_basis` dice si el 1.0 se ganó midiendo o si no hubo siquiera
+            # oportunidad de contaminarse.
+            "unmeasured_fields": list(transfer.unmeasured_fields),
+            "memory_purity_basis": transfer.memory_purity_basis,
         }
         causal_attestation = (episode.get("context") or {}).get("causal_attestation")
         if isinstance(causal_attestation, dict):
