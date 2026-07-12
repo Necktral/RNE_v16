@@ -19,6 +19,7 @@ from runtime.neural.integration import (
     SymbioticNeuralCoordinator,
 )
 from runtime.organism.autoevolution import AutoEvolutionController
+from runtime.organism.adaptive_state import AdaptationPlanner, AdaptiveStateStore
 from runtime.organism.constitution import OrganismConstitution
 from runtime.organism.dynamic_state import OrganismDynamicState, canonical_hash, measured
 from runtime.organism.identity import mint_lineage_id, mint_organism_id
@@ -31,6 +32,8 @@ from runtime.organism.regime_model import (
 )
 from runtime.organism.state import OrganismState, IdentityState, transition_organism_state
 from runtime.organism.trajectory import OrganismTrajectory
+from runtime.organism.trajectory_replay import ShadowTrajectoryReplay
+from runtime.organism.trajectory_window import TrajectoryWindowBuilder
 from runtime.organism.viability import ViabilityKernel
 from runtime.reasoning.context import build_reasoning_context, resolve_reasoning_mode
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
@@ -242,6 +245,11 @@ class ScenarioEpisodeRunner:
             lineage_id=self._lineage.lineage_id,
             run_id=self.run_id,
         )
+        self._adaptive_states = AdaptiveStateStore(
+            organism_id=self._organism_id,
+            lineage_id=self._lineage.lineage_id,
+        )
+        self._adaptation_planner = AdaptationPlanner()
 
     def _maybe_override_intervention(
         self,
@@ -410,6 +418,10 @@ class ScenarioEpisodeRunner:
                     lineage_id=self._lineage.lineage_id,
                     run_id=self.run_id,
                 )
+                self._adaptive_states = AdaptiveStateStore(
+                    organism_id=requested,
+                    lineage_id=self._lineage.lineage_id,
+                )
             self._organism_id = requested
             self._organism_trajectory.organism_id = self._organism_id
 
@@ -439,6 +451,7 @@ class ScenarioEpisodeRunner:
             "schema_version": "neural-organism-checkpoint-v2",
             "n3_temporal_state": self._neural.export_temporal_state(),
             "dynamic_chain": self._dynamic_chain.export_checkpoint(),
+            "adaptive_state": self._adaptive_states.export_checkpoint(),
             "contract_versions": {
                 "symbiosis_trace": "neural-symbiosis-trace-v2",
                 "consumer_receipt": "neural-consumer-receipt-v1",
@@ -454,10 +467,25 @@ class ScenarioEpisodeRunner:
         if data.get("schema_version") == "neural-organism-checkpoint-v2":
             restored = self._neural.restore_temporal_state(data.get("n3_temporal_state"))
             self._dynamic_chain.restore_checkpoint(data.get("dynamic_chain"))
+            self._adaptive_states.restore_checkpoint(data.get("adaptive_state"))
             return restored
         restored = self._neural.restore_temporal_state(data)
         self._dynamic_chain.restore_checkpoint(None)
         return restored
+
+    def build_dynamic_trajectory_window(self, *, size: int = 8):
+        """Vista longitudinal cerrada sobre la cadena vital verificada."""
+
+        return TrajectoryWindowBuilder(
+            self._dynamic_chain.transitions,
+            chain_epoch=self._dynamic_chain.chain_epoch,
+        ).latest(size=size)
+
+    def replay_dynamic_trajectory(self, *, organ_id: str, size: int = 8) -> Dict[str, Any]:
+        """Evalúa un adapter en shadow sin tocar mundo, memoria ni cadena."""
+
+        window = self.build_dynamic_trajectory_window(size=size)
+        return ShadowTrajectoryReplay().replay(window, organ_id=organ_id)
 
     def _regime_snapshot(self) -> Dict[str, Any]:
         current = get_regime_for_scenario(self.scenario.config.name)
@@ -581,8 +609,10 @@ class ScenarioEpisodeRunner:
                 "authority_ceilings": {
                     row.get("organ"): row.get("authority_ceiling") for row in organ_rows
                 },
-                "adaptation_state_hash": None,
-                "adaptation_measurement_status": "unmeasured",
+                "adaptation_state_hash": self._adaptive_states.state_hash,
+                "adaptation_measurement_status": (
+                    "measured" if self._adaptive_states.state_hash is not None else "unmeasured"
+                ),
             },
             policy={
                 "scheduler_mode": self.reasoning_mode,
@@ -1454,6 +1484,30 @@ class ScenarioEpisodeRunner:
                 "symbiosis_trace_hash": canonical_hash(symbiosis_trace),
                 "n3_before_hash": state_before.memory.get("n3_state_hash"),
                 "n3_after_hash": state_after.memory.get("n3_state_hash"),
+                "replay_context": {
+                    "scenario_id": symbiosis_identity.scenario_id,
+                    "inputs": {
+                        "observation": observation_dict,
+                        "formula": formula,
+                        "proposition": main_proposition,
+                        "memory_hits": [
+                            {"episode_id": item.get("episode_id"), "structure": item.get("structure")}
+                            for item in memory_hits[:3]
+                        ],
+                        "scenario_metadata": scenario_metadata,
+                        "causal_attestation": causal_attestation,
+                        "resources": dict(self._resource_signals),
+                    },
+                    "resources": dict(self._resource_signals),
+                    "n3_temporal": neural_signals.get("n3_temporal") or {},
+                    "reasoning_state": reasoning.get("state") or {},
+                    "lotf_valid": True,
+                    "viability": episode_result["viability_assessment"],
+                    "reasoning": {
+                        "sequence": reasoning.get("sequence") or [],
+                        "trace": reasoning.get("trace") or [],
+                    },
+                },
             },
             policy_delta={
                 "reasoning_profile": self.closure_profile,
@@ -1496,6 +1550,28 @@ class ScenarioEpisodeRunner:
                     "reasoning_profile": self.closure_profile,
                     "autoevolution": "autoevolution-runtime",
                 },
+            )
+            updated_adaptive_states = self._adaptive_states.update(
+                life_transition, symbiosis_trace
+            )
+            adaptation_priorities = self._adaptation_planner.plan(updated_adaptive_states)
+            adaptation_payload = {
+                "schema_version": "organism-adaptation-update-v1",
+                "transition_id": life_transition.transition_id,
+                "adaptive_state_hash": self._adaptive_states.state_hash,
+                "states": [state.to_dict() for state in updated_adaptive_states],
+                "priorities": adaptation_priorities,
+                "authority_effect": "none",
+            }
+            self.storage.append_event(
+                event_type="organism.adaptation.updated",
+                run_id=self.run_id,
+                source="adaptation_planner",
+                payload=adaptation_payload,
+            )
+            episode_result["adaptation"] = adaptation_payload
+            episode_result["dynamic_trajectory_window"] = (
+                self.build_dynamic_trajectory_window(size=8).to_dict()
             )
         episode_result["dynamic_state"] = state_after.to_dict()
         episode_result["life_transition"] = life_transition.to_dict()

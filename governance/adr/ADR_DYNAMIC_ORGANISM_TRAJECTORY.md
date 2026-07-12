@@ -37,3 +37,27 @@ restaura N3 y abre una epoch explícita con
 
 La cadena describe lo ocurrido. No elige intervención, no certifica, no escribe MFM,
 no cambia scheduler/MSRC y no concede autoridad a N1–N6.
+
+## Ventanas y replay
+
+`TrajectoryWindowBuilder` sólo acepta transiciones committed de un mismo organismo y
+linaje, con índices, estados y hashes continuos dentro de una epoch. Su API no ofrece
+shuffle, random split ni filas IID. El checkpoint conserva un historial reciente
+acotado y lo revalida contra el head al restaurar.
+
+`ShadowTrajectoryReplay` reconstruye el contexto histórico acotado guardado en cada
+transición y crea un registro fresco de adapters. No recibe storage ni objetos vivos
+del mundo/MFM/experience/scheduler; compara hashes de propuestas y reporta impacto
+estimado, errores o evidencia insuficiente sin contaminar la cadena original.
+
+## Adaptación longitudinal
+
+`AdaptiveStateStore` mantiene `organ-adaptive-state-v1` por
+`(organism, lineage, regime, organ, backend)`: participación, abstención, recibos,
+recompensa sólo cuando existe, certificados sólo cuando existen, desacuerdo causal,
+latencia online, coste, fallbacks, dwell e indicadores de cambio. Se actualiza después
+de una transición committed y viaja en el checkpoint.
+
+`AdaptationPlanner` es su consumidor real. Emite `adaptation-priority-v1` y su enum
+cerrado sólo permite `collect_more_evidence`, `replay_candidate`, `hold` o
+`quarantine_candidate`. No modifica pesos, no promueve modelos ni muta al organismo.

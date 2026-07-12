@@ -45,6 +45,49 @@ class LifeTransition:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> "LifeTransition":
+        if raw.get("schema_version") != LIFE_TRANSITION_SCHEMA_VERSION:
+            raise ValueError("life_transition_schema_mismatch")
+        state_before = OrganismDynamicState.from_dict(raw.get("state_before") or {})
+        state_after = OrganismDynamicState.from_dict(raw.get("state_after") or {})
+        payload = {
+            "schema_version": LIFE_TRANSITION_SCHEMA_VERSION,
+            "transition_id": str(raw.get("transition_id") or ""),
+            "transition_index": int(raw.get("transition_index", 0)),
+            "previous_transition_id": raw.get("previous_transition_id"),
+            "previous_transition_hash": str(raw.get("previous_transition_hash") or ""),
+            "state_before": state_before,
+            "action_proposals": tuple(raw.get("action_proposals") or ()),
+            "authoritative_decision": dict(raw.get("authoritative_decision") or {}),
+            "committed_intervention": dict(raw.get("committed_intervention") or {}),
+            "external_input": raw.get("external_input"),
+            "factual_outcome": dict(raw.get("factual_outcome") or {}),
+            "counterfactual_evidence": dict(raw.get("counterfactual_evidence") or {}),
+            "certificate": dict(raw.get("certificate") or {}),
+            "reward": dict(raw.get("reward") or {}),
+            "memory_delta": dict(raw.get("memory_delta") or {}),
+            "neural_state_delta": dict(raw.get("neural_state_delta") or {}),
+            "policy_delta": dict(raw.get("policy_delta") or {}),
+            "resource_delta": dict(raw.get("resource_delta") or {}),
+            "viability_delta": dict(raw.get("viability_delta") or {}),
+            "regime_before": dict(raw.get("regime_before") or {}),
+            "regime_after": dict(raw.get("regime_after") or {}),
+            "rollback_refuge_result": dict(raw.get("rollback_refuge_result") or {}),
+            "state_after": state_after,
+            "trace_group_id": str(raw.get("trace_group_id") or ""),
+            "status": str(raw.get("status") or ""),
+            "reason_code": raw.get("reason_code"),
+        }
+        hash_payload = {
+            key: (value.to_dict() if isinstance(value, OrganismDynamicState) else value)
+            for key, value in payload.items()
+        }
+        expected = canonical_hash(hash_payload)
+        if expected != raw.get("transition_hash"):
+            raise ValueError("life_transition_hash_mismatch")
+        return cls(**payload, transition_hash=expected)
+
 
 class DynamicLifeChain:
     """Cadena acotada por organismo/linaje; un nuevo run_id no rompe continuidad."""
@@ -214,5 +257,16 @@ class DynamicLifeChain:
             raise ValueError("dynamic_chain_checkpoint_head_missing")
         self.last_state = state
         self.chain_epoch = int(data.get("chain_epoch", 1))
+        restored_transitions = [
+            LifeTransition.from_dict(item) for item in data.get("recent_transitions") or ()
+        ]
+        for previous, current in zip(restored_transitions, restored_transitions[1:]):
+            if current.transition_index != previous.transition_index + 1:
+                raise ValueError("dynamic_chain_checkpoint_index_gap")
+            if current.previous_transition_hash != previous.transition_hash:
+                raise ValueError("dynamic_chain_checkpoint_hash_gap")
+        if restored_transitions and restored_transitions[-1].transition_hash != self.head_transition_hash:
+            raise ValueError("dynamic_chain_checkpoint_head_mismatch")
+        self.transitions = restored_transitions[-self.max_history :]
         self.restore_reason = None
         return {"restored": True, "reason": None, "chain_epoch": self.chain_epoch}
