@@ -831,6 +831,9 @@ class LifeKernel:
             organism_state=self.organism_state,
             lineage=self.lineage,
         )
+        # La identidad soberana debe fijarse antes de restaurar la cadena dinámica;
+        # un checkpoint de otro organismo/linaje se rechaza, no se reetiqueta.
+        self._runner.set_organism_id(self.organism_id)
         if self._neural_state:
             self._runner.restore_neural_state(self._neural_state)
         # El tier ejecutable (B3) puede fijar el límite de recuperación de memoria;

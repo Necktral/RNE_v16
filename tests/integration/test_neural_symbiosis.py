@@ -62,9 +62,8 @@ def test_multiple_live_episodes_share_trace_and_close_all_consumption_loops(
 
     first_trace = first["neural_symbiosis_trace"]
     second_trace = second["neural_symbiosis_trace"]
-    # V2 no declara completitud hasta que el siguiente corte enlace LifeTransition.
-    assert first_trace["trace_complete"] is False
-    assert second_trace["trace_complete"] is False
+    assert first_trace["trace_complete"] is True
+    assert second_trace["trace_complete"] is True
     assert second_trace["schema_version"] == "neural-symbiosis-trace-v2"
     receipt_organs = {receipt["organ"] for receipt in second_trace["consumer_receipts"]}
     assert receipt_organs == {"N1", "N2", "N3", "N4", "N5", "N6"}
@@ -73,6 +72,13 @@ def test_multiple_live_episodes_share_trace_and_close_all_consumption_loops(
         receipt["candidate_hash"] == candidate_hashes[receipt["organ"]]
         for receipt in second_trace["consumer_receipts"]
     )
+    first_transition = first["life_transition"]
+    second_transition = second["life_transition"]
+    assert first_transition["status"] == "committed"
+    assert second_transition["transition_index"] == 2
+    assert second_transition["previous_transition_hash"] == first_transition["transition_hash"]
+    assert second_trace["life_transition_id"] == second_transition["transition_id"]
+    assert second_trace["state_after_hash"] == second["dynamic_state"]["state_hash"]
     assert {entry["trace_group_id"] for entry in second_trace["organs"]} == {"trace-e2e-2"}
     assert {entry["organ"] for entry in second_trace["organs"]} == {
         "N1", "N2", "N3", "N4", "N5", "N6"

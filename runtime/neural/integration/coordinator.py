@@ -409,10 +409,38 @@ class SymbioticNeuralCoordinator:
         )
         session.trace.trace_health = asdict(self.runtime.trace_health)
         payload = session.trace.to_dict(include_candidates=True)
+        payload["trace_persisted"] = False
+        payload["trace_health"] = asdict(self.runtime.trace_health)
+        return payload
+
+    def link_life_transition(
+        self,
+        *,
+        episode_id: str,
+        transition_id: str,
+        previous_transition_hash: str,
+        state_before_hash: str,
+        state_after_hash: str,
+        active_regime: str | None,
+        memory_write_references: tuple[str, ...],
+        policy_versions: Mapping[str, str],
+    ) -> dict[str, Any]:
+        """Cierra v2 únicamente después de que la transición vital fue committed."""
+
+        session = self._session(episode_id)
+        trace = session.trace
+        trace.life_transition_id = transition_id
+        trace.previous_transition_hash = previous_transition_hash
+        trace.state_before_hash = state_before_hash
+        trace.state_after_hash = state_after_hash
+        trace.active_regime = active_regime
+        trace.memory_write_references = memory_write_references
+        trace.policy_versions = dict(policy_versions)
+        payload = trace.to_dict(include_candidates=True)
         persisted = self.runtime.persist_symbiosis_event(
             event_type="neural.symbiosis.completed",
             payload=payload,
-            run_id=session.trace.identity.run_id,
+            run_id=trace.identity.run_id,
         )
         payload["trace_persisted"] = persisted
         payload["trace_health"] = asdict(self.runtime.trace_health)

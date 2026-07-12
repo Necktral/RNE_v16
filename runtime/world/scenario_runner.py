@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 from dataclasses import asdict
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 from uuid import uuid4
 
 from runtime.certification.promotion_gate import PromotionGate
@@ -20,8 +20,15 @@ from runtime.neural.integration import (
 )
 from runtime.organism.autoevolution import AutoEvolutionController
 from runtime.organism.constitution import OrganismConstitution
+from runtime.organism.dynamic_state import OrganismDynamicState, canonical_hash, measured
 from runtime.organism.identity import mint_lineage_id, mint_organism_id
 from runtime.organism.lineage import LineageState
+from runtime.organism.life_transition import DynamicLifeChain
+from runtime.organism.regime_model import (
+    REGIME_REGISTRY,
+    compare_regimes,
+    get_regime_for_scenario,
+)
 from runtime.organism.state import OrganismState, IdentityState, transition_organism_state
 from runtime.organism.trajectory import OrganismTrajectory
 from runtime.organism.viability import ViabilityKernel
@@ -230,6 +237,11 @@ class ScenarioEpisodeRunner:
             storage=self.storage,
             config=NeuralRuntimeConfig.from_env(),
         )
+        self._dynamic_chain = DynamicLifeChain(
+            organism_id=self._organism_id,
+            lineage_id=self._lineage.lineage_id,
+            run_id=self.run_id,
+        )
 
     def _maybe_override_intervention(
         self,
@@ -389,7 +401,16 @@ class ScenarioEpisodeRunner:
         Si llega vacío, se conserva el acuñado por la SSOT (nunca vuelve a run_id).
         """
         if organism_id:
-            self._organism_id = str(organism_id)
+            requested = str(organism_id)
+            if requested != self._organism_id:
+                if self._dynamic_chain.transition_index:
+                    raise ValueError("cannot_change_organism_after_dynamic_life_started")
+                self._dynamic_chain = DynamicLifeChain(
+                    organism_id=requested,
+                    lineage_id=self._lineage.lineage_id,
+                    run_id=self.run_id,
+                )
+            self._organism_id = requested
             self._organism_trajectory.organism_id = self._organism_id
 
     def set_experience_lessons(self, lessons: List[Dict[str, Any]] | None) -> None:
@@ -412,14 +433,182 @@ class ScenarioEpisodeRunner:
             self._neural = SymbioticNeuralCoordinator(storage=self.storage, config=config)
 
     def export_neural_state(self) -> Dict[str, Any]:
-        """Estado mínimo N3 apto para checkpoint; no incluye modelos ni buffers."""
+        """Checkpoint aditivo N3 + cadena vital; no incluye modelos ni buffers."""
 
-        return self._neural.export_temporal_state()
+        return {
+            "schema_version": "neural-organism-checkpoint-v2",
+            "n3_temporal_state": self._neural.export_temporal_state(),
+            "dynamic_chain": self._dynamic_chain.export_checkpoint(),
+            "contract_versions": {
+                "symbiosis_trace": "neural-symbiosis-trace-v2",
+                "consumer_receipt": "neural-consumer-receipt-v1",
+                "dynamic_state": "organism-dynamic-state-v1",
+                "life_transition": "organism-life-transition-v1",
+            },
+        }
 
     def restore_neural_state(self, payload: Dict[str, Any] | None) -> int:
-        """Restaura continuidad N3 mediante el contrato versionado del coordinador."""
+        """Restaura continuidad o abre epoch explícita para checkpoint N3 legacy."""
 
-        return self._neural.restore_temporal_state(payload)
+        data = dict(payload or {})
+        if data.get("schema_version") == "neural-organism-checkpoint-v2":
+            restored = self._neural.restore_temporal_state(data.get("n3_temporal_state"))
+            self._dynamic_chain.restore_checkpoint(data.get("dynamic_chain"))
+            return restored
+        restored = self._neural.restore_temporal_state(data)
+        self._dynamic_chain.restore_checkpoint(None)
+        return restored
+
+    def _regime_snapshot(self) -> Dict[str, Any]:
+        current = get_regime_for_scenario(self.scenario.config.name)
+        previous_id = (
+            (self._dynamic_chain.last_state.regime or {}).get("regime_id")
+            if self._dynamic_chain.last_state is not None
+            else None
+        )
+        comparison = None
+        if current is not None and previous_id in REGIME_REGISTRY:
+            comparison = compare_regimes(REGIME_REGISTRY[previous_id], current)
+        return {
+            "regime_id": current.regime_id if current is not None else None,
+            "regime_model_version": "runtime-regime-model-v1" if current is not None else None,
+            "equilibrium_class": current.equilibrium_class if current is not None else None,
+            "recovery_profile": current.recovery_profile if current is not None else None,
+            "compatibility_with_previous_regime": (
+                comparison.compatibility if comparison is not None else "not_applicable"
+            ),
+            "structural_distance": comparison.structural_distance if comparison else None,
+            "transport_feasibility": comparison.transport_feasibility if comparison else None,
+            "regime_transition_type": (
+                "same" if comparison and comparison.compatibility == "same_regime"
+                else "changed" if comparison is not None else "genesis_or_unmapped"
+            ),
+            "measurement_status": "measured" if current is not None else "unmeasured",
+        }
+
+    def _build_dynamic_state(
+        self,
+        *,
+        episode_id: str,
+        logical_time: int,
+        previous_state_hash: str | None,
+        organism_state: OrganismState,
+        observation: Mapping[str, Any],
+        world_state: Mapping[str, Any],
+        scenario_metadata: Mapping[str, Any],
+        neural_trace: Mapping[str, Any],
+        memory_hits: list[dict[str, Any]],
+        memory_write_refs: tuple[str, ...],
+        n5_sign_ids: list[str],
+        reasoning: Mapping[str, Any],
+        viability: Mapping[str, Any] | None,
+        certificate: Mapping[str, Any] | None,
+        active_action: str | None,
+    ) -> OrganismDynamicState:
+        organ_rows = list(neural_trace.get("organs") or ())
+        n3 = next((row for row in organ_rows if row.get("organ") == "N3"), {})
+        regime = self._regime_snapshot()
+        resources = {
+            name: measured(self._resource_signals.get(name))
+            for name in (
+                "cpu_pressure", "memory_pressure", "vram_pressure",
+                "thermal_pressure", "gpu_temperature_c",
+            )
+        }
+        resources.update(
+            {
+                "msrc_scale_id": measured(self._resource_signals.get("msrc_scale_id")),
+                "msrc_budget_available": measured(
+                    self._resource_signals.get("msrc_budget_available")
+                ),
+                "compute_tier": measured(self._resource_signals.get("compute_tier")),
+            }
+        )
+        viability_payload = dict(viability or {})
+        cert_payload = dict(certificate or {})
+        return OrganismDynamicState.create(
+            organism_id=self._organism_id,
+            lineage_id=self._lineage.lineage_id,
+            run_id=self.run_id,
+            episode_id=episode_id,
+            life_step=int(organism_state.episode_count),
+            logical_time=logical_time,
+            previous_state_hash=previous_state_hash,
+            world={
+                "scenario_id": self.scenario.config.name,
+                "scenario_version": scenario_metadata.get("scenario_version"),
+                "scenario_config_hash": canonical_hash(scenario_metadata),
+                "observation_hash": canonical_hash(observation),
+                "world_state_hash": canonical_hash(world_state),
+                "main_variable": self.scenario.config.main_variable,
+                "observable_alarm": observation.get("alarm"),
+            },
+            regime=regime,
+            organism={
+                "organism_state_id": organism_state.state_id,
+                "organism_state_hash": canonical_hash(organism_state.to_dict()),
+                "viability": measured(viability_payload.get("viability_margin")),
+                "continuity": measured(organism_state.belief.trace_integrity_confidence),
+                "risk": measured(cert_payload.get("risk_score")),
+                "closure": measured(cert_payload.get("verdict")),
+                "active_action": active_action,
+                "checkpoint_reference": None,
+            },
+            memory={
+                "mfm_read_set_hashes": [canonical_hash(item) for item in memory_hits],
+                "mfm_write_set_hashes": [],
+                "smg_snapshot_reference_hash": canonical_hash(self.smg.snapshot()),
+                "smg_write_references": list(n5_sign_ids),
+                "experience_read_set": [
+                    canonical_hash(item) for item in self._experience_lessons
+                ],
+                "experience_write_set": list(memory_write_refs),
+                "n3_state_hash": canonical_hash(n3.get("candidate")) if n3 else None,
+                "memory_namespace": self._organism_id,
+            },
+            neural={
+                "active_organs": [
+                    row.get("organ") for row in organ_rows if row.get("effective_mode") != "off"
+                ],
+                "contract_versions": dict(neural_trace.get("organ_contract_versions") or {}),
+                "backend_reference_ids": dict(neural_trace.get("backend_identities") or {}),
+                "manifest_hashes": {
+                    row.get("organ"): row.get("manifest_sha256") for row in organ_rows
+                },
+                "effective_modes": {
+                    row.get("organ"): row.get("effective_mode") for row in organ_rows
+                },
+                "authority_ceilings": {
+                    row.get("organ"): row.get("authority_ceiling") for row in organ_rows
+                },
+                "adaptation_state_hash": None,
+                "adaptation_measurement_status": "unmeasured",
+            },
+            policy={
+                "scheduler_mode": self.reasoning_mode,
+                "scheduler_version": "meta-scheduler-runtime",
+                "reasoning_profile": self.closure_profile,
+                "active_overlays": [
+                    family for family in reasoning.get("sequence") or ()
+                    if str(family).upper() not in {"ABD", "ANA", "CAU", "CTF", "DED", "PROB"}
+                ],
+                "reward_guided_state_version": (
+                    "reward-guided-runtime-v1" if self._reward_guided is not None else None
+                ),
+                "autoevolution_knobs": {
+                    "memory_retrieval_limit": self.memory_retrieval_limit,
+                    "memory_filter_mode": self.memory_filter_mode,
+                },
+                "autoevolution_version": "autoevolution-runtime",
+            },
+            resources=resources,
+            homeostasis={
+                "alarm": observation.get("alarm"),
+                "viability_margin": measured(viability_payload.get("viability_margin")),
+                "distance_to_edge": measured(viability_payload.get("distance_to_edge")),
+                "rollback_required": viability_payload.get("rollback_required"),
+            },
+        )
 
     def _symbiosis_identity(
         self,
@@ -1159,6 +1348,157 @@ class ScenarioEpisodeRunner:
             },
             reward=reasoning_reward,
         )
+        memory_write_refs = tuple(
+            [f"smg:{sign_id}" for sign_id in n5_sign_ids]
+            + (
+                [f"experience:{episode_result['experience']['situation_key']}"]
+                if "experience" in episode_result
+                else []
+            )
+        )
+        next_transition_index = self._dynamic_chain.transition_index + 1
+        state_before = self._build_dynamic_state(
+            episode_id=episode_id,
+            logical_time=next_transition_index * 2 - 1,
+            previous_state_hash=(
+                self._dynamic_chain.last_state.state_hash
+                if self._dynamic_chain.last_state is not None
+                else None
+            ),
+            organism_state=previous_state,
+            observation=observation_dict,
+            world_state=observation_dict,
+            scenario_metadata=scenario_metadata,
+            neural_trace=symbiosis_trace,
+            memory_hits=memory_hits,
+            memory_write_refs=(),
+            n5_sign_ids=[],
+            reasoning=reasoning,
+            viability={
+                "viability_margin": previous_state.viability.viability_margin,
+                "distance_to_edge": previous_state.viability.distance_to_edge,
+                "rollback_required": False,
+            },
+            certificate=None,
+            active_action=None,
+        )
+        state_after = self._build_dynamic_state(
+            episode_id=episode_id,
+            logical_time=next_transition_index * 2,
+            previous_state_hash=state_before.state_hash,
+            organism_state=self._organism_state,
+            observation=observation_dict,
+            world_state=updated_world,
+            scenario_metadata=scenario_metadata,
+            neural_trace=symbiosis_trace,
+            memory_hits=memory_hits,
+            memory_write_refs=memory_write_refs,
+            n5_sign_ids=n5_sign_ids,
+            reasoning=reasoning,
+            viability=episode_result["viability_assessment"],
+            certificate={
+                "certificate_id": cert.certificate_id,
+                "verdict": cert.verdict,
+                "risk_score": getattr(cert, "risk_score", None),
+            },
+            active_action=intervention,
+        )
+        organ_candidates = {
+            row.get("organ"): row
+            for row in symbiosis_trace.get("organs") or ()
+            if row.get("organ") in {"N1", "N2", "N4", "N6"}
+        }
+        life_transition = self._dynamic_chain.commit(
+            state_before=state_before,
+            state_after=state_after,
+            trace_group_id=symbiosis_identity.trace_group_id,
+            action_proposals=tuple(
+                {
+                    "organ": organ,
+                    "candidate_hash": row.get("candidate_hash"),
+                    "effective_mode": row.get("effective_mode"),
+                    "authority_ceiling": row.get("authority_ceiling"),
+                }
+                for organ, row in sorted(organ_candidates.items())
+            ),
+            authoritative_decision={
+                "authority": "MetaScheduler+ScenarioEpisodeRunner",
+                "reasoning_sequence": list(reasoning.get("sequence") or ()),
+                "intervention_override": intervention_override.to_dict(),
+            },
+            committed_intervention={"intervention": intervention},
+            external_input=external_input,
+            factual_outcome={
+                "world_state_hash": canonical_hash(updated_world),
+                "relation_kind": relation_kind,
+                "factual_delta": factual_delta,
+            },
+            counterfactual_evidence={
+                "origin": "C-GWM scenario simulation",
+                "world_state_hash": canonical_hash(counterfactual_dict),
+                "counterfactual_delta": counterfactual_delta,
+                "causal_attestation_hash": canonical_hash(causal_attestation),
+            },
+            certificate={
+                "certificate_id": cert.certificate_id,
+                "verdict": cert.verdict,
+                "promotion_candidate": cert.promotion_candidate,
+            },
+            reward=dict(reasoning_reward),
+            memory_delta={
+                "read_set_hashes": [canonical_hash(item) for item in memory_hits],
+                "write_references": list(memory_write_refs),
+                "smg_write_references": list(n5_sign_ids),
+            },
+            neural_state_delta={
+                "symbiosis_trace_hash": canonical_hash(symbiosis_trace),
+                "n3_before_hash": state_before.memory.get("n3_state_hash"),
+                "n3_after_hash": state_after.memory.get("n3_state_hash"),
+            },
+            policy_delta={
+                "reasoning_profile": self.closure_profile,
+                "executed_overlays": executed_overlays,
+                "autoevolution_action": evolution.get("action"),
+            },
+            resource_delta={
+                "before": state_before.resources,
+                "after": state_after.resources,
+            },
+            viability_delta={
+                "before": previous_state.viability.viability_margin,
+                "after": self._organism_state.viability.viability_margin,
+                "delta": (
+                    self._organism_state.viability.viability_margin
+                    - previous_state.viability.viability_margin
+                ),
+            },
+            regime_before=state_before.regime,
+            regime_after=state_after.regime,
+            rollback_refuge_result={
+                "rollback_required": episode_result["viability_assessment"].get(
+                    "rollback_required"
+                ),
+                "autoevolution": evolution.get("action"),
+            },
+            storage=self.storage,
+        )
+        if life_transition.status == "committed":
+            symbiosis_trace = self._neural.link_life_transition(
+                episode_id=episode_id,
+                transition_id=life_transition.transition_id,
+                previous_transition_hash=life_transition.previous_transition_hash,
+                state_before_hash=state_before.state_hash,
+                state_after_hash=state_after.state_hash,
+                active_regime=state_after.regime.get("regime_id"),
+                memory_write_references=memory_write_refs,
+                policy_versions={
+                    "scheduler": "meta-scheduler-runtime",
+                    "reasoning_profile": self.closure_profile,
+                    "autoevolution": "autoevolution-runtime",
+                },
+            )
+        episode_result["dynamic_state"] = state_after.to_dict()
+        episode_result["life_transition"] = life_transition.to_dict()
         episode_result["neural_symbiosis_trace"] = symbiosis_trace
         if "experience" in episode_result:
             episode_result["experience"]["neural_symbiosis"] = {
