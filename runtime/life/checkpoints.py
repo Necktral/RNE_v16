@@ -146,6 +146,32 @@ class CheckpointManager:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if isinstance(payload, dict) and payload.get("version"):
-                return payload, artifact
+            if not isinstance(payload, dict) or not payload.get("version"):
+                continue
+            # B73: si esto es la búsqueda de un REFUGIO, la salud se re-deriva del
+            # CONTENIDO del archivo, no del flag de metadata (ver _payload_is_restorable).
+            if healthy_only and not self._payload_is_restorable(payload):
+                continue
+            return payload, artifact
         return None
+
+    @staticmethod
+    def _payload_is_restorable(payload: Dict[str, Any]) -> bool:
+        """B73 — el refugio se decide sobre el archivo, no sobre el flag guardado.
+
+        ``metadata["healthy"]`` se escribe al GUARDAR, con el snapshot completo en memoria:
+        es un índice para no leer todos los artifacts, no una prueba de que el archivo que
+        estamos por adoptar siga sano. Si el checkpoint se trunca o se corrompe después de
+        escrito, el flag sigue diciendo ``True``. Ese flag era la ÚNICA compuerta del camino
+        E5 (``kernel._restore_latest_healthy_checkpoint``), que adoptaba el payload sin
+        volver a mirarle los vitales jamás.
+
+        Ahora los vitales se re-derivan del payload real: un checkpoint con vitales
+        ausentes/truncadas ya no puede pasar por refugio (``from_dict`` los marca NO
+        VERIFICADOS y ``is_restorable`` se cierra). Un checkpoint sano re-deriva
+        ``is_restorable=True`` y sigue siendo elegible exactamente como antes.
+        """
+        vital_payload = payload.get("vital_signs")
+        if not isinstance(vital_payload, dict):
+            return False
+        return VitalSignsSnapshot.from_dict(vital_payload).is_restorable

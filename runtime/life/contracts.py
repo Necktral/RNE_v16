@@ -51,6 +51,40 @@ EvolutionProposalStatus = Literal[
     "rejected",
 ]
 
+# B73 — ejes que cada compuerta de salud NECESITA para poder pronunciarse.
+# Si uno de estos ejes no viene en el payload, NO se puede evaluar: el estado queda
+# NO VERIFICADO en ese eje (ver ``VitalSignsSnapshot.unverified_fields``), y la
+# compuerta se cierra. Ausencia de dato NO es salud.
+RESTORE_REQUIRED_AXES: tuple[str, ...] = (
+    "reversible",
+    "viability_margin",
+    "continuity_score",
+    "risk_score",
+    "memory_purity",
+)
+STABILITY_REQUIRED_AXES: tuple[str, ...] = (
+    "certified",
+    "viability_margin",
+    "continuity_score",
+    "risk_score",
+    "memory_purity",
+)
+# Union: los ejes cuya AUSENCIA rastreamos al deserializar. Deliberadamente acotado a
+# los que gobiernan una compuerta (no se marca todo campo faltante: los demás no deciden
+# nada y marcarlos sería ruido).
+GATED_AXES: tuple[str, ...] = (
+    "viability_margin",
+    "continuity_score",
+    "risk_score",
+    "memory_purity",
+    "reversible",
+    "certified",
+)
+
+VITALS_UNVERIFIED = "vitals_unverified"
+VITALS_BELOW_THRESHOLD = "vitals_below_threshold"
+VITALS_OK = "ok"
+
 
 @dataclass(frozen=True, slots=True)
 class GoalState:
@@ -188,16 +222,63 @@ class VitalSignsSnapshot:
     snapshot_id: str = field(default_factory=lambda: f"vital-{uuid4().hex[:12]}")
     created_at: str = field(default_factory=utc_now_iso)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # B73: ejes que este snapshot NO pudo verificar (venían ausentes del payload del que
+    # se deserializó). Vacío = todo medido, que es el caso de un snapshot construido en
+    # vivo por `VitalsService`. NO es "salud pésima": es "no hay dato" — los campos
+    # conservan su valor de relleno, pero ninguna compuerta puede apoyarse en ellos.
+    unverified_fields: frozenset[str] = frozenset()
+
+    def _restore_axis_ok(self, axis: str) -> bool:
+        """Umbral de refugio de UN eje (fuente única de verdad de los umbrales E5)."""
+        if axis == "reversible":
+            return bool(self.reversible)
+        if axis == "viability_margin":
+            return self.viability_margin >= 0.55
+        if axis == "continuity_score":
+            return self.continuity_score >= 0.75
+        if axis == "risk_score":
+            return self.risk_score < 0.50
+        if axis == "memory_purity":
+            return self.memory_purity >= 0.85
+        return False
+
+    def _stability_axis_ok(self, axis: str) -> bool:
+        """Umbral de estabilidad de UN eje (fuente única de verdad de `is_stable`)."""
+        if axis == "certified":
+            return bool(self.certified)
+        if axis == "viability_margin":
+            return self.viability_margin >= 0.45
+        if axis == "continuity_score":
+            return self.continuity_score >= 0.60
+        if axis == "risk_score":
+            return self.risk_score < 0.60
+        if axis == "memory_purity":
+            return self.memory_purity >= 0.75
+        return False
+
+    @property
+    def unverified_restore_axes(self) -> tuple[str, ...]:
+        """Ejes que el refugio necesita y este snapshot no pudo verificar."""
+        return tuple(a for a in RESTORE_REQUIRED_AXES if a in self.unverified_fields)
+
+    @property
+    def unverified_stability_axes(self) -> tuple[str, ...]:
+        """Ejes que la estabilidad necesita y este snapshot no pudo verificar."""
+        return tuple(a for a in STABILITY_REQUIRED_AXES if a in self.unverified_fields)
 
     @property
     def is_stable(self) -> bool:
-        return (
-            self.certified
-            and self.viability_margin >= 0.45
-            and self.continuity_score >= 0.60
-            and self.risk_score < 0.60
-            and self.memory_purity >= 0.75
-        )
+        """Estado estable y CERTIFICADO.
+
+        B73: si algún eje que la estabilidad necesita no se pudo verificar, se ABSTIENE
+        (False) en vez de evaluarse contra el relleno. Antes el agujero estaba tapado por
+        casualidad — el default de `certified` era `False` —, pero un payload que trajera
+        `certified: true` y nada más se declaraba estable con los cuatro ejes de salud
+        FABRICADOS en su óptimo. La razón vive en `unverified_stability_axes`.
+        """
+        if self.unverified_stability_axes:
+            return False
+        return all(self._stability_axis_ok(axis) for axis in STABILITY_REQUIRED_AXES)
 
     @property
     def is_restorable(self) -> bool:
@@ -211,20 +292,74 @@ class VitalSignsSnapshot:
         genuina: viabilidad, continuidad, riesgo acotado, memoria pura y REVERSIBILIDAD.
         Umbrales de salud MÁS estrictos que ``is_stable`` para compensar la ausencia
         del sello de certificación: solo un estado realmente bueno sirve de refugio.
+
+        B73 — ESTO ES UNA COMPUERTA, NO UN DETECTOR: acá la acción peligrosa es ACEPTAR
+        basura, así que dato ausente ⇒ NO restaurable. Si algún eje quedó NO VERIFICADO
+        (payload truncado/corrupto/ajeno), la compuerta se cierra sin mirar el relleno:
+        antes, `from_dict({})` fabricaba salud perfecta en los cinco ejes y un checkpoint
+        vacío se declaraba refugio válido. El motivo nunca es mudo: ver
+        `unverified_restore_axes` y `restorability_report()`.
         """
-        return (
-            self.reversible
-            and self.viability_margin >= 0.55
-            and self.continuity_score >= 0.75
-            and self.risk_score < 0.50
-            and self.memory_purity >= 0.85
+        if self.unverified_restore_axes:
+            return False
+        return all(self._restore_axis_ok(axis) for axis in RESTORE_REQUIRED_AXES)
+
+    def restorability_report(self) -> Dict[str, Any]:
+        """Por qué este estado sirve —o no— de refugio. Un `False` no puede ser mudo.
+
+        Sigue el patrón de `checks_applied` (runtime/certification/trace_integrity.py):
+        los ejes que no se pudieron verificar NO cuentan como aprobados; simplemente no
+        corrieron, y se dicen por nombre.
+        """
+        unverified = self.unverified_restore_axes
+        checks_applied = tuple(
+            a for a in RESTORE_REQUIRED_AXES if a not in self.unverified_fields
         )
+        failed = tuple(a for a in checks_applied if not self._restore_axis_ok(a))
+        if unverified:
+            reason = VITALS_UNVERIFIED
+        elif failed:
+            reason = VITALS_BELOW_THRESHOLD
+        else:
+            reason = VITALS_OK
+        return {
+            "restorable": self.is_restorable,
+            "reason": reason,
+            "checks_applied": list(checks_applied),
+            "unverified_axes": list(unverified),
+            "failed_axes": list(failed),
+        }
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        # B73: la no-verificación viaja CON el estado (si no, un snapshot no verificado
+        # se "lavaría" al re-serializarse: todos los campos presentes con su relleno).
+        # Se omite cuando está vacío ⇒ el payload de un checkpoint sano queda BYTE POR
+        # BYTE igual que antes de B73, y no se cuela un frozenset en la ruta JSON.
+        unverified = payload.pop("unverified_fields", None) or frozenset()
+        if unverified:
+            payload["unverified_fields"] = sorted(unverified)
+        return payload
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "VitalSignsSnapshot":
+        """Deserializa vitales SIN fabricar verificación.
+
+        B73: `to_dict()` es `asdict()` — escribe SIEMPRE los 17 campos. Por lo tanto un
+        payload al que le falte un eje NO puede ser un checkpoint legítimo: es truncado,
+        corrupto o de otra fuente. Los rellenos se conservan (para no mentir en el otro
+        sentido, "el organismo agoniza"), pero cada eje ausente queda anotado en
+        `unverified_fields` y las compuertas (`is_restorable`, `is_stable`) se cierran.
+        """
+        # Ausente = clave faltante O `null` explícito (JSON null tampoco es una medición).
+        # Normalizarlo acá también cierra un crash latente: antes, un payload con
+        # `"memory_purity": null` reventaba en `float(None)` en vez de restaurar.
+        payload = {k: v for k, v in (payload or {}).items() if v is not None}
+        unverified = {axis for axis in GATED_AXES if axis not in payload}
+        # Anti-lavado: si el payload ya venía declarando ejes no verificados, se respetan.
+        declared = payload.get("unverified_fields") or ()
+        if isinstance(declared, (list, tuple, set, frozenset)):
+            unverified.update(str(axis) for axis in declared)
         return cls(
             run_id=str(payload.get("run_id") or "unknown"),
             episode_count=int(payload.get("episode_count", 0)),
@@ -244,6 +379,7 @@ class VitalSignsSnapshot:
             snapshot_id=str(payload.get("snapshot_id") or f"vital-{uuid4().hex[:12]}"),
             created_at=str(payload.get("created_at") or utc_now_iso()),
             metadata=dict(payload.get("metadata") or {}),
+            unverified_fields=frozenset(unverified),
         )
 
 
