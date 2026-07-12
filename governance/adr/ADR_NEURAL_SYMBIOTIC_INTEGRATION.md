@@ -2,19 +2,39 @@
 
 ## Estado
 
-Implementado en `integration/symbiotic-organism-v1`. La evidencia normativa sigue
+Implementado y endurecido en `integration/dynamic-organism-v1`. La evidencia normativa sigue
 en el canon; este ADR describe solamente el cableado ejecutable y sus límites.
 
 ## Decisión
 
 `ScenarioEpisodeRunner` llama una única frontera,
-`SymbioticNeuralCoordinator`. El coordinador usa N0 para ejecutar referencias CPU,
+`SymbioticNeuralCoordinator`. El coordinador resuelve un registro canónico N1–N6 y
+usa N0 para ejecutar referencias CPU,
 propaga una identidad causal común y transforma resultados en evidencia. No agenda
 familias, selecciona intervenciones, certifica, promociona memoria ni aplica cambios.
 
 El contrato `neural-symbiosis-trace-v1` enlaza identidad, input hash, candidato,
 consumidor, veredicto del consumidor, fallback, coste, resultado y certificado. Se
 persiste en el ledger existente; un fallo de storage queda en el health/buffer de N0.
+
+El coordinador no contiene productores `_n1`…`_n6`. Cada entrada del registro tiene
+un único adaptador, capacidad, techo de autoridad, fallback y consumidor declarados;
+un registro incompleto o duplicado falla durante la construcción.
+
+## Auditoría canónica de adaptadores
+
+| Órgano | Adaptador vivo | Implementación efectiva | Clasificación honesta |
+|---|---|---|---|
+| N1 | `N1Adapter` | `N1ReferencePolicy` | referencia determinista, no MLP entrenado |
+| N2 | `N2Adapter` | `runtime.reasoning.families.nesy` + evidencia DED/LOT-F | propuesta neuro-simbólica shadow |
+| N3 | `N3Adapter` | filtro temporal y estado versionado del adaptador | referencia, Mamba2 inactivo |
+| N4 | `N4Adapter` | `CausalMessagePassingBackend` con grafo tipado v1 | referencia congelada, no entrenada |
+| N5 | `N5Adapter` | `DeterministicChunker` | fallback determinista, H-Net inactivo |
+| N6 | `N6Adapter` | propuesta estructural acotada + sandbox sin apply | referencia shadow, sin mutación |
+
+El camino N4 vivo usa el mismo backend y esquema tipado que el laboratorio. La carga
+embebida `load_frozen_reference_contract()` sólo instala pesos constantes mínimos para
+validar el contrato: no abre artefactos, no descarga y no afirma entrenamiento.
 
 ## Flujo vivo
 
@@ -64,8 +84,8 @@ La matriz ejecutable y el gate de callers/consumidores viven en
 - Mamba2: deshabilitado; N3 se declara `reference_temporal_filter`.
 - MLP N1 sin entrenamiento: no dirige el scheduler; se usa una propuesta heurística
   determinista y declarada.
-- N4 message-passing sin entrenamiento: reference-only; el camino vivo usa una
-  propuesta contractual determinista, nunca un claim predictivo aprendido.
+- N4 message-passing sin entrenamiento: el camino vivo usa su backend canónico como
+  referencia contractual congelada, nunca como claim predictivo aprendido.
 
 ## Autoridad
 

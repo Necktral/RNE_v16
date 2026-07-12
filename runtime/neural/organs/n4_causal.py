@@ -283,6 +283,67 @@ class CausalMessagePassingBackend:
     def __init__(self) -> None:
         self._weights: dict[str, Any] | None = None
 
+    def load_frozen_reference_contract(self) -> None:
+        """Carga una referencia CPU embebida, sin artefacto ni claim de entrenamiento.
+
+        Esta ruta existe para ejercitar el mismo contrato tipado en la frontera viva
+        cuando no hay pesos certificados. No descarga, no aprende y no representa un
+        modelo causal entrenado.
+        """
+
+        identity = {
+            "classification": "reference",
+            "trained": False,
+            "frozen": True,
+            "experimental": True,
+            "contract": ARTIFACT_SCHEMA_VERSION,
+        }
+        model_hash = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        self._weights = {
+            "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+            "input_size": 4,
+            "hidden_size": 4,
+            "input": [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+            "message": [
+                [0.5, 0.0, 0.0, 0.0],
+                [0.0, 0.5, 0.0, 0.0],
+                [0.0, 0.0, 0.5, 0.0],
+                [0.0, 0.0, 0.0, 0.5],
+            ],
+            "update": [
+                [0.5, 0.0, 0.0, 0.0],
+                [0.0, 0.5, 0.0, 0.0],
+                [0.0, 0.0, 0.5, 0.0],
+                [0.0, 0.0, 0.0, 0.5],
+            ],
+            "output": [
+                [0.5, 0.0, 0.0, 0.0],
+                [0.0, 0.5, 0.0, 0.0],
+                [0.0, 0.0, 0.5, 0.0],
+                [0.0, 0.0, 0.0, -0.5],
+            ],
+            "model_kind": "reference",
+            "trained": False,
+            "frozen": True,
+            "experimental": True,
+            "model_id": "n4-frozen-contract-reference",
+            "model_version": "1",
+            "model_hash": model_hash,
+            "manifest_hash": model_hash,
+            "max_nodes": 32,
+            "max_edges": 64,
+            "steps": 2,
+            "supported_nodes": frozenset(item.value for item in NodeType),
+            "supported_edges": frozenset(item.value for item in EdgeType),
+        }
+
     def load(self, manifest: NeuralModelManifest, artifact_path: str, device: str) -> None:
         if device != "cpu" or manifest.organ != "N4":
             raise ValueError("n4_reference_backend_requires_cpu_n4_manifest")
