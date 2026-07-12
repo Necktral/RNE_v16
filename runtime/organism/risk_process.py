@@ -100,6 +100,10 @@ class ConstitutionalRiskProcess:
         delta_modification: float,
         erosion: float,
         renorm_residual: float | None,
+        # B85 — distingue "el eje no tiene sujeto" (no hubo cruce) de "hubo cruce y no lo
+        # pude medir". Sin esto, el episodio intra-escenario (el 99%) marcaría el atlas
+        # como incompleto para siempre, y un agujero real sería indistinguible del trivial.
+        renorm_not_applicable: bool = False,
     ) -> RiskUpdate:
         """Actualiza el riesgo del scope.
 
@@ -124,6 +128,7 @@ class ConstitutionalRiskProcess:
             modification_impact=delta_modification,
             erosion=erosion,
             renorm_residual=renorm_residual,
+            renorm_not_applicable=renorm_not_applicable,
         )
 
         # Sequential update with decayed memory + structured increments.

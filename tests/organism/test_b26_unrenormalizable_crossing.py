@@ -275,3 +275,14 @@ def test_e2e_episodio_intra_escenario_es_not_applicable(real_court):
     assert result.renormalization_status == "not_applicable"
     assert result.renormalization_residual is None
     assert result.unrenormalizable_edge == ()
+    # B85 — Y ESTO ES LO QUE FALTABA: un eje SIN SUJETO no es un agujero.
+    #
+    # Sin la distinción, el episodio intra-escenario (el 99% de todos) marcaba el atlas
+    # como INCOMPLETO para siempre — y entonces "atlas incompleto" dejaba de significar
+    # nada, porque era la norma permanente. Peor: un agujero REAL (un cruce que no se pudo
+    # renormalizar) quedaba indistinguible del caso trivial donde no había NADA que
+    # renormalizar.
+    #
+    # "No medí" y "no había nada que medir" son cosas distintas. Confundirlas destruye
+    # exactamente la señal que este paquete vino a crear.
+    assert result.unmeasured_axes == ()

@@ -62,6 +62,11 @@ def detect_failure_atlas(
     modification_impact: float,
     erosion: float,
     renorm_residual: float | None,
+    # B85 — TERCER estado. `renorm_residual=None` no alcanza: hay que decir POR QUÉ.
+    # `True` = el eje NO TIENE SUJETO (no hubo cruce de régimen ⇒ no había nada que
+    # renormalizar) ⇒ NO es un agujero y NO cuenta como no medido.
+    # `False` = hubo un cruce real y no se pudo medir ⇒ agujero verdadero, se declara.
+    renorm_not_applicable: bool = False,
 ) -> FailureAtlas:
     """Detecta clases de falla constitucional.
 
@@ -125,8 +130,19 @@ def detect_failure_atlas(
 
     # B26.2 — ABSTENCIÓN. `None` no entra a la comparación: no dispara la falla
     # (falso pánico) ni la descarta (falsa salud). Se declara y se sigue.
+    #
+    # PERO `None` significa DOS cosas distintas, y confundirlas rompe la señal (es la
+    # distinción de B85, `runtime/certification/transfer_assessment.py`):
+    #   - NO APLICABLE  : no hubo cruce de régimen ⇒ el eje **no tiene sujeto**. No es un
+    #                     agujero: no había nada que renormalizar. NO cuenta como no medido.
+    #   - NO MEDIDO     : hubo un cruce real pero el régimen no está mapeado ⇒ **agujero
+    #                     verdadero**, y hay que declararlo.
+    # Sin esta distinción, el episodio intra-escenario (el 99%) marcaría el atlas como
+    # INCOMPLETO para siempre, y un agujero real quedaría indistinguible del caso trivial:
+    # "atlas incompleto" pasaría a ser la norma permanente y dejaría de significar nada.
     if renorm_residual is None:
-        unmeasured.append("renorm_residual")
+        if not renorm_not_applicable:
+            unmeasured.append("renorm_residual")
     elif renorm_residual > 0.55:
         events.append(
             FailureClass(

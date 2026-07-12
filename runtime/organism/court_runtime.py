@@ -446,6 +446,13 @@ class ConstitutionalCourtRuntime:
                 delta_modification=d_modification,
                 erosion=flow_result.erosion,
                 renorm_residual=renorm_residual,
+                # B85 — el status ya distingue los tres casos acá arriba; hay que PROPAGARLO.
+                # Sin esto, un episodio intra-escenario (donde no hubo cruce y por lo tanto
+                # NO HABÍA NADA que renormalizar) marcaba el atlas como incompleto, igual que
+                # un cruce real que no se pudo medir. Un agujero de verdad quedaba
+                # indistinguible del caso trivial, y "atlas incompleto" pasaba a ser la norma
+                # permanente — o sea, dejaba de significar algo.
+                renorm_not_applicable=(renorm_status == "not_applicable"),
             )
             state = self.risk_process.get(scope_type=scope_type, scope_key=scope_key)
             assert state is not None
