@@ -80,6 +80,7 @@ class SymbioticNeuralCoordinator:
         causal_attestation: Mapping[str, Any],
         resources: Mapping[str, Any] | None,
     ) -> dict[str, Any]:
+        raw_resources = dict(resources or {})
         resource_snapshot = ResourceSnapshot.from_mapping(resources)
         inputs = {
             "observation": dict(observation),
@@ -105,11 +106,7 @@ class SymbioticNeuralCoordinator:
                     if item.get("episode_id") or item.get("id")
                 ),
                 resource_state=asdict(resource_snapshot),
-                measurement_status={
-                    "cpu_pressure": "measured_or_defaulted",
-                    "memory_pressure": "measured_or_defaulted",
-                    "thermal_pressure": "measured_or_defaulted",
-                },
+                measurement_status=_resource_measurement_status(raw_resources),
                 unmeasured_fields=("actual_ram_mb", "actual_vram_mb"),
                 not_applicable_fields=("trained_model_metrics",),
             ),
@@ -359,9 +356,14 @@ class SymbioticNeuralCoordinator:
     ) -> dict[str, Any]:
         session = self._session(episode_id)
         n1 = session.entries["N1"]
+        reward_value = reward.get("reward")
+        reward_detail = (
+            f"{float(reward_value):.4f}" if _number(reward_value) is not None else "unmeasured"
+        )
+        certificate_detail = certificate.get("verdict") or "unavailable"
         n1.consumer_verdict = (
-            f"{n1.consumer_verdict}|reward={float(reward.get('reward', 0.0) or 0.0):.4f}"
-            f"|certificate={certificate.get('verdict')}"
+            f"{n1.consumer_verdict}|reward={reward_detail}"
+            f"|certificate={certificate_detail}"
         )
         if n1.candidate_hash is not None:
             self.record_consumer_receipt(
@@ -525,6 +527,7 @@ class SymbioticNeuralCoordinator:
             fallback_output=adapter.fallback(identity),
             reference_id=adapter.reference_id,
             authority_ceiling=adapter.authority_ceiling,
+            admission_gate=adapter.admission_gate,
             enabled=organ not in self._disabled_organs,
         )
         candidate = result.candidate_output
@@ -568,3 +571,26 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _resource_measurement_status(raw: Mapping[str, Any]) -> dict[str, str]:
+    fields = (
+        "cpu_pressure",
+        "memory_pressure",
+        "thermal_pressure",
+        "vram_pressure",
+        "vram_used_gb",
+        "vram_total_gb",
+        "gpu_temperature_c",
+        "msrc_budget_available",
+        "msrc_scale_id",
+    )
+    statuses = {
+        field: "measured" if field in raw and raw.get(field) is not None else "defaulted"
+        for field in fields
+    }
+    if raw.get("gpu_available") is False:
+        for field in ("vram_used_gb", "vram_total_gb", "gpu_temperature_c"):
+            if field not in raw or raw.get(field) is None:
+                statuses[field] = "not_applicable"
+    return statuses

@@ -44,6 +44,17 @@ El camino N4 vivo usa el mismo backend y esquema tipado que el laboratorio. La c
 embebida `load_frozen_reference_contract()` sólo instala pesos constantes mínimos para
 validar el contrato: no abre artefactos, no descarga y no afirma entrenamiento.
 
+La referencia viva atraviesa además `CausalPredictionAdmission` mediante el puerto
+genérico de N0. Un rechazo conserva el candidato bruto para auditoría, mantiene el
+fallback como salida efectiva y no concede influencia. La polaridad episódica deriva
+exclusivamente de `factual_delta - counterfactual_delta`: `supports_choice` nunca fija
+signo. Efecto cero o evidencia incomparable no producen aristas causales. Las aristas
+episódicas son `canonical=false`; cuando existe firma causal, se agrega otra arista con
+ID y provenance propios, separada de `goal_alignment`.
+
+N3 diferencia `measured`, `defaulted`, `unmeasured` y `not_applicable`; una ausencia
+no se convierte en cero, no genera tendencia y no aumenta el conteo de mediciones.
+
 ## Flujo vivo
 
 1. N5 segmenta observación, fórmula y memoria autorizada con offsets deterministas;

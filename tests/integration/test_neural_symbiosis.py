@@ -288,8 +288,10 @@ def test_causal_conflict_is_consumed_as_disagreement_without_action_authority(
         proposition="temperature alarm",
         memory_hits=[],
         scenario_metadata={"main_variable": "temperature"},
-        causal_attestation={
-            "factual_delta": -0.1,
+            causal_attestation={
+                "main_variable": "temperature",
+                "optimization_direction": "minimize",
+                "factual_delta": -0.1,
             "counterfactual_delta": 0.1,
             "supports_choice": True,
         },

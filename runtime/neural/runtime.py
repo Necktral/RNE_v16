@@ -279,6 +279,7 @@ class NeuralRuntime:
         fallback_output: Any,
         reference_id: str,
         authority_ceiling: NeuralMode = NeuralMode.SHADOW,
+        admission_gate: AdmissionGate | None = None,
         enabled: bool = True,
     ) -> NeuralInferenceResult:
         """Ejecuta un algoritmo determinista honesto bajo las garantías de N0.
@@ -348,10 +349,8 @@ class NeuralRuntime:
             )
 
         reference_sha256 = hashlib.sha256(reference_id.encode("utf-8")).hexdigest()
-        effective_mode = requested_mode
-        if authority_ceiling is NeuralMode.SHADOW or requested_mode is NeuralMode.SHADOW:
-            effective_mode = NeuralMode.SHADOW
-        elif requested_mode is NeuralMode.PROVISIONAL:
+        effective_mode = _minimum_mode(requested_mode, authority_ceiling)
+        if effective_mode is NeuralMode.PROVISIONAL:
             context = request.causal_context
             if (
                 self.config.require_causal_for_provisional
@@ -412,6 +411,41 @@ class NeuralRuntime:
                 trace=trace,
             )
 
+        admission: AdmissionDecision | None = None
+        fallback_used = False
+        fallback_reason: str | None = None
+        admitted_output = candidate
+        if admission_gate is not None:
+            try:
+                admission = admission_gate(candidate, request)
+            except Exception as exc:
+                fallback_used = True
+                fallback_reason = f"admission_gate_failed:{_exception_reason(exc)}"
+            else:
+                if not isinstance(admission, AdmissionDecision):
+                    fallback_used = True
+                    fallback_reason = "admission_contract_invalid"
+                    admission = None
+                elif not admission.accepted:
+                    fallback_used = True
+                    fallback_reason = admission.reason or "admission_rejected"
+                else:
+                    admitted_output = (
+                        admission.output if admission.output is not None else candidate
+                    )
+                    if admission.effective_mode_ceiling is not None:
+                        effective_mode = _minimum_mode(
+                            effective_mode, admission.effective_mode_ceiling
+                        )
+
+        influence = DecisionInfluence.NONE
+        effective_output = fallback_output
+        if admission is not None and admission.accepted and effective_mode is NeuralMode.PROVISIONAL:
+            effective_output = admitted_output
+            influence = DecisionInfluence.BOUNDED_PROPOSAL
+        elif effective_mode is NeuralMode.SHADOW and fallback_reason is None:
+            fallback_reason = "reference_authority_ceiling:shadow"
+
         result = NeuralInferenceResult(
             inference_id=request.inference_id,
             run_id=request.run_id,
@@ -421,20 +455,16 @@ class NeuralRuntime:
             effective_mode=effective_mode,
             candidate_output=candidate,
             # Una salida shadow es evidencia consumible, no salida autoritativa.
-            effective_output=fallback_output,
+            effective_output=effective_output,
             confidence=min(max(confidence, 0.0), 1.0),
             uncertainty=min(max(uncertainty, 0.0), 1.0),
             device="cpu",
             latency_ms=latency_ms,
             cost=cost,
             manifest_sha256=None,
-            fallback_used=False,
-            fallback_reason=(
-                "reference_authority_ceiling:shadow"
-                if effective_mode is NeuralMode.SHADOW
-                else None
-            ),
-            decision_influence=DecisionInfluence.NONE,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
+            decision_influence=influence,
             causal_linkage=request.causal_linkage,
             trace=trace,
         )
@@ -667,6 +697,20 @@ class NeuralRuntime:
 
 def _is_oom(exc: BaseException) -> bool:
     return isinstance(exc, MemoryError) or "out of memory" in str(exc).lower()
+
+
+_MODE_RANK = {
+    NeuralMode.OFF: 0,
+    NeuralMode.EXPERIMENTAL: 1,
+    NeuralMode.SHADOW: 2,
+    NeuralMode.PROVISIONAL: 3,
+}
+
+
+def _minimum_mode(*modes: NeuralMode) -> NeuralMode:
+    if not modes or any(not isinstance(mode, NeuralMode) for mode in modes):
+        raise ValueError("reference_mode_ceiling_invalid")
+    return min(modes, key=_MODE_RANK.__getitem__)
 
 
 def _exception_reason(exc: BaseException) -> str:

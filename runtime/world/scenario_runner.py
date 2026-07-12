@@ -355,6 +355,7 @@ class ScenarioEpisodeRunner:
             sort_keys=True,
         )
         config_hash = hashlib.sha256(config_blob.encode()).hexdigest()[:12]
+        signature = self.scenario.causal_signature
         return {
             "scenario_name": cfg.name,
             "scenario_version": "1.0",
@@ -362,6 +363,21 @@ class ScenarioEpisodeRunner:
             "main_variable": cfg.main_variable,
             "alarm_threshold": cfg.alarm_threshold,
             "interventions": cfg.interventions,
+            "causal_signature": {
+                "scenario_name": signature.scenario_name,
+                "scenario_version": signature.scenario_version,
+                "main_variable": signature.main_variable,
+                "optimization_direction": signature.optimization_direction,
+                "intervention_effects": [
+                    {
+                        "intervention_name": effect.intervention_name,
+                        "target_variable": effect.target_variable,
+                        "expected_direction": effect.expected_direction,
+                        "expected_magnitude": effect.expected_magnitude,
+                    }
+                    for effect in signature.intervention_effects
+                ],
+            },
         }
 
     def _self_compatibility(self):

@@ -15,6 +15,7 @@ from runtime.neural.contracts import BackendOutput, NeuralInferenceRequest, Neur
 from runtime.neural.organs.n4_causal import (
     GRAPH_SCHEMA_VERSION,
     CausalMessagePassingBackend,
+    CausalPredictionAdmission,
 )
 from runtime.neural.organs.n5_ingest import DeterministicChunker
 
@@ -30,6 +31,7 @@ class CanonicalOrganAdapter(Protocol):
     authority_ceiling: NeuralMode
     consumer: str
     reference_id: str
+    admission_gate: Any
 
     def infer(
         self, request: NeuralInferenceRequest, context: Mapping[str, Any]
@@ -101,6 +103,7 @@ class N1Adapter:
     authority_ceiling = NeuralMode.SHADOW
     consumer = "MetaSchedulerComparator"
     reference_id = "rnfe:N1:family_routing_proposal:reference-policy-v1"
+    admission_gate = None
 
     def __init__(self) -> None:
         self.policy = N1ReferencePolicy()
@@ -118,6 +121,7 @@ class N2Adapter:
     authority_ceiling = NeuralMode.SHADOW
     consumer = "DED+LOT-F+NESY"
     reference_id = "rnfe:N2:semantic_neurosymbolic_candidate:nesy-v1"
+    admission_gate = None
 
     def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
         from runtime.reasoning.families import nesy
@@ -156,6 +160,7 @@ class N3Adapter:
     authority_ceiling = NeuralMode.PROVISIONAL
     consumer = "next_episode+MFM+continuity"
     reference_id = "rnfe:N3:temporal_reference_state:reference-filter-v1"
+    admission_gate = None
 
     def __init__(self) -> None:
         self._states: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -170,12 +175,41 @@ class N3Adapter:
         key = self.state_key(identity)
         observation = inputs.get("observation") or {}
         metadata = inputs.get("scenario_metadata") or {}
-        main_variable = str(metadata.get("main_variable") or "temperature")
-        value = _number(observation.get(main_variable)) or 0.0
+        raw_variable = metadata.get("main_variable")
+        main_variable = str(raw_variable).strip() if raw_variable is not None else ""
+        default_source = metadata.get("main_variable_default_source")
+        value = _number(observation.get(main_variable)) if main_variable else None
+        measurement_status = "measured" if value is not None else (
+            "not_applicable" if not main_variable else "unmeasured"
+        )
+        if value is None and default_source:
+            value = _number(metadata.get("main_variable_default"))
+            if value is not None:
+                measurement_status = "defaulted"
         previous = self._states.get(key)
-        previous_value = _number((previous or {}).get("value"))
-        trend = 0.0 if previous_value is None else value - previous_value
+        previous_value = _number((previous or {}).get("last_measured_value"))
+        trend = (
+            value - previous_value
+            if value is not None and previous_value is not None
+            else None
+        )
         count = int((previous or {}).get("episode_count", 0)) + 1
+        measurement_count = int((previous or {}).get("measurement_count", 0))
+        if measurement_status in {"measured", "defaulted"}:
+            measurement_count += 1
+        last_measured_value = (
+            value
+            if measurement_status in {"measured", "defaulted"}
+            else previous_value
+        )
+        uncertainty = 1.0 / (measurement_count + 1.0) if measurement_count else 1.0
+        summary = (
+            f"{main_variable}={value:.6f};trend="
+            f"{trend:+.6f};measurements={measurement_count}"
+            if value is not None and trend is not None
+            else f"{main_variable or 'not_applicable'}={measurement_status};"
+            f"measurements={measurement_count}"
+        )
         state = {
             "status": "ok",
             "backend": "reference_temporal_filter",
@@ -185,11 +219,15 @@ class N3Adapter:
             "previous_state": previous,
             "value": value,
             "trend": trend,
-            "uncertainty": 1.0 / (count + 1.0),
+            "measurement_status": measurement_status,
+            "default_source": str(default_source) if default_source else None,
+            "last_measured_value": last_measured_value,
+            "uncertainty": uncertainty,
             "episode_count": count,
+            "measurement_count": measurement_count,
             "provenance": identity.episode_id,
             "version": "reference-temporal-v1",
-            "summary": f"{main_variable}={value:.6f};trend={trend:+.6f};n={count}",
+            "summary": summary,
         }
         self._states[key] = state
         return BackendOutput(
@@ -242,6 +280,7 @@ class N4Adapter:
     authority_ceiling = NeuralMode.SHADOW
     consumer = "CAU+CTF+C-GWM comparator"
     reference_id = "rnfe:N4:typed_causal_proposal:frozen-contract-v1"
+    admission_gate = CausalPredictionAdmission()
 
     def __init__(self) -> None:
         self.backend = CausalMessagePassingBackend()
@@ -249,7 +288,7 @@ class N4Adapter:
 
     def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
         identity: SymbiosisIdentity = context["identity"]
-        graph = self._graph(identity, context["inputs"])
+        graph, evidence = self._graph(identity, context["inputs"])
         graph_request = NeuralInferenceRequest(
             inference_id=request.inference_id,
             run_id=request.run_id,
@@ -261,64 +300,111 @@ class N4Adapter:
             resources=request.resources,
             causal_context=request.causal_context,
         )
-        return self.backend.infer(graph_request)
+        output = self.backend.infer(graph_request)
+        candidate = dict(output.candidate_output)
+        candidate.update(evidence)
+        return BackendOutput(
+            candidate_output=candidate,
+            confidence=output.confidence,
+            uncertainty=output.uncertainty,
+            cost=output.cost,
+            trace=output.trace,
+        )
 
     def fallback(self, identity: SymbiosisIdentity) -> Mapping[str, Any]:
         return {"status": "disabled", "relations": []}
 
     @staticmethod
-    def _graph(identity: SymbiosisIdentity, inputs: Mapping[str, Any]) -> dict[str, Any]:
+    def _graph(
+        identity: SymbiosisIdentity, inputs: Mapping[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         attestation = dict(inputs.get("causal_attestation") or {})
         observation = inputs.get("observation") or {}
         metadata = inputs.get("scenario_metadata") or {}
-        variable = str(metadata.get("main_variable") or "temperature")
-        base = _number(observation.get(variable)) or 0.0
+        variable = str(metadata.get("main_variable") or "").strip()
+        attested_variable = str(attestation.get("main_variable") or "").strip()
+        comparable = bool(variable and attested_variable == variable)
+        base = _number(observation.get(variable)) if variable else None
         factual = _number(attestation.get("factual_delta"))
         counter = _number(attestation.get("counterfactual_delta"))
-        if factual is None and _number(attestation.get("factual_value")) is not None:
-            factual = float(attestation["factual_value"]) - base
-        if counter is None and _number(attestation.get("counterfactual_value")) is not None:
-            counter = float(attestation["counterfactual_value"]) - base
-        effect = 0.0 if factual is None or counter is None else factual - counter
-        supports_choice = attestation.get("supports_choice")
-        direction = (
-            1.0 if supports_choice is True else -1.0 if supports_choice is False else (1.0 if effect >= 0.0 else -1.0)
-        )
-        signed = direction * min(1.0, abs(effect))
-        edge_type = "causal_negative" if signed < 0.0 else "causal_positive"
-        if signed == 0.0:
-            signed = 1e-9
-        confidence = min(1.0, abs(effect) * 5.0) if factual is not None and counter is not None else 0.0
+        factual_value = _number(attestation.get("factual_value"))
+        counter_value = _number(attestation.get("counterfactual_value"))
+        if factual is None and factual_value is not None and base is not None:
+            factual = factual_value - base
+        if counter is None and counter_value is not None and base is not None:
+            counter = counter_value - base
+        effect = factual - counter if comparable and factual is not None and counter is not None else None
+        confidence = min(1.0, abs(effect) * 5.0) if effect is not None else 0.0
         provenance = f"causal_attestation:{identity.episode_id}"
-        return {
+        nodes = []
+        edges = []
+        episodic_edge_id = None
+        if effect is not None:
+            nodes = [
+                {"id": "intervention", "node_type": "intervention", "feature_vector": [1.0, effect, factual, counter], "provenance": provenance, "scenario_id": identity.scenario_id, "schema_version": GRAPH_SCHEMA_VERSION},
+                {"id": variable, "node_type": "world_variable", "feature_vector": [1.0, effect, abs(effect), confidence], "provenance": provenance, "scenario_id": identity.scenario_id, "schema_version": GRAPH_SCHEMA_VERSION},
+            ]
+            if effect != 0.0:
+                episodic_edge_id = f"episodic-effect:{variable}"
+                signed = max(-1.0, min(1.0, effect))
+                edges.append(
+                    {"id": episodic_edge_id, "source": "intervention", "target": variable, "edge_type": "causal_negative" if signed < 0.0 else "causal_positive", "signed_strength": signed, "confidence": confidence, "provenance": provenance, "canonical": False, "schema_version": GRAPH_SCHEMA_VERSION}
+                )
+                canonical = _canonical_intervention_edge(metadata, attestation)
+                if canonical is not None:
+                    edges.append(
+                        {"id": f"canonical-effect:{variable}", "source": "intervention", "target": variable, "edge_type": "causal_negative" if canonical["signed_strength"] < 0.0 else "causal_positive", "signed_strength": canonical["signed_strength"], "confidence": 0.0, "provenance": canonical["provenance"], "canonical": True, "schema_version": GRAPH_SCHEMA_VERSION}
+                    )
+        if not nodes:
+            nodes = [
+                {"id": "insufficient-evidence", "node_type": "evidence", "feature_vector": [0.0, 0.0, 0.0, 0.0], "provenance": provenance, "scenario_id": identity.scenario_id, "schema_version": GRAPH_SCHEMA_VERSION}
+            ]
+        optimization = str(attestation.get("optimization_direction") or "")
+        goal_alignment = _goal_alignment(effect, optimization)
+        graph = {
             "schema_version": GRAPH_SCHEMA_VERSION,
             "scenario_id": identity.scenario_id,
-            "nodes": [
-                {"id": "intervention", "node_type": "intervention", "feature_vector": [1.0, 0.0, factual or 0.0, counter or 0.0], "provenance": provenance, "scenario_id": identity.scenario_id, "schema_version": GRAPH_SCHEMA_VERSION},
-                {"id": variable, "node_type": "world_variable", "feature_vector": [0.0, base, factual or 0.0, counter or 0.0], "provenance": provenance, "scenario_id": identity.scenario_id, "schema_version": GRAPH_SCHEMA_VERSION},
-            ],
-            "edges": [
-                {"id": f"effect:{variable}", "source": "intervention", "target": variable, "edge_type": edge_type, "signed_strength": signed, "confidence": confidence, "provenance": provenance, "canonical": True, "schema_version": GRAPH_SCHEMA_VERSION}
-            ],
+            "nodes": nodes,
+            "edges": edges,
         }
+        evidence = {
+            "causal_effect": {
+                "variable": variable or None,
+                "factual_delta": factual,
+                "counterfactual_delta": counter,
+                "signed_effect": effect,
+                "measurement_status": "measured" if effect is not None else "unmeasured",
+                "zero_effect": effect == 0.0 if effect is not None else None,
+                "episodic_edge_id": episodic_edge_id,
+            },
+            "goal_alignment": goal_alignment,
+            "evidence_status": (
+                "measured_zero_effect"
+                if effect == 0.0
+                else "measured"
+                if effect is not None
+                else "insufficient_evidence"
+            ),
+        }
+        return graph, evidence
 
     @staticmethod
     def compare(candidate: Any, state: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(candidate, Mapping) or not candidate.get("relations"):
             return {"verdict": "disabled_or_no_candidate", "agreement": None}
-        relation = candidate["relations"][0]
-        signed_effect = _number(relation.get("signed_expected_effect"))
-        n4_relation = "support" if signed_effect is not None and signed_effect >= 0.0 else "conflict"
+        alignment = candidate.get("goal_alignment") or {}
+        n4_relation = alignment.get("status")
         cau, ctf = state.get("cau_link") or {}, state.get("ctf_checked") or {}
         canonical_support = bool(cau.get("helps_goal")) and ctf.get("supports_choice") is not False
-        canonical_relation = "support" if canonical_support else "conflict"
-        agreement = n4_relation == canonical_relation
+        canonical_relation = "helps_goal" if canonical_support else "harms_goal"
+        agreement = n4_relation == canonical_relation if n4_relation in {"helps_goal", "harms_goal"} else None
         return {
-            "verdict": "agreement" if agreement else "disagreement",
+            "verdict": "agreement" if agreement is True else "disagreement" if agreement is False else "unavailable",
             "agreement": agreement,
             "n4_relation": n4_relation,
             "canonical_relation": canonical_relation,
-            "backend_disagreement": relation.get("canonical_disagreement"),
+            "causal_effect": candidate.get("causal_effect"),
+            "backend_disagreement": candidate["relations"][0].get("canonical_disagreement"),
             "authorities": ["CAU", "CTF", "C-GWM"],
             "decision_influence": "none",
         }
@@ -330,6 +416,7 @@ class N5Adapter:
     authority_ceiling = NeuralMode.PROVISIONAL
     consumer = "SMG+MFM"
     reference_id = "rnfe:N5:deterministic_ingestion:chunker-v1"
+    admission_gate = None
 
     def __init__(self) -> None:
         self.chunker = DeterministicChunker(max_bytes=256)
@@ -364,6 +451,7 @@ class N6Adapter:
     authority_ceiling = NeuralMode.SHADOW
     consumer = "sandbox+certification+autoevolution"
     reference_id = "rnfe:N6:structural_evolution_proposal:bounded-reference-v1"
+    admission_gate = None
 
     def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
         identity: SymbiosisIdentity = context["identity"]
@@ -422,3 +510,46 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _canonical_intervention_edge(
+    metadata: Mapping[str, Any], attestation: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    signature = metadata.get("causal_signature")
+    if not isinstance(signature, Mapping):
+        return None
+    intervention = str(attestation.get("intervention") or "")
+    variable = str(metadata.get("main_variable") or "")
+    for effect in signature.get("intervention_effects") or ():
+        if not isinstance(effect, Mapping):
+            continue
+        if str(effect.get("intervention_name") or "") != intervention:
+            continue
+        if str(effect.get("target_variable") or "") != variable:
+            continue
+        magnitude = _number(effect.get("expected_magnitude"))
+        direction = str(effect.get("expected_direction") or "")
+        if magnitude is None or magnitude <= 0.0 or direction not in {"+", "-"}:
+            return None
+        return {
+            "signed_strength": min(1.0, magnitude) * (1.0 if direction == "+" else -1.0),
+            "provenance": (
+                f"scenario.causal_signature:{signature.get('scenario_name')}"
+                f"@{signature.get('scenario_version')}"
+            ),
+        }
+    return None
+
+
+def _goal_alignment(effect: float | None, optimization: str) -> dict[str, Any]:
+    if effect is None:
+        return {"status": "unavailable", "measurement_status": "unmeasured", "reason": "causal_effect_unmeasured"}
+    if effect == 0.0:
+        return {"status": "neutral", "measurement_status": "measured", "reason": "zero_physical_effect"}
+    if optimization == "minimize":
+        status = "helps_goal" if effect < 0.0 else "harms_goal"
+    elif optimization == "maximize":
+        status = "helps_goal" if effect > 0.0 else "harms_goal"
+    else:
+        return {"status": "unavailable", "measurement_status": "unmeasured", "reason": "target_band_requires_explicit_bounds"}
+    return {"status": status, "measurement_status": "measured", "reason": f"optimization_direction:{optimization}"}
