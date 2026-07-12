@@ -216,19 +216,36 @@ def _check_triadic_closure(state: OrganismState, config: Dict[str, float]):
     (``state.py``, ``distance_to``) y entra en ``constitution_hash()``: renombrarlo mutaría la
     identidad de todo organismo ya persistido.  Es deuda de nombre, reportada, no tapada.
 
-    ADVERTENCIA para el que toque este umbral: en el CAMINO VIVO este producto es HOY EL
-    ÚNICO detector de traza degradada, porque ``min_trace_integrity`` (0.30) es INALCANZABLE
-    — el productor (``reality/belief_state.py``: ``0.80 if trace else 0.40``) tiene piso 0.40,
-    así que "no tengo traza" ya saca 0.40 y ese invariante nunca puede disparar.
+    ⚠ ESTE INVARIANTE ESTÁ MUERTO EN EL CAMINO VIVO.  No es una sospecha: está MEDIDO.
+    24 episodios, 4 escenarios, ejecutados:
 
-    Antes de P12.5 la barra efectiva sobre ``trace × purity`` no era 0.50 sino ``0.50 / causal``
-    (= 0.5556 en episodios de soporte): un umbral que NADIE declaró y que fluctuaba con una
-    variable sin relación con las facultades.  Ahora el umbral declarado ES el efectivo.  Eso
-    admite organismos en la banda [0.50, 0.5556) que la ley vieja rechazaba; el peor es
-    ``trace=0.50, purity=1.00`` — o sea SIN TRAZA (0.40) más el bonus de certificación (+0.10).
-    Subir este número a 0.5556 sería fabricar una constante para preservar un accidente: el
-    bug real está en el PRODUCTOR (chequea si la lista está vacía, no la integridad; y un
-    certificado le suma +0.10 a una traza que no existe).  Ver backlog.
+        trace   = 0.8000  CONSTANTE  (la traza NUNCA está vacía: `scheduler_meta/policy.py`
+                  → MANDATORY_FAMILY_FLOORS garantiza ≥3 familias, siempre)
+        purity  ∈ [0.97, 1.00]  (modo estricto ⇒ `retrieval.py` descarta la memoria
+                  cross-escenario ⇒ nada baja la pureza)
+        producto ∈ [0.776, 0.800]   vs   umbral 0.50   ⇒   NUNCA DISPARA
+
+    Y no es sólo éste: en esa corrida `hard_violation_count == 0` en 24/24 episodios y
+    `verdict == "valid"` en 24/24.  **NINGUNO de los siete invariantes hard disparó jamás.**
+    Como todas las compuertas globales (viabilidad/cuarentena/rollback, autoevolución,
+    self_modification, S-I-E del risk_engine) leen `verdict` / `hard_violation_count`, están
+    leyendo CONSTANTES.  La constitución hoy es DECORATIVA.
+
+    ANTES de P12.5 este producto sí disparaba — pero ÚNICAMENTE cuando `causal = 0.20`, o sea
+    **sólo cuando el organismo MEDÍA una contradicción** (0.20 × 0.80 × 1.0 = 0.16 < 0.50).  Ése
+    era su único modo de disparo vivo, y era el equivocado: castigaba al organismo por percibir
+    bien.  P12.5 sacó el hallazgo del producto (correcto: un hallazgo no es una facultad) y al
+    hacerlo dejó al descubierto que DEBAJO NUNCA HUBO UNA CONSTITUCIÓN QUE FUNCIONARA.
+
+    NO "arregles" esto subiendo el umbral.  Con `trace` clavado en 0.80 no existe un número que
+    convierta este producto en un detector: el bug está en los PRODUCTORES.
+      - `reality/belief_state.py` — `trace_integrity_confidence` NO mide integridad: hace
+        `0.80 if trace else 0.40`, o sea "¿la lista está vacía?".  El medidor REAL
+        (`certification/trace_integrity.py`, con `checks_applied`) existe y esta creencia NO lo usa.
+      - `certification/trace_integrity.py` — su chequeo `sequence_match` es TAUTOLÓGICO: compara
+        `episode["trace"]` contra `reasoning_sequence`, y ambos salen de la MISMA lista en la MISMA
+        iteración del MISMO loop (`meta_scheduler.py`).  No puede fallar.
+    Ver backlog: la constitución necesita productores que midan, no umbrales que se muevan.
     """
     threshold = config.get("triadic_closure_threshold", 0.50)
     trace = state.belief.trace_integrity_confidence
