@@ -178,26 +178,45 @@ def test_rmsnorm_prenorm_suma_el_residual_ANTES_de_normalizar() -> None:
     assert torch.allclose(residual_out.double(), esperado_res, atol=1e-6, rtol=0)
 
 
-def test_rmsnorm_devuelve_residual_None_igual_que_upstream_en_fp32_sin_residual() -> None:
-    """Comportamiento CONTRAINTUITIVO del upstream, replicado a propósito.
+def test_rmsnorm_NUNCA_devuelve_residual_None_el_stream_residual_no_se_corta() -> None:
+    """EL STREAM RESIDUAL NUNCA SE CORTA.  Este test reemplaza a uno que afirmaba lo contrario.
 
-    En `_layer_norm_fwd` (`engines/mamba_vendor/mamba_ssm/ops/triton/layer_norm.py:336-347`)
-    `residual_out` sólo se materializa si `residual is not None` **o**
-    `residual_dtype != x.dtype`.  Con `x` en fp32, `residual=None` y `residual_in_fp32=True`
-    esas dos condiciones son falsas ⇒ upstream devuelve `(y, None)`.
+    ─── La trampa que este test viene a desarmar ───────────────────────────────────────────
+    La versión anterior afirmaba, con seguridad y citando `layer_norm.py:336-347`, que
+    "upstream devuelve `(y, None)`" en fp32 — y cerraba con *"este test existe para que nadie
+    'arregle' el shim"*.  **Era FALSO.**  Esas líneas deciden si se ASIGNA un tensor nuevo.  El
+    **return** está 70 líneas más abajo, en `layer_norm.py:414`, y **nunca devuelve None**:
 
-    Consecuencia real: correr H-Net en **fp32** deja el stream residual en `None` y **no lo
-    acumula**.  H-Net está pensado para bf16/fp16, donde fp32 != x.dtype y el residual sí se
-    materializa.  Este test existe para que nadie "arregle" el shim y lo aleje del modelo real.
+        return (y, y1, mean, rstd,
+                residual_out if residual_out is not None else x,   # <-- CAE A `x`
+                seeds, dropout_mask, dropout_mask1)
+
+    El shim copió la condición de asignación y **se comió el fallback del return**.  Consecuencia:
+    en fp32 (`residual=None` y `residual_dtype == x_dtype`) devolvía `None`, y `Block.forward` de
+    H-Net lo tomaba como el residual del bloque siguiente ⇒ **las 4 capas Mamba del encoder
+    perdían TODAS sus conexiones residuales.**  En fp16/bf16 el bug era invisible.
+
+    Se detectó porque el chunker segmentaba distinto en fp32 que en fp16.  Con el residual
+    restaurado, **fp32 y fp16 dan la misma segmentación byte a byte** — que es lo que tiene que
+    pasar: la matemática correcta en precisión completa no puede diferir de la reducida.
+
+    ─── La lección, que es la de toda esta campaña ─────────────────────────────────────────
+    **Auditar el código no alcanza: hay que auditar las JUSTIFICACIONES.**  Aquella frase era
+    falsa, estaba dicha con seguridad, citaba líneas reales (las equivocadas), y venía con una
+    orden explícita al próximo de NO tocarla.  Una trampa perfecta — escrita, encima, en el
+    paquete construido para no dejar trampas.  Si vas a citar un archivo, **leelo hasta el return.**
     """
     from flash_attn.ops.triton.layer_norm import RMSNorm
 
+    # fp32 sin residual: el tensor `residual_out` NO se materializa (no hace falta copiarlo),
+    # pero el return DEBE entregar `x` — el stream residual sigue vivo.
     norma = RMSNorm(16, eps=1e-5)
-
     x_fp32 = torch.randn(1, 4, 16, dtype=torch.float32)
     _, residual_out = norma(x_fp32, residual=None, prenorm=True, residual_in_fp32=True)
-    assert residual_out is None, "en fp32 upstream NO materializa el residual"
+    assert residual_out is not None, "REGRESIÓN: el stream residual volvió a cortarse en fp32"
+    assert torch.equal(residual_out, x_fp32), "en fp32 sin residual, el stream residual ES `x`"
 
+    # bf16: acá el tensor SÍ se materializa (fp32 != bf16) y sube a fp32.
     x_bf16 = torch.randn(1, 4, 16, dtype=torch.bfloat16)
     norma_bf16 = RMSNorm(16, eps=1e-5, dtype=torch.bfloat16)
     _, residual_out_bf16 = norma_bf16(
@@ -205,6 +224,14 @@ def test_rmsnorm_devuelve_residual_None_igual_que_upstream_en_fp32_sin_residual(
     )
     assert residual_out_bf16 is not None
     assert residual_out_bf16.dtype == torch.float32
+
+    # Y el invariante que de verdad importa: NINGUNA combinación devuelve None.
+    for dtype in (torch.float32, torch.float16, torch.bfloat16):
+        for in_fp32 in (True, False):
+            n = RMSNorm(16, eps=1e-5, dtype=dtype)
+            x = torch.randn(1, 4, 16, dtype=dtype)
+            _, r = n(x, residual=None, prenorm=True, residual_in_fp32=in_fp32)
+            assert r is not None, f"residual cortado en dtype={dtype}, residual_in_fp32={in_fp32}"
 
 
 def test_rmsnorm_acepta_la_firma_que_usan_isotropic_y_block() -> None:

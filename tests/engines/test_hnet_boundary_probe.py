@@ -59,26 +59,30 @@ def probe():
 
 
 @pytest.mark.requires_torch
-def test_en_fp32_el_stream_residual_del_encoder_esta_MUERTO():
-    """El shim devuelve None; el kernel real devuelve `x`. Una línea de diferencia.
+def test_el_stream_residual_esta_VIVO_en_los_TRES_dtypes():
+    """El stream residual NO se corta. En ninguna precisión. Nunca.
 
-    Ver `engines/mamba_vendor/mamba_ssm/ops/triton/layer_norm.py:414`:
-        return (..., residual_out if residual_out is not None else x, ...)
-    contra `flash_attn/ops/triton/layer_norm.py:142`:
-        return y if not prenorm else (y, residual_out)
+    ─── Este test estaba AL REVÉS, y el alambre trampa funcionó ──────────────────────
+    La versión anterior afirmaba que en fp32 el residual estaba MUERTO, y cerraba con:
+    *"si este test se pone en ROJO es una BUENA noticia: alguien arregló el shim"*.
 
-    `Block.forward` (engines/hnet/modules/block.py:115) usa el valor devuelto como
-    el residual del bloque siguiente. Con None, el residual NUNCA se acumula.
+    Se puso en rojo. Alguien lo arregló. `flash_attn/ops/triton/layer_norm.py` ahora
+    replica el fallback del kernel real (`mamba_ssm/ops/triton/layer_norm.py:414`):
 
-    Si este test se pone en ROJO es una BUENA noticia: alguien arregló el shim.
-    Cuando pase, revisar el guard de `BoundaryProbe` y re-medir la baseline.
+        residual_out if residual_out is not None else x     # <-- CAE A `x`
+
+    `store_residual_out` decide si se ASIGNA un tensor nuevo; el return **siempre** entrega
+    el stream residual. El shim copiaba la condición de asignación y se comía el fallback
+    ⇒ en fp32 devolvía `None` ⇒ `Block.forward` perdía el residual de las 4 capas Mamba.
+
+    Contraprueba ejecutada: con el fix, **fp32 y fp16 segmentan idéntico byte a byte**.
+    La matemática correcta en precisión completa no puede diferir de la reducida.
     """
-    assert residual_stream_is_alive(torch.float16) is True
-    assert residual_stream_is_alive(torch.bfloat16) is True
-    assert residual_stream_is_alive(torch.float32) is False, (
-        "el residual en fp32 revivió: el shim de flash_attn se arregló. "
-        "Re-medir la baseline: los números de fp16 y fp32 deberían converger."
-    )
+    for dtype in (torch.float16, torch.bfloat16, torch.float32):
+        assert residual_stream_is_alive(dtype) is True, (
+            f"REGRESIÓN GRAVE: el stream residual volvió a cortarse en {dtype}. "
+            "Revisar el fallback del return en flash_attn/ops/triton/layer_norm.py."
+        )
 
 
 @pytest.mark.requires_torch
@@ -91,10 +95,12 @@ def test_el_probe_se_niega_a_correr_en_fp32_mientras_el_bug_exista():
 
 
 @pytest.mark.requires_torch
-def test_el_bug_es_el_UNICO_lugar_donde_el_shim_se_aparta():
-    """La matemática del shim (sumar el residual ANTES de normalizar) es correcta;
-    lo que falta es el fallback del return. Se verifica que, PASÁNDOLE un residual,
-    fp32 sí lo devuelve — o sea que el problema es el caso `residual=None`."""
+def test_el_shim_devuelve_el_residual_con_y_sin_residual_de_entrada():
+    """Los dos casos del return, que es donde estaba el bug.
+
+    CON residual de entrada  -> devuelve `x + residual` (la suma siempre estuvo bien).
+    SIN residual de entrada  -> devuelve `x`            (esto era lo que devolvía None).
+    """
     from flash_attn.ops.triton.layer_norm import RMSNorm
 
     norm = RMSNorm(8, eps=1e-5, dtype=torch.float32)
@@ -103,10 +109,11 @@ def test_el_bug_es_el_UNICO_lugar_donde_el_shim_se_aparta():
 
     _, out_con = norm(x, residual=res, prenorm=True, residual_in_fp32=True)
     assert out_con is not None
-    torch.testing.assert_close(out_con, x + res)  # la suma está bien
+    torch.testing.assert_close(out_con, x + res)
 
     _, out_sin = norm(x, residual=None, prenorm=True, residual_in_fp32=True)
-    assert out_sin is None, "acá está el bug: debería devolver `x`"
+    assert out_sin is not None, "REGRESIÓN: volvió a devolver None (el bug del residual)"
+    torch.testing.assert_close(out_sin, x)  # sin residual de entrada, el stream ES `x`
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -157,36 +164,37 @@ def test_devuelve_una_probabilidad_por_byte(probe):
 @pytest.mark.requires_torch
 @pytest.mark.requires_cuda
 @requires_hnet
-def test_en_fp16_H_Net_corta_en_palabras_y_en_fp32_no(probe):
-    """La evidencia dura de que fp16 es el dtype fiel y fp32 el roto.
+def test_fp32_y_fp16_dan_la_MISMA_segmentacion(probe):
+    """LA CONTRAPRUEBA del fix del residual: precisión completa ≡ precisión reducida.
 
-    fp16 : |The| quick| brown| fo|x| ju|mps| over| the la|zy| dog|.  -> 4.5 B/chunk
-    fp32 : |The |q|ui|c|k |brown| fox| |j|umps |o|ve|r| |th|e| laz|y| -> 2.3 B/chunk
+    Antes del fix, fp32 sobre-segmentaba (2.3 B/chunk) y fp16 cortaba en palabras
+    (4.5 B/chunk). Se lo leyó como "fp32 es más preciso y ve más fronteras" — y era al
+    revés: **fp32 corría un encoder SIN conexiones residuales**, o sea otra función.
+
+    Con el residual restaurado los dos dan `The| quick| brown| fo|x| ju|mps| over| the la|zy|
+    dog|.` — **byte a byte**. Si este test se pone en rojo, el residual se volvió a cortar
+    (o alguien tocó el chunker), y la baseline hay que re-medirla.
+
+    La afirmación es de IDENTIDAD, no de umbral: no hay ningún número ajustado hasta que pase.
     """
-    espacios = {i for i, b in enumerate(_ENGLISH) if b == 0x20}
+    p16 = probe.boundary_prob(_ENGLISH)
+    cortes16 = set(np.flatnonzero(p16 >= 0.5).tolist())
 
-    def alineacion(p):
-        cortes = np.flatnonzero(p >= 0.5)
-        junto = sum(1 for c in cortes if c in espacios or (c - 1) in espacios)
-        return cortes.size, len(_ENGLISH) / cortes.size, junto / cortes.size
+    fp32 = BoundaryProbe(build_config(), device="cuda", dtype=torch.float32)
+    fp32.load_pretrained(DEFAULT_WEIGHTS)
+    cortes32 = set(np.flatnonzero(fp32.boundary_prob(_ENGLISH) >= 0.5).tolist())
+    del fp32
 
-    n16, bpc16, frac16 = alineacion(probe.boundary_prob(_ENGLISH))
-
-    roto = BoundaryProbe.allow_lossy_dtype(build_config(), device="cuda", dtype=torch.float32)
-    roto.load_pretrained(DEFAULT_WEIGHTS)
-    n32, bpc32, frac32 = alineacion(roto.boundary_prob(_ENGLISH))
-    del roto
-
-    # La afirmación es RELATIVA a propósito: "el 67 % de los cortes cae junto a un
-    # espacio" no significa nada en abstracto (depende del texto). Lo que significa
-    # algo es que fp16 se alinea con las palabras MUCHO más que fp32, y que corta la
-    # mitad de veces. Un umbral absoluto acá sería un número ajustado hasta que pase.
-    assert bpc16 > 4.0, f"fp16 debería chunkear a nivel palabra (~4.5 B/chunk), dio {bpc16:.2f}"
-    assert bpc32 < 3.0, f"fp32 (residual muerto) debería sobre-cortar, dio {bpc32:.2f}"
-    assert n32 > 1.5 * n16, f"fp32 corta {n32} y fp16 {n16}: la sobre-segmentación desapareció"
-    assert frac16 - frac32 > 0.15, (
-        f"fp16 alinea {frac16:.0%} de sus cortes con espacios y fp32 {frac32:.0%}: "
-        "la brecha se cerró, revisar el bug del residual"
+    assert cortes32 == cortes16, (
+        f"fp32 y fp16 segmentan distinto — fp32 corta en {sorted(cortes32)}, "
+        f"fp16 en {sorted(cortes16)}. La matemática correcta en precisión completa NO puede "
+        "diferir de la reducida: revisar el fallback del residual en flash_attn."
+    )
+    # Y que el corte sea a nivel PALABRA, no a nivel byte (lo que hacía el modelo roto).
+    bytes_por_chunk = len(_ENGLISH) / max(len(cortes16), 1)
+    assert bytes_por_chunk > 3.5, (
+        f"chunkea a {bytes_por_chunk:.2f} B/chunk: eso es sub-palabra. "
+        "El modelo sano corta a ~4.5 B/chunk en prosa inglesa."
     )
 
 

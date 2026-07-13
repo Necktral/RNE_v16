@@ -115,7 +115,8 @@ def layer_norm_fn(
     if residual is not None:
         acc = acc + residual.float()
 
-    # Espejo EXACTO de la condición de `_layer_norm_fwd` que decide si `residual_out` existe.
+    # Espejo EXACTO de la condición de `_layer_norm_fwd` que decide si el TENSOR `residual_out`
+    # se materializa (`layer_norm.py:336-347` del vendor de mamba).
     store_residual_out = residual is not None or (
         residual_dtype is not None and residual_dtype != x_dtype
     )
@@ -139,7 +140,32 @@ def layer_norm_fn(
         y = y + bias.float()
     y = y.to(x_dtype)
 
-    return y if not prenorm else (y, residual_out)
+    if not prenorm:
+        return y
+
+    # ⚠ ACÁ ESTABA EL BUG, Y ERA GRAVE.
+    #
+    # Antes esto devolvía `residual_out` a secas.  Cuando el tensor NO se materializa (o sea:
+    # `residual is None` **y** `residual_dtype == x_dtype` — exactamente el caso fp32 con
+    # `residual_in_fp32=True`), eso devolvía **None**, y `Block.forward` de H-Net
+    # (`engines/hnet/modules/block.py`) lo tomaba como el residual del bloque siguiente.
+    # ⇒ **En fp32, las 4 capas Mamba del encoder perdían TODAS sus conexiones residuales.**
+    # En fp16/bf16 el bug era INVISIBLE (`fp32 != x_dtype` ⇒ el tensor sí se materializa).
+    #
+    # El kernel REAL nunca devolvió None.  `layer_norm.py:414` del vendor de mamba:
+    #
+    #     return (y, y1, mean, rstd,
+    #             residual_out if residual_out is not None else x,   # <-- CAE A `x`
+    #             seeds, dropout_mask, dropout_mask1)
+    #
+    # `store_residual_out` decide si se ASIGNA un tensor nuevo; el return **siempre** entrega el
+    # stream residual, cayendo a `x` cuando no hizo falta copiarlo.  El shim copió la condición
+    # de asignación y se comió el fallback del return.
+    #
+    # Cómo se detectó: el chunker daba resultados distintos en fp32 vs fp16.  Con el residual
+    # restaurado, **fp32 y fp16 dan la MISMA segmentación, byte a byte** — la matemática correcta
+    # en precisión completa coincide con la de precisión reducida, que es lo que tiene que pasar.
+    return y, (residual_out if residual_out is not None else x)
 
 
 def rms_norm_fn(
