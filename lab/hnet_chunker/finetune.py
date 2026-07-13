@@ -97,9 +97,42 @@ dims ⇒ menor perplejidad por byte), así que el término de ratio es lo único
 frena el sobre-corte — pero sólo puede frenarlo si el lr le alcanza para mover la
 geometría.
 
+═══════════════════════════════════════════════════════════════════════════════
+EL RESULTADO — y el punto donde MÁS ENTRENAMIENTO EMPEORA
+═══════════════════════════════════════════════════════════════════════════════
+Ganador de un barrido de 16 puntos: **mix=0.7, N=8, lr=1e-3, λ=1.0, 800 pasos**
+(`chunker_rnfe_v1.pt`).  Evaluado con el MISMO evaluador, el MISMO split y el
+MISMO dtype que la baseline (per-family 50, fp16):
+
+    familia          F1 base   F1 FT    F1 corte fijo   ¿gana?   4 lecturas
+    events            0.778    0.857        0.596         SI         SI
+    memory_records    0.755    0.858        0.584         SI         SI
+    organism_snaps    0.743    0.874        0.601         SI         SI
+    reasoning_traces  0.761    0.862        0.590         SI         SI
+    prose_en          0.828    0.838        0.577         SI         SI
+    prose_es          0.768    0.809        0.585         SI         SI
+    code_py           0.672    0.749        0.501         SI         SI
+    code_py_ident     0.715    0.782        0.530         SI         SI
+
+EL MECANISMO ES EL QUE SE BUSCABA.  En `events`: la precisión pasa de 0.656 a
+0.954 y el sobre-corte se parte al medio (3.01 → 5.12 B/chunk, contra una verdad
+de 6.22).  El recall baja de 0.955 a 0.778 — **no se conservó entero, y hay que
+decirlo**: el objetivo declarado era "bajar el sobre-corte SIN perder recall", y
+se perdió 0.18.  La compuerta igual se pasa con holgura porque la precisión sube
+0.30.  Replicado en 3 semillas (margen contra el corte fijo: +0.270 / +0.239 /
++0.167) y confirmado en una muestra de val DISJUNTA (solapamiento 0–6 % en las 4
+familias JSON).
+
+⚠ **3000 PASOS FALLA LA COMPUERTA** (margen −0.034, contra +0.270 a los 800).
+No es under-training a los 800: es que el objetivo LM y el objetivo "frontera
+sintáctica" DIVERGEN.  A los 3000 pasos el LM de val en JSON llega a 0.26 (contra
+0.51 a los 800) — el modelo predice bytes MUCHO mejor — y al mismo tiempo vuelve a
+poner las fronteras donde le conviene al LM y no donde está la gramática.
+Mejor pérdida, peor chunker.  El criterio de parada NO puede ser la pérdida.
+
 Uso:
-    python -m lab.hnet_chunker.finetune --name m70_n6_lr1e3 \
-        --mix-structure 0.7 --target-n 6 --lr 1e-3 --lam 1.0 --steps 3000
+    python -m lab.hnet_chunker.finetune --name chunker_rnfe_v1 \
+        --mix-structure 0.7 --target-n 8 --lr 1e-3 --lam 1.0 --steps 800
 """
 
 from __future__ import annotations
