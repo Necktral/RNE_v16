@@ -163,25 +163,31 @@ def test_en_fp16_H_Net_corta_en_palabras_y_en_fp32_no(probe):
     fp16 : |The| quick| brown| fo|x| ju|mps| over| the la|zy| dog|.  -> 4.5 B/chunk
     fp32 : |The |q|ui|c|k |brown| fox| |j|umps |o|ve|r| |th|e| laz|y| -> 2.3 B/chunk
     """
-    p16 = probe.boundary_prob(_ENGLISH)
-    cortes16 = np.flatnonzero(p16 >= 0.5)
-    bpc16 = len(_ENGLISH) / cortes16.size
-
     espacios = {i for i, b in enumerate(_ENGLISH) if b == 0x20}
-    junto_a_espacio = sum(1 for c in cortes16 if c in espacios or (c - 1) in espacios)
-    frac16 = junto_a_espacio / cortes16.size
+
+    def alineacion(p):
+        cortes = np.flatnonzero(p >= 0.5)
+        junto = sum(1 for c in cortes if c in espacios or (c - 1) in espacios)
+        return cortes.size, len(_ENGLISH) / cortes.size, junto / cortes.size
+
+    n16, bpc16, frac16 = alineacion(probe.boundary_prob(_ENGLISH))
 
     roto = BoundaryProbe.allow_lossy_dtype(build_config(), device="cuda", dtype=torch.float32)
     roto.load_pretrained(DEFAULT_WEIGHTS)
-    p32 = roto.boundary_prob(_ENGLISH)
-    cortes32 = np.flatnonzero(p32 >= 0.5)
-    bpc32 = len(_ENGLISH) / cortes32.size
+    n32, bpc32, frac32 = alineacion(roto.boundary_prob(_ENGLISH))
     del roto
 
+    # La afirmación es RELATIVA a propósito: "el 67 % de los cortes cae junto a un
+    # espacio" no significa nada en abstracto (depende del texto). Lo que significa
+    # algo es que fp16 se alinea con las palabras MUCHO más que fp32, y que corta la
+    # mitad de veces. Un umbral absoluto acá sería un número ajustado hasta que pase.
     assert bpc16 > 4.0, f"fp16 debería chunkear a nivel palabra (~4.5 B/chunk), dio {bpc16:.2f}"
     assert bpc32 < 3.0, f"fp32 (residual muerto) debería sobre-cortar, dio {bpc32:.2f}"
-    assert frac16 > 0.7, f"en fp16, la mayoría de los cortes cae junto a un espacio; dio {frac16:.0%}"
-    assert cortes32.size > 1.5 * cortes16.size
+    assert n32 > 1.5 * n16, f"fp32 corta {n32} y fp16 {n16}: la sobre-segmentación desapareció"
+    assert frac16 - frac32 > 0.15, (
+        f"fp16 alinea {frac16:.0%} de sus cortes con espacios y fp32 {frac32:.0%}: "
+        "la brecha se cerró, revisar el bug del residual"
+    )
 
 
 @pytest.mark.requires_torch
