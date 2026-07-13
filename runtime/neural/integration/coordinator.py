@@ -12,6 +12,7 @@ from uuid import uuid4
 from runtime.neural.config import NeuralRuntimeConfig
 from runtime.neural.connectome import ConnectomeRuntime
 from runtime.neural.contracts import (
+    AdmissionDecision,
     CausalContextView,
     InferenceScope,
     NeuralInferenceRequest,
@@ -32,6 +33,7 @@ from .contracts import (
     canonical_sha256,
     validate_consumer_receipt,
 )
+from .model_bindings import ModelBindingResolver
 
 
 @dataclass(slots=True)
@@ -57,11 +59,17 @@ class SymbioticNeuralCoordinator:
     ) -> None:
         self.storage = storage
         self.config = config or NeuralRuntimeConfig.from_env()
+        artifact_root = (
+            Path(os.environ.get("RNFE_ARTIFACT_ROOT", "rnfe_artifacts"))
+            / self.config.artifact_namespace
+        ).resolve()
+        registry = LazyBackendRegistry(artifact_root=artifact_root)
         self.runtime = NeuralRuntime(
             config=self.config,
-            registry=LazyBackendRegistry(artifact_root=Path(".")),
+            registry=registry,
             storage=storage,
         )
+        self._model_bindings = ModelBindingResolver(registry=registry)
         self._sessions: dict[str, _EpisodeSession] = {}
         self._adapters = canonical_adapter_registry()
         self.connectome = ConnectomeRuntime()
@@ -283,6 +291,7 @@ class SymbioticNeuralCoordinator:
         reasoning: Mapping[str, Any],
     ) -> dict[str, Any]:
         session = self._session(episode_id)
+        connectome_activity = self._refresh_connectome(session)
         n6 = self._execute(
             session,
             organ="N6",
@@ -291,6 +300,7 @@ class SymbioticNeuralCoordinator:
                 "inputs": session.inputs,
                 "viability": viability,
                 "reasoning": reasoning,
+                "connectome_activity": connectome_activity,
             },
         )
         session.entries["N6"].consumer_verdict = str(n6.get("sandbox_verdict", "disabled"))
@@ -588,7 +598,7 @@ class SymbioticNeuralCoordinator:
                 trace_id=identity.trace_group_id,
             ),
         )
-        result = self.runtime.infer_reference(
+        reference_result = self.runtime.infer_reference(
             request=request,
             producer=lambda inference_request: adapter.infer(inference_request, context),
             fallback_output=adapter.fallback(identity),
@@ -597,14 +607,77 @@ class SymbioticNeuralCoordinator:
             admission_gate=adapter.admission_gate,
             enabled=organ not in self._disabled_organs,
         )
+        result = reference_result
+        binding = None
+        if organ not in self._disabled_organs and self.config.mode is not NeuralMode.OFF:
+            try:
+                binding = self._model_bindings.resolve(
+                    organ=organ,
+                    capability=adapter.capability,
+                    mode=self.config.mode,
+                )
+            except Exception as exc:
+                result = replace(
+                    reference_result,
+                    cost={
+                        **dict(reference_result.cost),
+                        "model_binding_error": _safe_exception_reason(exc),
+                    },
+                )
+            if binding is not None:
+                payload_builder = getattr(adapter, "model_payload", None)
+                if not callable(payload_builder):
+                    result = replace(
+                        reference_result,
+                        cost={
+                            **dict(reference_result.cost),
+                            "model_binding_error": "adapter_model_payload_missing",
+                        },
+                    )
+                else:
+                    fallback_candidate = (
+                        reference_result.candidate_output
+                        if reference_result.candidate_output is not None
+                        else reference_result.effective_output
+                    )
+                    model_request = replace(
+                        request,
+                        payload=payload_builder(context, fallback_candidate),
+                    )
+                    result = self.runtime.infer(
+                        request=model_request,
+                        manifest=binding.manifest,
+                        fallback_output=fallback_candidate,
+                        admission_gate=_shadow_only_model_admission,
+                    )
+                    postprocess = getattr(adapter, "postprocess_model_candidate", None)
+                    if result.candidate_output is not None and callable(postprocess):
+                        result = replace(
+                            result,
+                            candidate_output=postprocess(result.candidate_output, context),
+                        )
+                    request = model_request
         candidate = result.candidate_output
+        authority_ceiling = (
+            binding.authority_ceiling if binding is not None else adapter.authority_ceiling
+        )
+        if binding is not None:
+            session.trace.backend_identities[organ] = {
+                "model_id": binding.manifest.model_id,
+                "version": binding.manifest.version,
+                "backend": binding.manifest.backend,
+                "manifest_sha256": binding.manifest.manifest_sha256,
+                "artifact_sha256": binding.manifest.artifact_sha256,
+                "classification": "trained",
+            }
+            session.trace.organ_contract_versions[organ] = binding.manifest.output_schema_version
         entry = OrganTrace(
             identity=identity,
             organ=organ,
             capability=adapter.capability,
             requested_mode=result.requested_mode.value,
             effective_mode=result.effective_mode.value,
-            authority_ceiling=adapter.authority_ceiling.value,
+            authority_ceiling=authority_ceiling.value,
             input_hash=canonical_sha256(request.payload),
             candidate_hash=canonical_sha256(candidate) if candidate is not None else None,
             consumer=adapter.consumer,
@@ -616,14 +689,14 @@ class SymbioticNeuralCoordinator:
             vram_mb=_number(result.cost.get("vram_mb")),
             fallback_reason=result.fallback_reason,
             manifest_sha256=result.manifest_sha256,
-            artifact_sha256=None,
+            artifact_sha256=(binding.manifest.artifact_sha256 if binding is not None else None),
             candidate=candidate,
             abstained=bool(isinstance(candidate, Mapping) and candidate.get("status") == "abstained"),
             cost=result.cost,
         )
         session.entries[organ] = entry
         session.trace.organs.append(entry)
-        return candidate if candidate is not None else adapter.fallback(identity)
+        return candidate if candidate is not None else result.effective_output
 
     def _session(self, episode_id: str) -> _EpisodeSession:
         try:
@@ -663,3 +736,30 @@ def _resource_measurement_status(raw: Mapping[str, Any]) -> dict[str, str]:
             if field not in raw or raw.get(field) is None:
                 statuses[field] = "not_applicable"
     return statuses
+
+
+def _shadow_only_model_admission(
+    candidate: Any, request: NeuralInferenceRequest
+) -> AdmissionDecision:
+    if not isinstance(candidate, Mapping):
+        return AdmissionDecision(False, reason="trained_model_candidate_not_mapping")
+    declared_effect = candidate.get("authority_effect")
+    proposal_only = bool((candidate.get("authority") or {}).get("proposal_only"))
+    if (
+        declared_effect not in {None, "none"}
+        or (declared_effect is None and not proposal_only)
+        or candidate.get("applied") is True
+    ):
+        return AdmissionDecision(False, reason="trained_model_authority_contract_violated")
+    return AdmissionDecision(
+        True,
+        output=dict(candidate),
+        reason="trained_model_shadow_evidence_only",
+        effective_mode_ceiling=NeuralMode.SHADOW,
+    )
+
+
+def _safe_exception_reason(exc: BaseException) -> str:
+    name = exc.__class__.__name__.lower()
+    detail = str(exc).strip().replace(" ", "_")[:160]
+    return f"{name}:{detail}" if detail else name

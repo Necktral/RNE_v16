@@ -1,8 +1,8 @@
 ---
 title: ADR_NEURAL_N6_KAN_LTC_EVOLUTION
 status: experimental
-version: 1.0.0
-date: 2026-07-10
+version: 1.1.0
+date: 2026-07-12
 owner: Codex
 ---
 
@@ -12,6 +12,9 @@ owner: Codex
 
 KAN spline exportable a SymPy, LTC estable sobre vitals y mutaciones de whitelist
 entregadas a sandbox/certificación. EVO_SEARCH continúa como baseline de intervención.
+N6 puede convertir evidencia plástica elegible del conectoma en una propuesta
+`parameter_bound`, pero excluye todas sus propias aristas para impedir
+autorefuerzo. La propuesta conserva `apply_authorized=false` y no muta el grafo.
 
 ## Hipótesis y coste
 

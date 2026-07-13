@@ -88,14 +88,14 @@ def _n5_request(text: str) -> NeuralInferenceRequest:
     )
 
 
-def test_n5_hnet_converts_after_byte_boundaries_to_codepoint_splits() -> None:
+def test_n5_hnet_converts_byte_split_boundaries_to_codepoint_splits() -> None:
     text = "é🙂中A"
     seen = []
 
     def infer(_model, payload: bytes):
         seen.append(payload)
         probabilities = [0.0] * len(payload)
-        for byte_index in (1, 5, 8):
+        for byte_index in (0, 2, 6, 9):
             probabilities[byte_index] = 0.9
         return probabilities
 
@@ -130,7 +130,7 @@ def test_n5_rejects_hnet_boundary_inside_multibyte_codepoint() -> None:
 
     def infer(_model, payload: bytes):
         probabilities = [0.0] * len(payload)
-        probabilities[0] = 0.9  # después del primer byte de é: frontera UTF-8 inválida
+        probabilities[1] = 0.9  # segundo byte de é: split UTF-8 inválido
         return probabilities
 
     backend = HNetBoundaryBackend(lambda path, device: object(), infer)
@@ -152,7 +152,7 @@ def test_n5_rejects_corrupt_identity_metadata_without_escaping_gate() -> None:
         "boundary_offsets": BoundaryOffsets(
             values=(1,),
             unit=OffsetUnit.BYTE,
-            semantics=BoundarySemantics.AFTER_UNIT,
+            semantics=BoundarySemantics.SPLIT_OFFSET,
         ).to_dict(),
     }
     decision = HNetBoundaryAdmission()(candidate, request)

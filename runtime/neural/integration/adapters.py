@@ -18,10 +18,13 @@ from runtime.neural.organs.n4_causal import (
 )
 from runtime.neural.organs.n5_ingest import DeterministicChunker
 
-from .contracts import SymbiosisIdentity, canonical_json_bytes
+from .contracts import SymbiosisIdentity, canonical_json_bytes, canonical_sha256
+from runtime.neural.technology_backends import N3_FEATURE_NAMES
 
 
-OPTIONAL_FAMILIES = ("IND", "PLAN", "OPT", "NESY", "IMAGINATION", "EVO_SEARCH")
+OPTIONAL_FAMILIES = (
+    "IND", "PLAN", "OPT", "NESY", "IMAGINATION", "EVO_SEARCH", "A12"
+)
 
 
 class CanonicalOrganAdapter(Protocol):
@@ -65,6 +68,7 @@ class N1ReferencePolicy:
                 "NESY": 0.35 + 0.20 * uncertainty,
                 "IMAGINATION": 0.20 + 0.25 * alarm,
                 "EVO_SEARCH": 0.15 + 0.10 * alarm,
+                "A12": 0.10 + 0.15 * alarm,
             }[family]
             score -= 0.45 * pressure
             ranked.append({"family": family, "score": round(score, 6)})
@@ -112,6 +116,35 @@ class N1Adapter:
 
     def fallback(self, identity: SymbiosisIdentity) -> Mapping[str, Any]:
         return {"status": "disabled", "proposed_families": []}
+
+    def model_payload(
+        self,
+        context: Mapping[str, Any],
+        reference_candidate: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        inputs = context["inputs"]
+        observation = dict(inputs.get("observation") or {})
+        resources = dict(inputs.get("resources") or {})
+        temporal = dict(context.get("n3_temporal") or {})
+        return {
+            "features": {
+                "alarm": 1.0 if observation.get("alarm") else 0.0,
+                "uncertainty": float(temporal.get("uncertainty", 1.0) or 1.0),
+                "cpu_pressure": float(resources.get("cpu_pressure", 0.0) or 0.0),
+                "memory_pressure": float(resources.get("memory_pressure", 0.0) or 0.0),
+                "thermal_pressure": float(resources.get("thermal_pressure", 0.0) or 0.0),
+                "memory_count": min(len(inputs.get("memory_hits") or ()) / 10.0, 1.0),
+            },
+            "allowed_families": list(OPTIONAL_FAMILIES),
+            "max_optional_families": 2,
+            "activation_policy": {
+                "min_expected_utility": 0.0,
+                "min_probability_positive": 0.5,
+                "max_uncertainty": 0.5,
+                "max_calibration_ece": 0.10,
+            },
+            "reference_candidate_hash": canonical_sha256(reference_candidate),
+        }
 
 
 class N2Adapter:
@@ -239,6 +272,38 @@ class N3Adapter:
     def fallback(self, identity: SymbiosisIdentity) -> Mapping[str, Any]:
         return {"status": "disabled", "state_key": list(self.state_key(identity))}
 
+    def model_payload(
+        self,
+        context: Mapping[str, Any],
+        reference_candidate: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        identity: SymbiosisIdentity = context["identity"]
+        inputs = context["inputs"]
+        observation = dict(inputs.get("observation") or {})
+        resources = dict(inputs.get("resources") or {})
+        raw_values = {
+            "value": reference_candidate.get("value"),
+            "trend": reference_candidate.get("trend"),
+            "alarm": 1.0 if observation.get("alarm") else 0.0,
+            "reference_uncertainty": reference_candidate.get("uncertainty"),
+            "cpu_pressure": resources.get("cpu_pressure"),
+            "memory_pressure": resources.get("memory_pressure"),
+            "thermal_pressure": resources.get("thermal_pressure"),
+            "memory_count": min(len(inputs.get("memory_hits") or ()) / 10.0, 1.0),
+        }
+        features = [
+            max(-1.0, min(1.0, float(raw_values.get(name) or 0.0)))
+            for name in N3_FEATURE_NAMES
+        ]
+        return {
+            "organism_id": identity.organism_id,
+            "scenario_id": identity.scenario_id,
+            "lineage_id": identity.lineage_id,
+            "input_vector": features,
+            "feature_names": list(N3_FEATURE_NAMES),
+            "reference_state": dict(reference_candidate),
+        }
+
     def export_state(self) -> dict[str, Any]:
         return {
             "schema_version": "n3-temporal-checkpoint-v1",
@@ -312,6 +377,20 @@ class N4Adapter:
 
     def fallback(self, identity: SymbiosisIdentity) -> Mapping[str, Any]:
         return {"status": "disabled", "relations": []}
+
+    def model_payload(
+        self,
+        context: Mapping[str, Any],
+        reference_candidate: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        graph, evidence = self._graph(context["identity"], context["inputs"])
+        return {"graph": graph, "episodic_evidence": evidence}
+
+    def postprocess_model_candidate(
+        self, candidate: Mapping[str, Any], context: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        _graph, evidence = self._graph(context["identity"], context["inputs"])
+        return {**dict(candidate), **evidence, "authority_effect": "none"}
 
     @staticmethod
     def _graph(
@@ -420,15 +499,25 @@ class N5Adapter:
     def __init__(self) -> None:
         self.chunker = DeterministicChunker(max_bytes=256)
 
-    def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
-        inputs = context["inputs"]
+    @staticmethod
+    def content(inputs: Mapping[str, Any]) -> str:
         memory_text = " ".join(
             canonical_json_bytes(item.get("structure", {})).decode("utf-8")[:512]
             for item in inputs.get("memory_hits", [])[:3]
         )
-        content = "\n".join(
-            part for part in (str(inputs.get("proposition") or ""), str(inputs.get("formula") or ""), memory_text) if part
+        return "\n".join(
+            part
+            for part in (
+                str(inputs.get("proposition") or ""),
+                str(inputs.get("formula") or ""),
+                memory_text,
+            )
+            if part
         )[:2048]
+
+    def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
+        inputs = context["inputs"]
+        content = self.content(inputs)
         chunks = [chunk.to_dict() for chunk in self.chunker.chunk(content)]
         return BackendOutput(
             candidate_output={
@@ -442,6 +531,17 @@ class N5Adapter:
 
     def fallback(self, identity: SymbiosisIdentity) -> Mapping[str, Any]:
         return {"chunks": [], "memory_candidates": [], "fallback": "disabled"}
+
+    def model_payload(
+        self,
+        context: Mapping[str, Any],
+        reference_candidate: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        return {
+            "text": self.content(context["inputs"]),
+            "boundary_threshold": 0.5,
+            "reference_candidate_hash": canonical_sha256(reference_candidate),
+        }
 
 
 class N6Adapter:
@@ -459,8 +559,45 @@ class N6Adapter:
         margin = float(viability.get("viability_margin", 0.0) or 0.0)
         trace = reasoning.get("trace") or []
         cost = sum(float((item.get("detail") or {}).get("cost", 0.0) or 0.0) for item in trace)
+        connectome = dict(context.get("connectome_activity") or {})
+        plasticity = [
+            dict(item)
+            for item in connectome.get("plasticity_proposals") or ()
+            if isinstance(item, Mapping)
+            and item.get("eligible") is True
+            and item.get("apply_authorized") is False
+            and item.get("authority_effect") == "none"
+            and not str(item.get("edge_id") or "").startswith("N6->")
+        ]
+        plasticity.sort(
+            key=lambda item: (
+                -float(item.get("confidence", 0.0) or 0.0),
+                -abs(float(item.get("proposed_delta", 0.0) or 0.0)),
+                str(item.get("edge_id") or ""),
+            )
+        )
         proposal = None
-        if margin < 0.75 or cost > 5.0:
+        if plasticity:
+            selected = plasticity[0]
+            proposal = {
+                "schema_version": "n6-structural-proposal-v1",
+                "proposal_id": f"n6-connectome-{identity.episode_id}",
+                "mutation_type": "parameter_bound",
+                "target": f"connectome:{selected['edge_id']}",
+                "value": {
+                    "proposed_delta": float(selected["proposed_delta"]),
+                    "observation_count": int(selected["observation_count"]),
+                    "source_schema": selected.get("schema_version"),
+                },
+                "expected_gain": max(
+                    1e-6, abs(float(selected["proposed_delta"]))
+                    * float(selected.get("confidence", 0.0) or 0.0),
+                ),
+                "rollback_token": f"shadow-connectome-{identity.trace_group_id}",
+                "lineage_id": identity.lineage_id,
+                "apply_authorized": False,
+            }
+        elif margin < 0.75 or cost > 5.0:
             proposal = {
                 "schema_version": "n6-structural-proposal-v1",
                 "proposal_id": f"n6-{identity.episode_id}",
@@ -470,7 +607,12 @@ class N6Adapter:
             }
         sandbox = {
             "evaluated": proposal is not None,
-            "safe": proposal is not None and proposal["mutation_type"] == "optional_family_budget",
+            "safe": proposal is not None
+            and proposal["mutation_type"] in {"optional_family_budget", "parameter_bound"}
+            and (
+                proposal["mutation_type"] != "parameter_bound"
+                or abs(float(proposal["value"]["proposed_delta"])) <= 0.05
+            ),
             "applied": False,
             "reason": "shadow_no_mutation" if proposal is not None else "no_degradation_trigger",
         }
@@ -480,6 +622,12 @@ class N6Adapter:
                 "proposal": proposal, "sandbox": sandbox,
                 "sandbox_verdict": "shadow_safe_not_applied" if sandbox["safe"] else "abstained",
                 "applied": False, "consumers": ["sandbox", "certification", "autoevolution_evidence"],
+                "connectome_evidence": {
+                    "topology_hash": connectome.get("topology_hash"),
+                    "snapshot_hash": connectome.get("snapshot_hash"),
+                    "eligible_plasticity_count": len(plasticity),
+                    "graph_mutated": False,
+                },
             },
             confidence=0.5 if proposal is not None else 1.0,
             uncertainty=0.5 if proposal is not None else 0.0,

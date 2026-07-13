@@ -222,7 +222,11 @@ def _split_utf8(text: str, limit: int) -> list[str]:
 
 
 class HNetBoundaryBackend:
-    """Puerto inyectable al H-Net certificado; evita asumir una API vendor."""
+    """Puerto inyectable al H-Net certificado; evita asumir una API vendor.
+
+    H-Net marca el *inicio* de cada chunk (el byte cero siempre es frontera), por
+    lo que el índice nativo es un split-offset, no "después del byte".
+    """
 
     def __init__(
         self,
@@ -257,7 +261,7 @@ class HNetBoundaryBackend:
                 "boundary_offsets": BoundaryOffsets(
                     values=tuple(boundaries),
                     unit=OffsetUnit.BYTE,
-                    semantics=BoundarySemantics.AFTER_UNIT,
+                    semantics=BoundarySemantics.SPLIT_OFFSET,
                 ).to_dict(),
                 "probabilities": probabilities,
                 "source": "hnet",
@@ -301,9 +305,9 @@ class HNetBoundaryAdmission:
             boundary_offsets = BoundaryOffsets.from_mapping(raw_boundaries)
             if (
                 boundary_offsets.unit is not OffsetUnit.BYTE
-                or boundary_offsets.semantics is not BoundarySemantics.AFTER_UNIT
+                or boundary_offsets.semantics is not BoundarySemantics.SPLIT_OFFSET
             ):
-                raise ValueError("n5_hnet_must_use_after_byte_offsets")
+                raise ValueError("n5_hnet_must_use_byte_split_offsets")
             codepoint_splits = boundary_offsets.to_codepoint_splits(offsets)
         except (TypeError, ValueError) as exc:
             return AdmissionDecision(False, reason=f"n5_boundary_conversion_rejected:{exc}")

@@ -148,6 +148,10 @@ class CompactMLPRouterBackend:
         )
         return BackendOutput(
             candidate_output={
+                "status": "ok" if activated else "abstained",
+                "backend": "rnfe-compact-mlp-router-v1",
+                "classification": "trained",
+                "trained_model": True,
                 "catalog_version": self._weights["catalog_version"],
                 "ranked": entries,
                 "activation": {
@@ -157,8 +161,10 @@ class CompactMLPRouterBackend:
                     "abstain_reason": abstain_reason,
                 },
                 "optional_families": activated,
+                "proposed_families": activated,
                 "calibration_ece": self._weights["calibration_ece"],
                 "activation_policy": policy,
+                "authority_effect": "none",
             },
             confidence=confidence,
             uncertainty=1.0 - confidence,
