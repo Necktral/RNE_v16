@@ -3,20 +3,47 @@
 Sólo se instancian los 28.76 M de parámetros que participan de la decisión de
 frontera (4.2 % de los 679 M del modelo).  El `main_network` (T22, 1536-dim), el
 `decoder`, el `dechunk` y el `lm_head` NO se cargan: no influyen en
-`boundary_prob` y meterlos costaría 2.5 GB de VRAM en fp32 sobre una GPU que
-tiene 7.6 GB.  Es exactamente el subconjunto que el paquete propone fine-tunear.
+`boundary_prob`.  Es exactamente el subconjunto que el paquete propone fine-tunear.
 
-⚠ DTYPE: fp32 obligatorio.  MEDIDO en esta máquina (RTX 2070, sm_75):
+═══════════════════════════════════════════════════════════════════════════════
+⚠⚠ DTYPE: **fp32 ESTÁ ROTO EN ESTE REPO.  HAY QUE EVALUAR EN fp16.** ⚠⚠
+═══════════════════════════════════════════════════════════════════════════════
 
-    "a"*24, cortes con p>=0.5, excluyendo el índice 0 (que se fuerza a 1.0):
-        fp32  ->  5 / 23
-        bf16  -> 23 / 23   ← el chunker se DEGRADA a "cortar en todos lados"
+Esto CONTRADICE la premisa con la que llegó el paquete ("para evaluar usá fp32").
+La premisa es falsa, y su causa está localizada en UNA línea.
 
-`boundary_prob = (1 - cos_sim)/2` con cos_sim ~ 0.99 en texto homogéneo: los 8
-bits de mantisa de bf16 no resuelven `1 - 0.99`.  El error relativo de la resta
-explota.  En bf16 el chunker no está peor calibrado: está ROTO.  Cualquier
-medición del chunker en bf16 es basura, y cualquier fine-tuning en bf16 estaría
-optimizando contra una señal destruida.
+  El kernel REAL (`engines/mamba_vendor/mamba_ssm/ops/triton/layer_norm.py:414`)
+  devuelve, de `_layer_norm_fwd`:
+
+      residual_out if residual_out is not None else x        # ← el fallback
+
+  El shim (`flash_attn/ops/triton/layer_norm.py:119-142`) replicó la CONDICIÓN DE
+  ASIGNACIÓN de `residual_out` (que en fp32 con `residual=None` y
+  `residual_in_fp32=True` da None, porque `residual_dtype == x_dtype`) pero NO
+  replicó ese fallback: devuelve `None`.
+
+  `Block.forward` (`engines/hnet/modules/block.py:115-137`) toma ese `None` como
+  el residual y se lo pasa al bloque siguiente.  Resultado: en fp32 **el stream
+  residual del encoder nunca se acumula — las 4 capas Mamba pierden TODAS sus
+  conexiones residuales.**  En fp16/bf16 el bug es invisible, porque ahí
+  `residual_dtype (fp32) != x_dtype` y `residual_out` sí se materializa.
+
+MEDIDO (RTX 2070, sm_75), mismo texto inglés, cortes con p>=0.5:
+
+    fp32 (como está)     : 48 cortes, 2.27 B/chunk
+        |The |q|ui|c|k |brown| fox| |j|umps |o|ve|r| |th|e| laz|y| dog|. |H|ie|ra...
+    fp16                 : 24 cortes, 4.54 B/chunk
+        |The| quick| brown| fo|x| ju|mps| over| the la|zy| dog|.| Hi|erarchical|...
+    fp32 + residual restaurado (parche en memoria, NO en disco):
+                           24 cortes, 4.54 B/chunk — IDÉNTICO a fp16, byte a byte.
+
+Ese último renglón es la prueba: la matemática CORRECTA en precisión COMPLETA da
+la respuesta de fp16.  fp16 no acierta de casualidad — computa la función buena en
+menos bits.  fp32, tal como está el repo, computa OTRA función.
+
+NO se arregla `flash_attn/` acá (está fuera del scope del paquete).  Lo que se
+hace es DETECTARLO en runtime (`_residual_stream_is_alive`) y NEGARSE a correr en
+fp32 mientras el bug exista.  Si alguien lo arregla, el guard deja pasar fp32 solo.
 """
 
 from __future__ import annotations
@@ -60,6 +87,25 @@ def build_config(path: Path | str = DEFAULT_CONFIG):
     return HNetConfig(**raw, ssm_cfg=SSMConfig(**ssm), attn_cfg=AttnConfig(**attn))
 
 
+def residual_stream_is_alive(dtype: torch.dtype, device: str = "cpu") -> bool:
+    """¿El stream residual del encoder sobrevive con este dtype?
+
+    Comprueba el contrato que `Block.forward` necesita: `RMSNorm(..., prenorm=True)`
+    tiene que devolver un residual USABLE aunque no se le haya pasado uno.  El
+    kernel real lo garantiza (devuelve `x` como fallback).  El shim de este repo
+    devuelve `None` en fp32 ⇒ el residual muere.
+
+    Es un chequeo, no un parche: si alguien arregla el shim, esto empieza a dar
+    True y fp32 pasa a estar permitido, sin tocar nada más.
+    """
+    from flash_attn.ops.triton.layer_norm import RMSNorm
+
+    norm = RMSNorm(8, eps=1e-5, device=device, dtype=dtype)
+    x = torch.randn(1, 2, 8, device=device, dtype=dtype)
+    _, residual_out = norm(x, residual=None, prenorm=True, residual_in_fp32=True)
+    return residual_out is not None
+
+
 @dataclass
 class ProbeInfo:
     n_params: int
@@ -68,6 +114,7 @@ class ProbeInfo:
     dtype: str
     window: int
     warmup: int
+    residual_stream_alive: bool = True
 
 
 class BoundaryProbe(nn.Module):
@@ -89,19 +136,20 @@ class BoundaryProbe(nn.Module):
         config,
         *,
         device: str = "cuda",
-        dtype: torch.dtype = torch.float32,
+        dtype: torch.dtype = torch.float16,
         window: int = 4096,
         warmup: int = 256,
     ) -> None:
         super().__init__()
-        from hnet.modules.dc import RoutingModule
-        from hnet.modules.isotropic import Isotropic
-
-        if dtype is not torch.float32:
+        if not residual_stream_is_alive(dtype, device):
             raise ValueError(
-                "BoundaryProbe exige fp32. En bf16 el chunker se degrada a cortar en "
-                "todas las posiciones (medido: 23/23 en 'a'*24 vs 5/23 en fp32). "
-                "Si querés medir esa degradación a propósito, usá `allow_lossy_dtype`."
+                f"Con dtype={dtype} el stream residual del encoder MUERE en este repo: "
+                "`flash_attn/ops/triton/layer_norm.py` devuelve residual_out=None donde el "
+                "kernel real (engines/mamba_vendor/mamba_ssm/ops/triton/layer_norm.py:414) "
+                "devuelve `x`. Las 4 capas Mamba del encoder pierden sus conexiones "
+                "residuales y el chunker mide OTRA función. Usá fp16 (verificado idéntico a "
+                "fp32-con-el-residual-restaurado). Si de verdad querés reproducir el bug, "
+                "usá `allow_lossy_dtype`."
             )
         self._build(config, device, dtype, window, warmup)
 
@@ -123,7 +171,11 @@ class BoundaryProbe(nn.Module):
     def allow_lossy_dtype(
         cls, config, *, device: str = "cuda", dtype: torch.dtype, window: int = 4096, warmup: int = 256
     ) -> "BoundaryProbe":
-        """Escotilla explícita para MEDIR la degradación por dtype, no para usarla."""
+        """Escotilla explícita para MEDIR el bug del dtype, no para usarlo.
+
+        Con esto se reproduce el fp32 roto (residual muerto) y se lo compara contra
+        fp16.  Existe para que el bug sea FALSABLE, no para que sea usable.
+        """
         probe = cls.__new__(cls)
         nn.Module.__init__(probe)
         probe._build(config, device, dtype, window, warmup)
@@ -158,6 +210,7 @@ class BoundaryProbe(nn.Module):
             dtype=str(self._dtype),
             window=self.window,
             warmup=self.warmup,
+            residual_stream_alive=residual_stream_is_alive(self._dtype, self._device),
         )
 
     @torch.no_grad()

@@ -1,9 +1,21 @@
 """Tests del camino de fronteras de H-Net (embeddings -> encoder -> RoutingModule).
 
-Requieren GPU y los pesos preentrenados; se saltan solos si no están.  El test
-que hay que mirar es `test_bf16_destruye_el_chunker`: NO es una curiosidad, es la
-razón por la que el evaluador exige fp32.  Si alguien mide el chunker en bf16,
-mide ruido y lo reporta como si fuera el modelo.
+═══════════════════════════════════════════════════════════════════════════════
+EL TEST QUE IMPORTA: `test_en_fp32_el_stream_residual_del_encoder_esta_MUERTO`
+═══════════════════════════════════════════════════════════════════════════════
+
+No es una curiosidad numérica.  En fp32, `flash_attn/ops/triton/layer_norm.py`
+devuelve `residual_out=None` donde el kernel REAL
+(`engines/mamba_vendor/mamba_ssm/ops/triton/layer_norm.py:414`) devuelve `x`.
+`Block.forward` toma ese None y lo propaga: **las 4 capas Mamba del encoder
+pierden TODAS sus conexiones residuales.**
+
+Consecuencia práctica: cualquiera que evalúe (o peor: fine-tunee) el chunker en
+fp32 está midiendo/optimizando OTRA función.  Estos tests lo pinean para que el
+día que alguien arregle el shim, se enteren — y para que nadie vuelva a
+"corregir" el evaluador hacia fp32.
+
+Requieren GPU y los pesos; se saltan solos si no están.
 """
 
 from __future__ import annotations
@@ -20,23 +32,89 @@ from lab.hnet_chunker.model import (  # noqa: E402
     DEFAULT_WEIGHTS,
     BoundaryProbe,
     build_config,
+    residual_stream_is_alive,
 )
 
-pytestmark = [
-    pytest.mark.requires_torch,
-    pytest.mark.requires_cuda,
-    pytest.mark.skipif(not DEFAULT_WEIGHTS.exists(), reason="pesos de H-Net no presentes"),
-    pytest.mark.skipif(not torch.cuda.is_available(), reason="sin GPU"),
-]
+_ENGLISH = (
+    b"The quick brown fox jumps over the lazy dog. Hierarchical networks learn "
+    b"their own boundaries from raw bytes."
+)
+
+requires_hnet = pytest.mark.skipif(
+    not (torch.cuda.is_available() and DEFAULT_WEIGHTS.exists()),
+    reason="requiere GPU CUDA y los pesos de H-Net",
+)
 
 
 @pytest.fixture(scope="module")
 def probe():
-    p = BoundaryProbe(build_config(), device="cuda", dtype=torch.float32)
+    p = BoundaryProbe(build_config(), device="cuda", dtype=torch.float16)
     p.load_pretrained(DEFAULT_WEIGHTS)
     return p
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# EL BUG DEL RESIDUAL (no necesita GPU ni pesos: es una propiedad del shim)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.requires_torch
+def test_en_fp32_el_stream_residual_del_encoder_esta_MUERTO():
+    """El shim devuelve None; el kernel real devuelve `x`. Una línea de diferencia.
+
+    Ver `engines/mamba_vendor/mamba_ssm/ops/triton/layer_norm.py:414`:
+        return (..., residual_out if residual_out is not None else x, ...)
+    contra `flash_attn/ops/triton/layer_norm.py:142`:
+        return y if not prenorm else (y, residual_out)
+
+    `Block.forward` (engines/hnet/modules/block.py:115) usa el valor devuelto como
+    el residual del bloque siguiente. Con None, el residual NUNCA se acumula.
+
+    Si este test se pone en ROJO es una BUENA noticia: alguien arregló el shim.
+    Cuando pase, revisar el guard de `BoundaryProbe` y re-medir la baseline.
+    """
+    assert residual_stream_is_alive(torch.float16) is True
+    assert residual_stream_is_alive(torch.bfloat16) is True
+    assert residual_stream_is_alive(torch.float32) is False, (
+        "el residual en fp32 revivió: el shim de flash_attn se arregló. "
+        "Re-medir la baseline: los números de fp16 y fp32 deberían converger."
+    )
+
+
+@pytest.mark.requires_torch
+def test_el_probe_se_niega_a_correr_en_fp32_mientras_el_bug_exista():
+    """No se elige el dtype por gusto: se rechaza el que computa otra función."""
+    if residual_stream_is_alive(torch.float32):
+        pytest.skip("el shim ya está arreglado; fp32 es legítimo")
+    with pytest.raises(ValueError, match="stream residual"):
+        BoundaryProbe(build_config(), device="cpu", dtype=torch.float32)
+
+
+@pytest.mark.requires_torch
+def test_el_bug_es_el_UNICO_lugar_donde_el_shim_se_aparta():
+    """La matemática del shim (sumar el residual ANTES de normalizar) es correcta;
+    lo que falta es el fallback del return. Se verifica que, PASÁNDOLE un residual,
+    fp32 sí lo devuelve — o sea que el problema es el caso `residual=None`."""
+    from flash_attn.ops.triton.layer_norm import RMSNorm
+
+    norm = RMSNorm(8, eps=1e-5, dtype=torch.float32)
+    x = torch.randn(1, 2, 8, dtype=torch.float32)
+    res = torch.randn(1, 2, 8, dtype=torch.float32)
+
+    _, out_con = norm(x, residual=res, prenorm=True, residual_in_fp32=True)
+    assert out_con is not None
+    torch.testing.assert_close(out_con, x + res)  # la suma está bien
+
+    _, out_sin = norm(x, residual=None, prenorm=True, residual_in_fp32=True)
+    assert out_sin is None, "acá está el bug: debería devolver `x`"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# El camino de fronteras
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.requires_torch
 def test_config_necesita_ssm_cfg_construido_a_mano():
     """`HNetConfig(**raw)` deja `ssm_cfg` como dict crudo (dataclass no valida
     tipos). Y el JSON de upstream NO trae `use_mem_eff_path`, que acá DEBE ser
@@ -54,14 +132,19 @@ def test_config_necesita_ssm_cfg_construido_a_mano():
     assert cfg.ssm_cfg.use_mem_eff_path is False
 
 
+@pytest.mark.requires_torch
+@pytest.mark.requires_cuda
+@requires_hnet
 def test_el_camino_de_fronteras_son_28_7M_de_679M(probe):
-    n = sum(p.numel() for p in probe.parameters())
-    assert n == 28_764_544
+    assert sum(p.numel() for p in probe.parameters()) == 28_764_544
     n_enc = sum(p.numel() for p in probe.encoder.parameters())
     n_rm = sum(p.numel() for p in probe.routing_module.parameters())
     assert round((n_enc + n_rm) / 1e6, 1) == 28.5  # lo que el paquete propone entrenar
 
 
+@pytest.mark.requires_torch
+@pytest.mark.requires_cuda
+@requires_hnet
 def test_devuelve_una_probabilidad_por_byte(probe):
     data = "el órgano cortó acá".encode("utf-8")
     p = probe.boundary_prob(data)
@@ -71,44 +154,62 @@ def test_devuelve_una_probabilidad_por_byte(probe):
     assert p[0] == 1.0, "el RoutingModule fuerza PAD_PROB=1.0 en la posición 0"
 
 
-def test_fp32_es_obligatorio():
-    with pytest.raises(ValueError, match="fp32"):
-        BoundaryProbe(build_config(), device="cuda", dtype=torch.bfloat16)
+@pytest.mark.requires_torch
+@pytest.mark.requires_cuda
+@requires_hnet
+def test_en_fp16_H_Net_corta_en_palabras_y_en_fp32_no(probe):
+    """La evidencia dura de que fp16 es el dtype fiel y fp32 el roto.
 
-
-def test_bf16_destruye_el_chunker():
-    """MEDIDO, no supuesto. `boundary_prob = (1 - cos_sim)/2`; en texto homogéneo
-    cos_sim ~ 0.99 y los 8 bits de mantisa de bf16 no resuelven la resta. El
-    chunker no queda "peor calibrado": queda ROTO — corta en TODAS las posiciones.
+    fp16 : |The| quick| brown| fo|x| ju|mps| over| the la|zy| dog|.  -> 4.5 B/chunk
+    fp32 : |The |q|ui|c|k |brown| fox| |j|umps |o|ve|r| |th|e| laz|y| -> 2.3 B/chunk
     """
-    cfg = build_config()
-    data = b"a" * 24
+    p16 = probe.boundary_prob(_ENGLISH)
+    cortes16 = np.flatnonzero(p16 >= 0.5)
+    bpc16 = len(_ENGLISH) / cortes16.size
 
-    p32 = BoundaryProbe(cfg, device="cuda", dtype=torch.float32)
-    p32.load_pretrained(DEFAULT_WEIGHTS)
-    cuts32 = int((p32.boundary_prob(data)[1:] >= 0.5).sum())
-    del p32
+    espacios = {i for i, b in enumerate(_ENGLISH) if b == 0x20}
+    junto_a_espacio = sum(1 for c in cortes16 if c in espacios or (c - 1) in espacios)
+    frac16 = junto_a_espacio / cortes16.size
 
-    pbf = BoundaryProbe.allow_lossy_dtype(cfg, device="cuda", dtype=torch.bfloat16)
-    pbf.load_pretrained(DEFAULT_WEIGHTS)
-    cutsbf = int((pbf.boundary_prob(data)[1:] >= 0.5).sum())
-    del pbf
+    roto = BoundaryProbe.allow_lossy_dtype(build_config(), device="cuda", dtype=torch.float32)
+    roto.load_pretrained(DEFAULT_WEIGHTS)
+    p32 = roto.boundary_prob(_ENGLISH)
+    cortes32 = np.flatnonzero(p32 >= 0.5)
+    bpc32 = len(_ENGLISH) / cortes32.size
+    del roto
 
-    assert cuts32 <= 8, f"fp32 debería cortar poco en texto homogéneo, cortó {cuts32}/23"
-    assert cutsbf >= 20, f"bf16 debería cortar en (casi) todo, cortó {cutsbf}/23"
-    assert cutsbf > 2 * cuts32, "si esta relación se cae, la premisa del dtype cambió"
+    assert bpc16 > 4.0, f"fp16 debería chunkear a nivel palabra (~4.5 B/chunk), dio {bpc16:.2f}"
+    assert bpc32 < 3.0, f"fp32 (residual muerto) debería sobre-cortar, dio {bpc32:.2f}"
+    assert frac16 > 0.7, f"en fp16, la mayoría de los cortes cae junto a un espacio; dio {frac16:.0%}"
+    assert cortes32.size > 1.5 * cortes16.size
 
 
+@pytest.mark.requires_torch
+@pytest.mark.requires_cuda
+@requires_hnet
+def test_fp16_y_bf16_coinciden(probe):
+    """Dos formatos de baja precisión INDEPENDIENTES dan lo mismo. Es la
+    contraprueba de que el outlier es fp32, no bf16 (como decía la premisa)."""
+    bf = BoundaryProbe(build_config(), device="cuda", dtype=torch.bfloat16)
+    bf.load_pretrained(DEFAULT_WEIGHTS)
+    p16 = probe.boundary_prob(_ENGLISH)
+    pbf = bf.boundary_prob(_ENGLISH)
+    del bf
+    n16 = int((p16[1:] >= 0.5).sum())
+    nbf = int((pbf[1:] >= 0.5).sum())
+    assert abs(n16 - nbf) <= 2, f"fp16 cortó {n16} y bf16 {nbf}: no deberían separarse"
+    assert np.abs(p16 - pbf).mean() < 0.02
+
+
+@pytest.mark.requires_torch
+@pytest.mark.requires_cuda
+@requires_hnet
 def test_el_ventaneo_no_inventa_fronteras_en_los_bordes(probe):
     """El RoutingModule fuerza p=1.0 en la posición 0 de CADA ventana. Sin warmup,
     el ventaneo sembraría una frontera falsa cada `window` bytes."""
-    data = (b'{"k": "' + b"a" * 6000 + b'"}')
+    data = b'{"k": "' + b"a" * 6000 + b'"}'
     p = probe.boundary_prob(data)
     assert p.shape == (len(data),)
-    # la única posición con p == 1.0 exacto debe ser la 0 del documento
-    unos = np.flatnonzero(p >= 0.999)
-    assert unos.tolist() == [0] or all(u == 0 for u in unos[:1])
-    # no hay un pico sistemático en los múltiplos del stride
     stride = probe.window - probe.warmup
     for k in range(1, len(data) // stride + 1):
         i = k * stride
@@ -116,5 +217,10 @@ def test_el_ventaneo_no_inventa_fronteras_en_los_bordes(probe):
             assert p[i] < 0.999, f"frontera fabricada por el ventaneo en {i}"
 
 
+@pytest.mark.requires_torch
+@pytest.mark.requires_cuda
+@requires_hnet
 def test_documento_vacio_no_revienta(probe):
     assert probe.boundary_prob(b"").shape == (0,)
+
+

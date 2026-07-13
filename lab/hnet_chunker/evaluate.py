@@ -67,6 +67,14 @@ def _gt_for(doc: Document, conventions: Iterable[Convention]) -> dict[str, Groun
                 out[conv.value] = json_ground_truth(doc.text.encode("utf-8"), conv)
             elif doc.content_kind == "code_py":
                 out[conv.value] = code_python_ground_truth(doc.text, conv)
+            elif doc.content_kind == "code_py_ident":
+                # CONVENCIÓN, no verdad: agrega cortes en los quiebres snake_case y
+                # CamelCase DENTRO de los identificadores. Nada en la gramática de
+                # Python dice que `boundary_prob` sean dos unidades. Va como familia
+                # SEPARADA, nunca mezclada con la verdad léxica del lexer.
+                out[conv.value] = code_python_ground_truth(
+                    doc.text, conv, subsplit_identifiers=True
+                )
             elif doc.content_kind == "prose":
                 out[conv.value] = prose_ground_truth(doc.text, conv)
             else:
@@ -104,7 +112,7 @@ def prepare(doc: Document, max_bytes: int) -> tuple[str | None, str]:
     if len(raw) < 32:
         return None, SKIP_TOO_SMALL
 
-    if doc.content_kind in ("json", "code_py"):
+    if doc.content_kind in ("json", "code_py", "code_py_ident"):
         if len(raw) > max_bytes:
             return None, SKIP_TOO_BIG
         return doc.text, ""
@@ -207,6 +215,24 @@ def evaluate_family(
     primary = Convention.TOKEN_START.value
     best = _best_row(curves[primary], "hnet_skeleton")
 
+    # ROBUSTEZ: ¿el veredicto sobrevive a las 4 combinaciones (convención × máscara)?
+    # No es un adorno. En el JSON de RNFE el veredicto SE DA VUELTA según la convención:
+    # las dos verdades tienen las MISMAS fronteras corridas 1 byte, pero eso cambia el
+    # *clustering* (pares a 2 bytes vs pares adyacentes) y el cortador periódico es mucho
+    # más sensible a eso que H-Net. Un veredicto que depende de una elección arbitraria a
+    # nivel de 1 byte NO es un veredicto: es una preferencia. Hay que decirlo.
+    combos = {}
+    for conv_name, rows in curves.items():
+        for tag in ("skeleton", "strict"):
+            b = max(rows, key=lambda r: r[f"hnet_{tag}"]["f1"])
+            combos[f"{conv_name}/{tag}"] = {
+                "hnet_f1": b[f"hnet_{tag}"]["f1"],
+                "fixed_f1": b[f"fixed_{tag}"]["f1"],
+                "random_f1": b[f"random_{tag}"]["f1"],
+                "beats_fixed": bool(b[f"hnet_{tag}"]["f1"] > b[f"fixed_{tag}"]["f1"]),
+            }
+    robust = all(c["beats_fixed"] for c in combos.values())
+
     return {
         "family": family,
         "n_docs_offered": len(docs),
@@ -222,6 +248,15 @@ def evaluate_family(
         "truth_density_per_byte": round(_density(curves, primary), 5),
         "curves": curves,
         "verdict": _verdict(curves[primary], best),
+        "robustness": {
+            "beats_fixed_in_all_4_readings": robust,
+            "readings": combos,
+            "note": (
+                "4 lecturas = 2 convenciones (token_start / token_end) × 2 máscaras "
+                "(skeleton / strict). Si `beats_fixed_in_all_4_readings` es False, la "
+                "ventaja de H-Net DEPENDE de una elección arbitraria y NO es una ventaja."
+            ),
+        },
         "elapsed_s": round(time.time() - t0, 1),
     }
 
@@ -291,6 +326,15 @@ def collect_eval_docs(corpus_dir: Path, *, per_family: int, seed: int = 7) -> di
         take(corpus_dir / f"db_{table}.val.jsonl", f"json_rnfe/{table}")
 
     take(corpus_dir / "repo_code_py.val.jsonl", "code_py")
+    # Misma muestra, otra definición de verdad: el subsplit de identificadores que pidió
+    # el paquete. Se evalúa aparte porque es CONVENCIÓN y no verdad léxica.
+    shard = corpus_dir / "repo_code_py.val.jsonl"
+    if shard.exists():
+        docs = list(load_shard(shard))
+        random.Random(seed).shuffle(docs)
+        fams["code_py_ident"] = [
+            Document(**{**d.as_record(), "content_kind": "code_py_ident"}) for d in docs[:per_family]
+        ]
     take(corpus_dir / "repo_prose.val.jsonl", "prose_es", lambda d: _looks_spanish(d.text))
     take(corpus_dir / "repo_prose.val.jsonl", "prose_en", lambda d: not _looks_spanish(d.text))
     return fams
@@ -304,14 +348,40 @@ def main() -> None:
     ap.add_argument("--max-bytes", type=int, default=65536)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--weights", default=None)
+    ap.add_argument(
+        "--dtype",
+        default="float16",
+        choices=("float16", "bfloat16", "float32"),
+        help=(
+            "fp16 es el correcto. fp32 REPRODUCE EL BUG del residual (ver model.py) y sólo "
+            "existe para poder medirlo; el reporte lo marca como no-fidedigno."
+        ),
+    )
     args = ap.parse_args()
 
     import torch
 
-    from lab.hnet_chunker.model import DEFAULT_WEIGHTS, BoundaryProbe, build_config
+    from lab.hnet_chunker.model import (
+        DEFAULT_WEIGHTS,
+        BoundaryProbe,
+        build_config,
+        residual_stream_is_alive,
+    )
 
+    dtype = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}[args.dtype]
     cfg = build_config()
-    probe = BoundaryProbe(cfg, device=args.device, dtype=torch.float32)
+    alive = residual_stream_is_alive(dtype, args.device)
+    if alive:
+        probe = BoundaryProbe(cfg, device=args.device, dtype=dtype)
+    else:
+        print(
+            f"\n⚠⚠ ADVERTENCIA: con dtype={args.dtype} el STREAM RESIDUAL del encoder está MUERTO\n"
+            "   (flash_attn/ops/triton/layer_norm.py devuelve residual_out=None donde el kernel\n"
+            "    real devuelve `x`). Lo que sigue NO es H-Net: es H-Net sin conexiones residuales.\n"
+            "   Se corre igual, a propósito, para dejar la evidencia del bug.\n",
+            flush=True,
+        )
+        probe = BoundaryProbe.allow_lossy_dtype(cfg, device=args.device, dtype=dtype)
     info = probe.load_pretrained(Path(args.weights) if args.weights else DEFAULT_WEIGHTS)
     print(f"probe: {info}", flush=True)
 
@@ -321,7 +391,9 @@ def main() -> None:
     report = {
         "kind": "baseline_pretrained",
         "model": "hnet_1stage_L",
-        "dtype": "float32",
+        "dtype": args.dtype,
+        "residual_stream_alive": alive,
+        "faithful": alive,  # si es False, estos números NO son de H-Net
         "probe": info.__dict__,
         "tolerance_bytes": TOLERANCE_BYTES,
         "thresholds": list(THRESHOLDS),
@@ -342,7 +414,12 @@ def main() -> None:
 
 def print_summary(report: dict) -> None:
     print("\n" + "=" * 96)
-    print("BASELINE — H-Net preentrenado, fp32, tolerancia ±1 byte, convención token_start")
+    fiel = report.get("faithful", True)
+    marca = "" if fiel else "  ⚠ RESIDUAL MUERTO — ESTO NO ES H-NET ⚠"
+    print(
+        f"BASELINE — H-Net preentrenado, {report.get('dtype')}, tolerancia ±1 byte, "
+        f"convención token_start{marca}"
+    )
     print("=" * 96)
     hdr = (
         f"{'familia':26s} {'n':>3s} {'cob':>5s} {'thr*':>5s} {'F1 hnet':>8s} {'F1 fijo':>8s} "
@@ -370,15 +447,21 @@ def print_summary(report: dict) -> None:
     print("B/chunk = bytes por chunk al mejor umbral (ratio de compresión del modelo)")
     print("dens    = densidad de la verdad (fronteras/byte). Alta densidad ⇒ piso de azar alto.")
     print("?%      = cortes en terreno SIN verdad (interior de strings), descartados en la lectura `skeleton`")
-    print("\nLectura `strict` (los cortes dentro de strings cuentan como FP — cota inferior de precisión):")
+    print("\nROBUSTEZ — ¿le gana al corte fijo en las 4 lecturas (2 convenciones × 2 máscaras)?")
+    print("Un veredicto que se da vuelta según una elección arbitraria de 1 byte NO es un veredicto.")
+    keys = ["token_start/skeleton", "token_start/strict", "token_end/skeleton", "token_end/strict"]
+    print(f"  {'familia':26s} " + " ".join(f"{k.replace('token_','')[:12]:>14s}" for k in keys) + "   ROBUSTO")
     for fam, r in sorted(report["families"].items()):
         if not r.get("n_docs_evaluated"):
             continue
-        v = r["verdict"]["strict"]
-        print(
-            f"  {fam:26s} hnet={v['hnet_f1']:.3f}  fijo={v['fixed_f1']:.3f}  azar={v['random_f1']:.3f}  "
-            f"{'gana' if v['beats_fixed'] else 'PIERDE'} vs fijo"
-        )
+        rb = r["robustness"]
+        cells = []
+        for k in keys:
+            c = rb["readings"][k]
+            cells.append(f"{c['hnet_f1']:.3f}/{c['fixed_f1']:.3f}".rjust(14))
+        marca = "SI" if rb["beats_fixed_in_all_4_readings"] else "NO"
+        print(f"  {fam:26s} " + " ".join(cells) + f"   {marca}")
+    print("  (cada celda: F1 H-Net / F1 corte fijo)")
 
 
 if __name__ == "__main__":
