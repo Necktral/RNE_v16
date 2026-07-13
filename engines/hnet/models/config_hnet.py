@@ -17,6 +17,13 @@ class SSMConfig:
     expand: int = 2
     d_state: int = 128
     chunk_size: int = 256
+    # `Mamba2(use_mem_eff_path=True)` (el default de upstream, que se preserva acá) toma el
+    # camino fusionado, que llama a `causal_conv1d_fn` — una extensión CUDA que exige nvcc.
+    # En una máquina sin nvcc ese camino revienta con `TypeError: 'NoneType' object is not
+    # callable`.  El camino lento (`False`) cae a `F.conv1d` de torch puro y da lo mismo.
+    # `get_stage_cfg` hace `asdict(cfg)`, así que sin este campo la opción era INEXPRESABLE
+    # desde un `HNetConfig`/JSON.  El default NO cambia el comportamiento de nadie.
+    use_mem_eff_path: bool = True
 
 
 @dataclass
