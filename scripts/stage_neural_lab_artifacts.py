@@ -70,9 +70,21 @@ def stage_lab_artifacts(
     source_root: Path,
     target_root: Path,
     organs: Iterable[str] = ("N1", "N3", "N4", "N5"),
+    qualification: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     source_root = source_root.resolve()
     target_root = target_root.resolve()
+    qualification_payload = dict(qualification or {})
+    if qualification is not None:
+        required = (
+            bool(qualification_payload.get("staging_authorized")),
+            bool(qualification_payload.get("shadow_qualification_passed")),
+            bool(str(qualification_payload.get("campaign_id") or "").strip()),
+            len(str(qualification_payload.get("verdict_sha256") or "")) == 64,
+            len(str(qualification_payload.get("checkpoint_hash") or "")) == 64,
+        )
+        if not all(required):
+            raise ValueError("neural_shadow_qualification_proof_invalid")
     staged: list[dict[str, Any]] = []
     missing: list[str] = []
     for organ in tuple(dict.fromkeys(str(item).upper() for item in organs)):
@@ -128,11 +140,16 @@ def stage_lab_artifacts(
                 "authority_ceiling": "shadow",
                 "training_authorized": False,
                 "promotion_authorized": False,
+                "shadow_qualification_passed": bool(
+                    qualification_payload.get("shadow_qualification_passed", False)
+                ),
             }
         )
     profile = {
         "schema_version": "rnfe-neural-lab-activation-profile-v1",
-        "classification": "laboratory_shadow_only",
+        "classification": (
+            "qualified_shadow_only" if qualification is not None else "laboratory_shadow_only"
+        ),
         "source_root": str(source_root),
         "target_root": str(target_root),
         "staged": staged,
@@ -140,6 +157,10 @@ def stage_lab_artifacts(
         "training_authorized": False,
         "promotion_authorized": False,
         "activation_automatic": False,
+        "shadow_qualification_passed": bool(
+            qualification_payload.get("shadow_qualification_passed", False)
+        ),
+        "qualification": qualification_payload or None,
     }
     _write_json(target_root / "activation_profile.json", profile)
     return profile

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -51,6 +52,7 @@ def _n1_split_metrics(
     feature_names: Sequence[str],
     family_index: Mapping[str, int],
     torch: Any,
+    temperature: float = 1.0,
 ) -> dict[str, Any]:
     if not samples:
         return {"records": 0, "evaluated": False}
@@ -76,7 +78,7 @@ def _n1_split_metrics(
         utility, logits = model(x)
         selected_utility = utility.gather(1, family[:, None]).squeeze(1)
         selected_logits = logits.gather(1, family[:, None]).squeeze(1)
-        probabilities = torch.sigmoid(selected_logits)
+        probabilities = torch.sigmoid(selected_logits / max(float(temperature), 1e-6))
         utility_rmse = torch.sqrt(
             torch.nn.functional.mse_loss(selected_utility, utility_target)
         )
@@ -93,7 +95,50 @@ def _n1_split_metrics(
         "positive_bce": float(binary_cross_entropy),
         "positive_accuracy": float(accuracy),
         "calibration_ece": _ece(probability_values, label_values),
+        "temperature": float(temperature),
     }
+
+
+def _fit_validation_temperature(
+    model: Any,
+    samples: Sequence[CounterfactualSample],
+    *,
+    feature_names: Sequence[str],
+    family_index: Mapping[str, int],
+    torch: Any,
+) -> float:
+    """Fit one scalar on validation only using a deterministic log grid.
+
+    A grid avoids optimizer-state variance and, unlike fitting on the exposed test
+    partition, preserves the validation/test boundary.  The bounded range matches
+    the reference backend's numerical protections.
+    """
+    if not samples:
+        return 1.0
+    x = torch.tensor(
+        [[float(sample.features.get(name, 0.0)) for name in feature_names] for sample in samples],
+        dtype=torch.float32,
+    )
+    family = torch.tensor(
+        [family_index[sample.family] for sample in samples], dtype=torch.long
+    )
+    labels = torch.tensor(
+        [float(sample.positive_utility) for sample in samples], dtype=torch.float32
+    )
+    with torch.inference_mode():
+        _, logits = model(x)
+        selected = logits.gather(1, family[:, None]).squeeze(1)
+        candidates = [
+            math.exp(math.log(0.05) + index * (math.log(10.0) - math.log(0.05)) / 400)
+            for index in range(401)
+        ]
+        scored = []
+        for temperature in candidates:
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                selected / temperature, labels
+            )
+            scored.append((float(loss), abs(math.log(temperature)), temperature))
+    return min(max(float(min(scored)[2]), 0.05), 10.0)
 
 
 def train_n1_router(
@@ -166,6 +211,21 @@ def train_n1_router(
         or split_ids["validation"].intersection(split_ids["test"])
     ):
         raise ValueError("n1_train_validation_test_overlap")
+    uncalibrated_validation = _n1_split_metrics(
+        model,
+        validation_samples,
+        feature_names=feature_names,
+        family_index=family_index,
+        torch=torch,
+        temperature=1.0,
+    )
+    temperature = _fit_validation_temperature(
+        model,
+        validation_samples,
+        feature_names=feature_names,
+        family_index=family_index,
+        torch=torch,
+    )
     split_metrics = {
         "train": _n1_split_metrics(
             model,
@@ -173,6 +233,7 @@ def train_n1_router(
             feature_names=feature_names,
             family_index=family_index,
             torch=torch,
+            temperature=temperature,
         ),
         "validation": _n1_split_metrics(
             model,
@@ -180,6 +241,7 @@ def train_n1_router(
             feature_names=feature_names,
             family_index=family_index,
             torch=torch,
+            temperature=temperature,
         ),
         "test": _n1_split_metrics(
             model,
@@ -187,6 +249,7 @@ def train_n1_router(
             feature_names=feature_names,
             family_index=family_index,
             torch=torch,
+            temperature=temperature,
         ),
     }
     calibration_split = "validation" if validation_samples else "train"
@@ -204,6 +267,11 @@ def train_n1_router(
         "final_loss": losses[-1],
         "calibration_ece": calibration_ece,
         "calibration_split": calibration_split,
+        "calibration_method": "validation_scalar_temperature_log_grid_v1",
+        "temperature": temperature,
+        "validation_ece_before_calibration": uncalibrated_validation.get(
+            "calibration_ece"
+        ),
         "heldout_evaluated": bool(validation_samples and test_samples),
         "split_metrics": split_metrics,
         "promotion_eligible": False,
@@ -219,7 +287,7 @@ def train_n1_router(
         "b2": model.layer2.bias.detach().tolist(),
         "utility_head": model.utility.weight.detach().tolist(),
         "probability_head": model.probability.weight.detach().tolist(),
-        "temperature": 1.0,
+        "temperature": temperature,
         "calibration_ece": calibration_ece,
         "activation_policy": {
             "min_expected_utility": 0.0,
