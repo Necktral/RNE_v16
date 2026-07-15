@@ -215,8 +215,12 @@ def _configure_native_runtime(seed: int, *, max_tokens: int, timeout_s: float, t
     )
 
 
-def _storage(branch_dir: Path):
+def _storage(branch_dir: Path, storage_config: StorageConfig | None = None):
     branch_dir.mkdir(parents=True, exist_ok=True)
+    if storage_config is not None:
+        if storage_config.mode != "postgres":
+            raise ValueError("teacher_campaign_official_storage_must_be_postgres")
+        return StorageFactory.create_facade(storage_config)
     return StorageFactory.create_facade(
         StorageConfig(
             mode="sqlite",
@@ -253,12 +257,12 @@ def _semantic_metrics(lesson: Mapping[str, Any] | None, *, baseline: str, interv
     }
 
 
-def _run_trial(*, campaign_id: str, campaign_dir: Path, scenario_name: str, perturbation_id: str, external_input: float, seed: int, variant: str, max_tokens: int, timeout_s: float, temperature: float, horizon: int) -> dict[str, Any]:
+def _run_trial(*, campaign_id: str, campaign_dir: Path, scenario_name: str, perturbation_id: str, external_input: float, seed: int, variant: str, max_tokens: int, timeout_s: float, temperature: float, horizon: int, storage_config: StorageConfig | None = None) -> dict[str, Any]:
     _configure_native_runtime(seed, max_tokens=max_tokens, timeout_s=timeout_s, temperature=temperature)
     spec = SCENARIOS[scenario_name]
     pair_id = f"{scenario_name}-{perturbation_id}-seed-{seed}"
     branch_dir = campaign_dir / "work" / pair_id / variant
-    storage = _storage(branch_dir)
+    storage = _storage(branch_dir, storage_config)
     organism_id = "organism-" + hashlib.sha256(
         f"{campaign_id}:{pair_id}:{variant}".encode("utf-8")
     ).hexdigest()[:20]
@@ -519,7 +523,7 @@ def _report(campaign_id: str, summary: Mapping[str, Any], verdict: Mapping[str, 
     return "\n".join(lines)
 
 
-def run_campaign(*, campaign_id: str, output_root: Path, scenarios: Iterable[str], seeds: Iterable[int], max_tokens: int, timeout_s: float, temperature: float, horizon: int, profile: str = "pilot") -> Path:
+def run_campaign(*, campaign_id: str, output_root: Path, scenarios: Iterable[str], seeds: Iterable[int], max_tokens: int, timeout_s: float, temperature: float, horizon: int, profile: str = "pilot", storage_config: StorageConfig | None = None) -> Path:
     campaign_dir = output_root / campaign_id
     campaign_dir.mkdir(parents=True, exist_ok=False)
     started = time.time()
@@ -548,6 +552,7 @@ def run_campaign(*, campaign_id: str, output_root: Path, scenarios: Iterable[str
                             timeout_s=timeout_s,
                             temperature=temperature,
                             horizon=horizon,
+                            storage_config=storage_config,
                         )
                     )
     summary = _summary(trials)
@@ -592,6 +597,8 @@ def run_campaign(*, campaign_id: str, output_root: Path, scenarios: Iterable[str
         "elapsed_s": round(time.time() - started, 3),
         "native_models_root": "/home/wis/rnfe_models",
         "experimental": True,
+        "storage_mode": storage_config.mode if storage_config is not None else "sqlite",
+        "sqlite_official_evidence": False if storage_config is not None else None,
     }
     _write_json(campaign_dir / "manifest.json", manifest)
     _write_json(campaign_dir / "trials.json", {"trials": trials})

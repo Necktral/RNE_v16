@@ -1,10 +1,12 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     container_name: rnfe-postgres
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rnfe}
+      POSTGRES_USER: ${POSTGRES_USER:-rnfe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rnfe_local_dev_only}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
