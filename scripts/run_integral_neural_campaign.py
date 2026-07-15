@@ -356,14 +356,27 @@ def _execute_block(
     ctx: RuntimeContext,
     name: str,
     function: Callable[[], Mapping[str, Any]],
+    *,
+    phase: str | None = None,
 ) -> dict[str, Any]:
     current = ctx.state.manifest["blocks"][name]
     if current["status"] == "completed":
         return dict(current.get("result") or {})
     ctx.state.begin(name)
+    # Persist a hash-bound recovery point *after* the block becomes running and
+    # before it can mutate PostgreSQL or the artifact plane.  A hard process/WSL
+    # interruption therefore leaves a checkpoint that still matches the
+    # manifest and whose block is safe to restart from zero.
+    if phase is not None:
+        ctx.state.checkpoint(phase=phase, next_block=name)
     try:
         result = dict(function())
         ctx.state.complete(name, result)
+        # Keep a recovery-valid checkpoint while completion telemetry is being
+        # persisted.  `_run_sequence` advances it to the real next block as soon
+        # as this function returns.
+        if phase is not None:
+            ctx.state.checkpoint(phase=phase, next_block=name)
         if ctx.storage is not None:
             ctx.storage.append_event(
                 event_type="neural.campaign.block.completed",
@@ -1426,13 +1439,20 @@ def _run_sequence(
     deadline = time.monotonic() + max_minutes * 60.0
     for name in names:
         try:
-            _execute_block(ctx, name, functions[name])
+            _execute_block(ctx, name, functions[name], phase=phase)
         except Exception as error:
             checkpoint = ctx.state.checkpoint(phase=phase, next_block=name)
             raise CampaignError(
                 f"campaign_block_failed:{name}:{type(error).__name__}:"
                 f"resume_checkpoint={checkpoint['checkpoint_hash']}"
             ) from error
+        # Close the tiny recovery gap between two blocks.  If the process stops
+        # here, resume starts at the next pending block and never reuses partial
+        # evidence from the completed block.
+        ctx.state.checkpoint(
+            phase=phase,
+            next_block=ctx.state.next_pending(names),
+        )
         if time.monotonic() >= deadline:
             next_block = ctx.state.next_pending(names)
             return ctx.state.checkpoint(phase=phase, next_block=next_block)
@@ -1448,6 +1468,18 @@ def command_preflight(args: argparse.Namespace) -> int:
         return 0
     finally:
         ctx.close()
+
+
+def _overnight_checkpoint_allowed(
+    checkpoint: Mapping[str, Any], *, resume_mode: bool
+) -> bool:
+    """Accept a closed rehearsal or a supervisor-bound overnight recovery point."""
+    fresh_overnight = (
+        checkpoint.get("phase") == "rehearsal"
+        and checkpoint.get("next_block") is None
+    )
+    resumed_overnight = resume_mode and checkpoint.get("phase") == "overnight"
+    return bool(fresh_overnight or resumed_overnight)
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -1485,7 +1517,10 @@ def command_run(args: argparse.Namespace) -> int:
             if not args.checkpoint:
                 raise CampaignError("overnight_requires_manually_approved_checkpoint_hash")
             approved = ctx.state.verify_checkpoint(args.checkpoint)
-            if approved["phase"] != "rehearsal" or approved["next_block"] is not None:
+            if not _overnight_checkpoint_allowed(
+                approved,
+                resume_mode=bool(getattr(args, "resume_mode", False)),
+            ):
                 raise CampaignError("overnight_requires_completed_rehearsal_checkpoint")
             functions = {
                 "open_fresh_holdout": lambda: _open_holdout(
@@ -1527,6 +1562,7 @@ def command_resume(args: argparse.Namespace) -> int:
             ),
         )
         args.checkpoint = refreshed["checkpoint_hash"]
+        args.resume_mode = True
     finally:
         ctx.close()
     return command_run(args)

@@ -91,3 +91,4 @@ menores: `lotf`, `smg`, `telemetry`, `symbolic`, `agents`, `memory`, `utils`.
 | 22 | campaña avanzada 7B vs Codex vs control | ✅ piloto 3×3×3 | [22_ADVANCED_TEACHER_CAMPAIGN.md](22_ADVANCED_TEACHER_CAMPAIGN.md) |
 | 23 | held-out y currículo Codex→7B | ⚠️ dataset rechazado honestamente | [23_HELDOUT_CODEX_TO_7B_CURRICULUM.md](23_HELDOUT_CODEX_TO_7B_CURRICULUM.md) |
 | 24 | prioridad P0: conectoma cerrado, evidencia y artefactos SHADOW | ✅ integrado, entrenamiento bloqueado | [24_NEURAL_INTEGRATION_PRIORITY.md](24_NEURAL_INTEGRATION_PRIORITY.md) |
+| 25 | supervisor nocturno desatendido, recuperación y cuarentena | ✅ implementado, SHADOW fail-closed | [25_UNATTENDED_NEURAL_SUPERVISOR.md](25_UNATTENDED_NEURAL_SUPERVISOR.md) |

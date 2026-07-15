@@ -99,6 +99,46 @@ El staging conserva `promotion_eligible=false`, `promotion_authorized=false` y
 `activation_automatic=false`; solo añade la prueba
 `shadow_qualification_passed=true`.
 
+## Operación nocturna desatendida
+
+`scripts/supervise_integral_neural_campaign.py` es la envolvente operativa para
+noches sin operador. Genera un identificador estable por fecha local y commit,
+adquiere un lock exclusivo y ejecuta ensayo, autorización de política, nocturna,
+reporte, reconciliación y validación física del dump. La autorización persistida
+declara el mandato permanente del usuario para diagnóstico nocturno desatendido;
+no autoriza entrenamiento, promoción ni activación.
+
+El supervisor aplica estas guardas:
+
+- máximo de 10 horas de pared y cuatro intentos por fase;
+- heartbeat cada 15 segundos con disco, temperatura y memoria GPU;
+- pausa cerrada con menos de 20 GiB libres o tres muestras GPU sobre 88 °C;
+- lock `flock` para impedir campañas solapadas;
+- backoff de 30, 120 y 300 segundos ante fallos transitorios;
+- reconstrucción de checkpoint solo desde el manifiesto del mismo commit;
+- repetición desde cero de cualquier bloque `running` o `failed`;
+- cuarentena automática si fallan gates o integridad;
+- staging automático únicamente de un artefacto `qualified_shadow_only` cuando
+  todos los gates ya otorgaron `staging_authorized=true`.
+
+El launcher estable es:
+
+```bash
+/home/wis/Desarrollo/RNE_v16_worktrees/neural-agent-suite/scripts/run_nightly_neural_supervisor.sh
+```
+
+Windows Task Scheduler lo ejecuta diariamente a las 22:00 en `Ubuntu-24.04`, con
+`StartWhenAvailable`, `WakeToRun`, exclusión de instancias paralelas, límite de diez
+horas y tres reinicios del launcher. La tarea se instala o actualiza con:
+
+```powershell
+& "\\wsl.localhost\Ubuntu-24.04\home\wis\Desarrollo\RNE_v16_worktrees\neural-agent-suite\scripts\install_nightly_neural_task.ps1"
+```
+
+Cada campaña escribe `SUPERVISOR.json`, logs de intentos, aprobación desatendida y,
+cuando corresponde, `QUARANTINE.json`. La evidencia oficial sigue en PostgreSQL y
+los secretos continúan leyéndose solo desde el `.env` raíz.
+
 ## Secuencia y evidencia
 
 1. Entorno, PostgreSQL, conectoma de 22 nodos/38 conexiones y artefactos.
@@ -152,3 +192,5 @@ Orden recomendado después de obtener evidencia de la corrida:
   rollback certificadas.
 - La utilidad real del 7B depende del costo completo del trial, no solo del timeout
   de generación; el bloque se detiene únicamente en una frontera atómica.
+- Windows debe estar encendido o ser capaz de despertar; la tarea usa la distribución
+  WSL registrada para el usuario de Windows y no debe ejecutarse como `SYSTEM`.

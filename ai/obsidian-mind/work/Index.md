@@ -22,6 +22,7 @@ Incident docs live in `work/incidents/`. See `Incidents.base` for overview.
 - [[RNFE v16 Project Memory]] — shared memory setup and agent coordination.
 - [[RNFE v16 — Backlog de Reparación]] — 68 ítems en 31 paquetes ordenados (P0–P30); PAUSA antes de despachar P0.
 - [[RNFE v16 — Conectoma neural-simbólico]] — conectómica tipada N0–N6 y frontera plástica no autoritativa.
+- [[RNFE v16 — Supervisor nocturno desatendido]] — campañas sin operador, recovery atómico, cuarentena y staging SHADOW condicionado.
 
 ## Review Prep
 
