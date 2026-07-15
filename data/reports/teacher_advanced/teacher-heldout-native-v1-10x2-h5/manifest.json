@@ -1,0 +1,35 @@
+{
+  "campaign_id": "teacher-heldout-native-v1-10x2-h5",
+  "commit": "f88a31413c9607175d3be2edbd9049e2049cd04f",
+  "elapsed_s": 346.149,
+  "experimental": true,
+  "horizon": 5,
+  "max_tokens": 160,
+  "native_models_root": "/home/wis/rnfe_models",
+  "perturbation_profile": "heldout_v1",
+  "scenarios": [
+    "thermal_homeostasis",
+    "resource_management",
+    "deferred_load_trap"
+  ],
+  "schema_version": "rnfe-teacher-campaign-manifest-v1",
+  "seeds": [
+    11,
+    23,
+    37,
+    41,
+    53,
+    67,
+    79,
+    83,
+    97,
+    109
+  ],
+  "temperature": 0.25,
+  "timeout_s": 120.0,
+  "variants": [
+    "no_teacher",
+    "local_7b",
+    "codex_frontier"
+  ]
+}

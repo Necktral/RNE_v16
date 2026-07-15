@@ -1,0 +1,17 @@
+{
+  "test": {
+    "contexts": 10,
+    "groups": 10,
+    "samples": 60
+  },
+  "train": {
+    "contexts": 40,
+    "groups": 40,
+    "samples": 240
+  },
+  "validation": {
+    "contexts": 10,
+    "groups": 10,
+    "samples": 60
+  }
+}

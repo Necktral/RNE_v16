@@ -1,0 +1,9 @@
+{
+  "curriculum_id": "codex-to-7b-heldout-v1",
+  "dataset_candidate_ready": false,
+  "promotion_authorized": false,
+  "reason": "post_training_independent_evaluation_required",
+  "schema_version": "rnfe-teacher-curriculum-verdict-v1",
+  "training_authorized": false,
+  "verdict": "dataset_rejected_by_heldout_gate"
+}

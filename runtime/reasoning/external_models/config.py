@@ -66,6 +66,7 @@ class ExternalReasonerConfig:
     threads: int | None = None
     threads_batch: int | None = None
     mlock: bool = False
+    seed: int | None = None
 
     @classmethod
     def from_env(
@@ -119,6 +120,7 @@ class ExternalReasonerConfig:
             threads=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_THREADS")),
             threads_batch=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_THREADS_BATCH")),
             mlock=_as_bool(os.environ.get("RNFE_EXTERNAL_REASONER_MLOCK"), False),
+            seed=_as_optional_int(os.environ.get("RNFE_EXTERNAL_REASONER_SEED")),
         )
 
     def cli_path_for_backend(self, backend: str | None = None) -> str:

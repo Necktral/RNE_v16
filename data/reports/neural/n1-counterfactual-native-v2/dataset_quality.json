@@ -1,0 +1,19 @@
+{
+  "families": [
+    "DIA_ADV",
+    "FAL_GUARD",
+    "HEUR",
+    "IND",
+    "OPT",
+    "PLAN"
+  ],
+  "generators": 3,
+  "negative_pairs": 252,
+  "positive_pairs": 108,
+  "rejected_records": 0,
+  "total_records": 720,
+  "unique_contexts": 60,
+  "utility_max": 0.019886199999999996,
+  "utility_min": -0.0027500000000000024,
+  "valid_pairs": 360
+}

@@ -7,7 +7,7 @@ Este documento deja replicable el estado validado de `EXT_OPEN_THINKER` como res
 - Windows 11 + WSL2.
 - Ubuntu en WSL.
 - GPU NVIDIA visible desde WSL con `nvidia-smi`.
-- Espacio recomendado en `D:\rnfe_models` para modelos, caches y builds.
+- Volumen Linux nativo montado en `/home/wis` (`/dev/sdg3`, ext4).
 - Python 3.10; el entorno actual fue validado con Python 3.10.14.
 - Git.
 - CMake y build tools (`cmake`, `build-essential`, `pkg-config`).
@@ -15,35 +15,29 @@ Este documento deja replicable el estado validado de `EXT_OPEN_THINKER` como res
 
 ## 2. Layout Esperado
 
-En Windows:
+En el volumen Linux nativo (WSL sólo proporciona el shell):
 
 ```text
-D:\rnfe_models
-```
-
-En WSL:
-
-```text
-/mnt/d/rnfe_models
+/home/wis/rnfe_models
 ```
 
 Subdirectorios:
 
 ```text
-/mnt/d/rnfe_models/local/
-/mnt/d/rnfe_models/gguf/
-/mnt/d/rnfe_models/tools/
-/mnt/d/rnfe_models/cache/
-/mnt/d/rnfe_models/manifests/
-/mnt/d/rnfe_models/logs/
-/mnt/d/rnfe_models/scripts/
+/home/wis/rnfe_models/local/
+/home/wis/rnfe_models/gguf/
+/home/wis/rnfe_models/tools/
+/home/wis/rnfe_models/cache/
+/home/wis/rnfe_models/manifests/
+/home/wis/rnfe_models/logs/
+/home/wis/rnfe_models/scripts/
 ```
 
 Crear el layout:
 
 ```bash
-mkdir -p /mnt/d/rnfe_models/{local,gguf,tools,cache,manifests,logs,scripts}
-mkdir -p /mnt/d/rnfe_models/cache/{huggingface,torch,pip}
+mkdir -p /home/wis/rnfe_models/{local,gguf,tools,cache,manifests,logs,scripts}
+mkdir -p /home/wis/rnfe_models/cache/{huggingface,torch,pip}
 ```
 
 ## 3. Variables De Entorno
@@ -51,10 +45,10 @@ mkdir -p /mnt/d/rnfe_models/cache/{huggingface,torch,pip}
 Usar `.env.external_reasoner.example` como plantilla. Ajustar rutas segun usuario, venv y ubicacion real del CUDA runtime.
 
 ```bash
-export RNFE_MODELS_ROOT=/mnt/d/rnfe_models
-export RNFE_REASONING_GGUF=/mnt/d/rnfe_models/gguf/OpenThinker3-7B/OpenThinker3-7B-Q4_K_M.gguf
-export RNFE_LLAMA_CLI_CUDA=/mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin/llama-cli
-export RNFE_LLAMA_CLI_CPU=/mnt/d/rnfe_models/tools/llama.cpp/build-cpu/bin/llama-cli
+export RNFE_MODELS_ROOT=/home/wis/rnfe_models
+export RNFE_REASONING_GGUF=/home/wis/rnfe_models/gguf/OpenThinker3-7B/OpenThinker3-7B-Q4_K_M.gguf
+export RNFE_LLAMA_CLI_CUDA=/home/wis/rnfe_models/tools/llama.cpp-src/build-cuda/bin/llama-cli
+export RNFE_LLAMA_CLI_CPU=/home/wis/rnfe_models/tools/llama.cpp-src/build-cpu/bin/llama-cli
 export RNFE_EXTERNAL_REASONER_BACKEND=cuda
 export RNFE_EXTERNAL_REASONER_NGL=99
 export RNFE_EXTERNAL_REASONER_MAX_TOKENS=256
@@ -62,13 +56,13 @@ export RNFE_EXTERNAL_REASONER_PROMPT_STYLE=standard
 export RNFE_EXTERNAL_REASONER_STRUCTURED_OUTPUT_MODE=json_schema
 export RNFE_EXTERNAL_REASONER_REASONING_BUDGET=0
 
-export HF_HOME=/mnt/d/rnfe_models/cache/huggingface
-export HF_HUB_CACHE=/mnt/d/rnfe_models/cache/huggingface/hub
-export TORCH_HOME=/mnt/d/rnfe_models/cache/torch
-export PIP_CACHE_DIR=/mnt/d/rnfe_models/cache/pip
+export HF_HOME=/home/wis/rnfe_models/cache/huggingface
+export HF_HUB_CACHE=/home/wis/rnfe_models/cache/huggingface/hub
+export TORCH_HOME=/home/wis/rnfe_models/cache/torch
+export PIP_CACHE_DIR=/home/wis/rnfe_models/cache/pip
 
 export CUDA_ROOT=/home/necktral/.venvs/rnfe-reasoning-models/lib/python3.10/site-packages/nvidia/cu13
-export LD_LIBRARY_PATH="$CUDA_ROOT/lib:/usr/lib/wsl/lib:/mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$CUDA_ROOT/lib:/usr/lib/wsl/lib:/home/wis/rnfe_models/tools/llama.cpp-src/build-cuda/bin:$LD_LIBRARY_PATH"
 ```
 
 `CUDA_ROOT` puede cambiar segun nombre de usuario, version de Python, nombre del venv o si se instala CUDA Toolkit del sistema.
@@ -93,13 +87,13 @@ OpenThinker3-7B-Q4_K_M.gguf
 a:
 
 ```text
-/mnt/d/rnfe_models/gguf/OpenThinker3-7B/
+/home/wis/rnfe_models/gguf/OpenThinker3-7B/
 ```
 
 Verificar:
 
 ```bash
-sha256sum /mnt/d/rnfe_models/gguf/OpenThinker3-7B/OpenThinker3-7B-Q4_K_M.gguf
+sha256sum /home/wis/rnfe_models/gguf/OpenThinker3-7B/OpenThinker3-7B-Q4_K_M.gguf
 ```
 
 Debe coincidir con:
@@ -119,7 +113,7 @@ Usar esta ruta solo si no existe backup del GGUF.
 5. Si el hash difiere por version de modelo o herramienta, actualizar `docs/setup/external_reasoner_state_manifest.json` y repetir smoke/repetibilidad antes de admitir el nuevo artefacto.
 
 No versionar el modelo ni los pesos originales.
-Mantener el GGUF en `D:\rnfe_models` (`/mnt/d/rnfe_models` en WSL); no copiar pesos al repo ni a `/home`.
+Mantener el GGUF en `/home/wis/rnfe_models`; no copiar pesos al repo.
 
 ## 5. Compilar llama.cpp CUDA
 
@@ -135,7 +129,7 @@ Si no hay `nvcc` del sistema, instalar el paquete CUDA compatible con WSL o usar
 Clonar o actualizar `llama.cpp` fuera del repo RNFE:
 
 ```bash
-cd /mnt/d/rnfe_models/tools
+cd /home/wis/rnfe_models/tools
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
 ```
@@ -159,8 +153,8 @@ cmake --build build-cuda --config Release -j
 Verificar:
 
 ```bash
-LD_LIBRARY_PATH="$CUDA_ROOT/lib:/usr/lib/wsl/lib:/mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin:$LD_LIBRARY_PATH" \
-  /mnt/d/rnfe_models/tools/llama.cpp/build-cuda/bin/llama-cli --help | grep -- --json-schema-file
+LD_LIBRARY_PATH="$CUDA_ROOT/lib:/usr/lib/wsl/lib:/home/wis/rnfe_models/tools/llama.cpp-src/build-cuda/bin:$LD_LIBRARY_PATH" \
+  /home/wis/rnfe_models/tools/llama.cpp-src/build-cuda/bin/llama-cli --help | grep -- --json-schema-file
 ```
 
 ## 6. Smoke Test
@@ -185,7 +179,9 @@ Resultado minimo esperado:
 - `invalid_intervention_accepted = 0`
 - salida estructurada validada por schema
 - fallback core intacto si gate/guard/schema fallan
-- latencia aproximada esperada en RTX 2070 Max-Q WSL2: `60-80 s` por llamada con `max_tokens=256`; puede variar por I/O de `/mnt/d`.
+- la latencia depende del prompt y tokens; el ensayo docente corto del 2026-07-14
+  midió 6.54 s de proceso, 31.8 tokens/s de generación y falló semántica aunque
+  cumplió el JSON schema. No extrapolarlo a la campaña histórica de 256 tokens.
 
 ## 7. Tests Minimos Post-Clone
 

@@ -1,0 +1,226 @@
+{
+  "curriculum_id": "codex-to-7b-heldout-v1",
+  "eligible_record_count": 0,
+  "record_count": 3,
+  "records": [
+    {
+      "evidence": {
+        "campaign_id": "teacher-heldout-native-v1-10x2-h5",
+        "comparison_hash": "add087c7b7e7a4f7038d69d28886a19e70be1a9485795ec62e43acd7c29c186d",
+        "mean_reward_delta": 0.0002,
+        "mean_severity_delta": -0.00227,
+        "perturbations": [
+          "heldout-high",
+          "heldout-low"
+        ],
+        "regression_count": 10,
+        "seeds": [
+          11,
+          23,
+          37,
+          41,
+          53,
+          67,
+          79,
+          83,
+          97,
+          109
+        ],
+        "semantic_pass_rate": 1.0,
+        "source_lesson_ids": [
+          "01f40682678dd19e041a17a4d64b702ce131db4a5c621451a1c09442f55c3f22",
+          "03e47f16b34bf87d73c0eb2841a453eaa34ae54276c96eaef6a0fb881f92e39d",
+          "0bb0dd0bb6adeb38b55d76bd83710e502c04eb3a5aefdbca81e69067fe3253c4",
+          "11ddda3f2b41e974e91fdb869a1e8160e4a7942f05d2e4ca291fb2d2eb898068",
+          "224e5529aeb1e14406e3f03be937855c79e9e33bbc9f5df7d7bfed1adf30246b",
+          "40819bf6c830cd9502915af19d344f8352cbf3e6e7adf1427ed0ef84ae4e8b1c",
+          "49aa2b08bee29e37c92e22a1de944aa3a3604fa167cd3f89bd1f011091319023",
+          "4c697223d4dc2ca583f5e8c3e0f986d836d88a9cff41930754d42f0a882f056f",
+          "58a234a5b111b37af1eac64b7946e4c448e3b84327255c189fdb293df99eb08c",
+          "5f301fb4f8ca0218568dc55009183b30d10f18e3710dcff0664a820de12229a1",
+          "633381119fff1632add398adb77c17c3c6ce55daf568bc76a2b99f2292f8ed3c",
+          "64a688a3faba8a59b2403bc30aa61bede7d21f26579eb79f6655d6df8f97c86b",
+          "66b212b8ec62bb22cb2fd7473f172fdb99cb9d928301eed9b5c5020c75a1928c",
+          "6780c463bdfbfe352158f7c0c2f396b0f4d6d9172b3dd35e718a236e0d8212be",
+          "7284e866d62902adc651f5c0f9295beca8cb987d0abace8c5d24daa8d853e5f7",
+          "7467235f15e5ec3ead0fb8a309fc343eba0bb0e0978c5cfc7c74e832f1ab1eab",
+          "8083fd6ddc8c2f900718c883f2857468886ea0ea9d4ad0d37fbb8868a073777d",
+          "84c49e3684f5d36c430d553bb89d8ce16d422ea978c2acadbbc08740e9730dfc",
+          "a76d361c7afc442d05293db74e454363021fc62ef334a25ae8bd1f7bdeeec9e3",
+          "b847538e5b2ef244f61d52170f12746ac28042ec6fb8da83b41421d7035d9532"
+        ],
+        "success_count": 10,
+        "success_rate": 0.5,
+        "support_count": 20
+      },
+      "input": {
+        "instruction": "Produce one bounded lesson after an observed harmful action.",
+        "regime": "calm",
+        "scenario": "deferred_load_trap",
+        "valid_interventions": [
+          "boost_throughput",
+          "shed_load"
+        ]
+      },
+      "record_hash": "0d3f96a4c3ff28954ae3296deeb810dff288252c0c2f6a707ecbcc85c592a865",
+      "record_id": "curriculum-7677920ef7e144207d0275ef",
+      "schema_version": "rnfe-teacher-curriculum-record-v1",
+      "student_target": "open-thoughts/OpenThinker3-7B",
+      "target": {
+        "avoid": "boost_throughput",
+        "lesson": "Evita alivio inmediato con deuda; reduce carga de forma sostenible y mide el rebote.",
+        "prefer": "shed_load"
+      },
+      "teacher_source": "codex_frontier",
+      "training_authorized": false,
+      "training_eligible": false
+    },
+    {
+      "evidence": {
+        "campaign_id": "teacher-heldout-native-v1-10x2-h5",
+        "comparison_hash": "c5d5461b142283bf3712a212f2b1abb04765b8bae4bb062fe462608c94739897",
+        "mean_reward_delta": 0.021166,
+        "mean_severity_delta": -0.01005,
+        "perturbations": [
+          "heldout-high",
+          "heldout-low"
+        ],
+        "regression_count": 20,
+        "seeds": [
+          11,
+          23,
+          37,
+          41,
+          53,
+          67,
+          79,
+          83,
+          97,
+          109
+        ],
+        "semantic_pass_rate": 1.0,
+        "source_lesson_ids": [
+          "113d6ebdb16005f1d25583ff70251a72e1aa5ea786ddd1c33f9334755eca2e2d",
+          "1e3891a4366c52a95bd5bf5c02a767ad5a4836a9db5e4e3cf85ae6f2afe72b05",
+          "2c6a674016ca30e19004e50df18b04dddeca72ed5c10810b0d570ee2d230f80f",
+          "3cd4985a7f836a129d3ea592c47826424ebb157124257e3dc554194672572a74",
+          "3f7f8a4775b8a409c982f1035f1008502ea1b0a4a718ed27410f9b94adb81f9f",
+          "436aabd99d88051715cfbab47bd0b30d8a8316100f0572c46c801031d4986559",
+          "468c60b83ee15e178a79e297633ff9d62f89da4323e20ea8eb5913b5e559c27b",
+          "4b28446f3531a392b42b4b2295ca87a1fbfe214f3280f997a3493f47e17f4047",
+          "7514a56621db46baff30a82c7f0dae28595e1fff08b2d8eeb958e3a42c86966c",
+          "759dec58ab601498a5de849103052811afc5dacce9f4ed3d54c88481c319c041",
+          "883b66103a27d09a9389602e473c2fc0a39b6110b86d340f569a20427b59f426",
+          "917d0eaf2004651d658127d8a02229f37fcf4f7b96f386f6cc33760397a6f730",
+          "a2777599fcbac8996a97b10dcd32ed8d19b0208f576452e06ef1329b3dd5cacc",
+          "a2fddce1c9dd1b3088f0dc695bf1a949be015523ef06c65ee9f7414c6772eedd",
+          "bb4aae681a7d1e6cfbb65c440ffd400bc7f0150344cd295b6e5381a2ecc4595f",
+          "ccc4d63e8b01aa03fa1d5b3c1f2c30fdea27a141e1a38ab8461f83d154516d4d",
+          "d8ae6583492a3d7822ec077572b2b60c008fb82e89801b4c5aa7c7c89e290e25",
+          "de2872d770ab855094e62eabaf2d05831394786e4884b97678bfa937e59b787a",
+          "f70d35c82ac4967a437c3c0d1dc500261a034b227ba609c1892c3e80086300cb",
+          "fd7dfd4db5ce0684f243baf9689e09ed384f0132d8c650ccf2ceba08ec4885e9"
+        ],
+        "success_count": 0,
+        "success_rate": 0.0,
+        "support_count": 20
+      },
+      "input": {
+        "instruction": "Produce one bounded lesson after an observed harmful action.",
+        "regime": "calm",
+        "scenario": "resource_management",
+        "valid_interventions": [
+          "start_production",
+          "stop_production"
+        ]
+      },
+      "record_hash": "9c958e5af1358aa7e6c429ebd51347baaad52bf169a6627cda0fb3d433514228",
+      "record_id": "curriculum-5c4d31f582a221fb0e786481",
+      "schema_version": "rnfe-teacher-curriculum-record-v1",
+      "student_target": "open-thoughts/OpenThinker3-7B",
+      "target": {
+        "avoid": "stop_production",
+        "lesson": "Inicia producción antes de cruzar escasez y mide la recuperación del stock.",
+        "prefer": "start_production"
+      },
+      "teacher_source": "codex_frontier",
+      "training_authorized": false,
+      "training_eligible": false
+    },
+    {
+      "evidence": {
+        "campaign_id": "teacher-heldout-native-v1-10x2-h5",
+        "comparison_hash": "9b48656c8ca8fefab1c2e7aecde23926af426d0d1bd23be194018fbb76482e70",
+        "mean_reward_delta": 0.021541,
+        "mean_severity_delta": -0.01152,
+        "perturbations": [
+          "heldout-high",
+          "heldout-low"
+        ],
+        "regression_count": 20,
+        "seeds": [
+          11,
+          23,
+          37,
+          41,
+          53,
+          67,
+          79,
+          83,
+          97,
+          109
+        ],
+        "semantic_pass_rate": 1.0,
+        "source_lesson_ids": [
+          "05a2625fc6ea07197418e7dd572ee5e04a9a140e616248e2cf6086a84ea18826",
+          "06d5846a1269e2f674a709d0aecdfb02594f7e0572d71f0b9f4ce69757d74417",
+          "1c52fa2b563293f86ee50f3df00394ea42c07cb50d9860174cf7c373ffaef3ab",
+          "1e1ed1c2e89e17e3b53fb1a2ec1173d2738a0d7015d1f02e9090aac442553f1a",
+          "242b222a4ae312bc80f805e206bb503364428c6a0e21371fed4d57fe02e6d1d2",
+          "24337b3cd41b8f4b7fb585d77aefd8feac53e6e160882423aabd87c11ce90ffb",
+          "29594eae9a3eec04d14773ec3bb19221d4bdebada6f349b067f78df863bd23f2",
+          "3fe67e2fb4d6b3318442d2de2a11e3618c934fdff1755b9270d57e3dd0663d04",
+          "40eca0df63143072018ec77f65bc15b696b173cad5fa141c1f1d9483a17d8d9d",
+          "531a2cfe510c88380d489c56dd1fcfe895d7d1f9141a325e0661ee30703a8593",
+          "73fd88b67be027e187f04095ccae54937d24cc55324d7bbf2bbc8267ed3de9d4",
+          "820de1f996ddd1e06a1ae9db3e71655097a8b1fb3e8e5866e60190bd985be36e",
+          "84e21cd70e81eba5bada8e66471fcad2675c8568a9ad21eb938c40926127ba3b",
+          "88bd20cbd2e67d0d2cdec6688cee44d5c7523925e2d084db4b0efa4bd547844c",
+          "9cff8bae6858e186940cf9454c0768727a980022952e0378888a8fe2fbef8a75",
+          "a3a7f1c5bc3cb22434339e3a94a84a926357f8e658d3f955e630bec160c79e60",
+          "bc72dcd113bbe92b968192fe005eebd7193d4627b43539501720f1b4b69b8aec",
+          "c5c0010cf8553643fbdcfd3773546453bb98104d0ceb65b964fc1109b508a5e0",
+          "cc36605c4bb3ecb734bc66201a37d47e47a42db1f33e95fa95e041a755ee2fb1",
+          "f0927a685db182d7761f8b6b332bce71bc30974c71357407208fd46586a9ba3d"
+        ],
+        "success_count": 0,
+        "success_rate": 0.0,
+        "support_count": 20
+      },
+      "input": {
+        "instruction": "Produce one bounded lesson after an observed harmful action.",
+        "regime": "calm",
+        "scenario": "thermal_homeostasis",
+        "valid_interventions": [
+          "activate_cooling",
+          "deactivate_cooling"
+        ]
+      },
+      "record_hash": "0531f03bfef5a3336d5de5725a3f6c947c578905999764a63e530a3349de8541",
+      "record_id": "curriculum-f0c2ee86f6bcfdee968f2994",
+      "schema_version": "rnfe-teacher-curriculum-record-v1",
+      "student_target": "open-thoughts/OpenThinker3-7B",
+      "target": {
+        "avoid": "deactivate_cooling",
+        "lesson": "Activa enfriamiento ante calor externo y verifica que la temperatura descienda.",
+        "prefer": "activate_cooling"
+      },
+      "teacher_source": "codex_frontier",
+      "training_authorized": false,
+      "training_eligible": false
+    }
+  ],
+  "schema_version": "rnfe-teacher-curriculum-v1",
+  "source_campaign_id": "teacher-heldout-native-v1-10x2-h5",
+  "source_evidence_manifest_sha256": "0dbc46acaf5d5b0b6ee10909eaf2c073dbe86cba864c25ca2455c36595134b72"
+}

@@ -2,8 +2,9 @@
 
 *"Tiene su propia IA que es su maestra también."* Tras una herida, el 7B reflexiona:
 dada esta situación y esta decisión que dolió, ¿cuál es la lección? Produce una lección
-estructurada (qué evitar / qué preferir) que se graba como experiencia reforzada, de modo
-que el sesgo de decisión (E3) la recoja: la próxima vez, el organismo elige distinto.
+estructurada (qué evitar / qué preferir). La herida observada se refuerza; la
+preferencia permanece como propuesta hasta que un outcome la contraste. El sesgo E3
+puede evitar el daño previo sin fabricar que la alternativa ya fue exitosa.
 
 La reflexión es parte de su vida (se invoca proporcional al daño, off-hot-path). El 7B
 corre en la GPU (RTX 2070 vía llama.cpp). Gated por ``RNFE_TEACHER`` (off ⇒ sin maestro).
@@ -12,6 +13,7 @@ corre en la GPU (RTX 2070 vía llama.cpp). Gated por ``RNFE_TEACHER`` (off ⇒ s
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from typing import Any, Dict, List, Optional
 
@@ -95,13 +97,22 @@ class Teacher:
     ) -> List[Dict[str, Any]]:
         """Reflexiona sobre las peores heridas recientes → lecciones grabadas.
 
-        Devuelve las lecciones producidas (también las graba como experiencia
-        reforzada para que el sesgo de decisión las use).
+        Devuelve las lecciones producidas. Refuerza la herida observada y persiste
+        la alternativa recomendada como propuesta no certificada.
         """
         if not teacher_enabled():
             return []
         experiences = self.experience.recall(organism_id=organism_id, limit=200)
-        wounds = [e for e in experiences if float(e.get("severity", 0.0)) >= WOUND_THRESHOLD and e.get("intervention")]
+        wounds = [
+            e
+            for e in experiences
+            if float(e.get("severity", 0.0)) >= WOUND_THRESHOLD
+            and e.get("intervention")
+            and not (
+                isinstance(e.get("metadata"), dict)
+                and e["metadata"].get("origin") == "teacher"
+            )
+        ]
         if not wounds:
             return []
         # Las heridas más profundas primero (∝ daño): el maestro atiende lo que más dolió.
@@ -114,6 +125,45 @@ class Teacher:
             if lesson is not None:
                 lessons.append(lesson)
         return lessons
+
+    def register_external_lesson(
+        self,
+        *,
+        lesson: Dict[str, Any],
+        teacher_source: str = "codex_frontier",
+    ) -> Dict[str, Any]:
+        """Registra una lección externa como hipótesis, nunca como éxito.
+
+        Este es el puerto explícito para que Codex u otro docente produzca el mismo
+        contrato que el 7B. Exige vínculo a una herida observada; la eficacia se
+        decide después mediante ensayos curriculares pareados.
+        """
+        required = (
+            "organism_id",
+            "situation_key",
+            "scenario",
+            "regime",
+            "avoid",
+            "prefer",
+            "lesson",
+            "from_severity",
+            "source_wound_episode_id",
+        )
+        missing = [name for name in required if lesson.get(name) in (None, "")]
+        if missing:
+            raise ValueError(f"external_lesson_missing:{','.join(missing)}")
+        source = str(teacher_source).strip()
+        if source not in {"codex_frontier", "local_7b", "human_mentor"}:
+            raise ValueError("external_lesson_teacher_source_invalid")
+        candidate = dict(lesson)
+        candidate["teacher_source"] = source
+        candidate.setdefault("teacher_model", source)
+        candidate["lesson"] = str(candidate["lesson"])[:280]
+        candidate["lesson_id"] = hashlib.sha256(
+            json.dumps(candidate, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        self._persist_lesson(candidate)
+        return candidate
 
     def _reflect_one(
         self, *, organism_id: str, wound: Dict[str, Any], valid_interventions: List[str]
@@ -148,11 +198,25 @@ class Teacher:
         parsed = _extract_json(text)
         if not isinstance(parsed, dict):
             return None
-        avoid = str(parsed.get("avoid") or hurt_iv)
-        prefer = str(parsed.get("prefer") or "")
+        raw_avoid = str(parsed.get("avoid") or "")
+        raw_prefer = str(parsed.get("prefer") or "")
+        raw_lesson = str(parsed.get("lesson") or "")[:280]
+        repairs: List[str] = []
+        avoid = raw_avoid
+        if avoid != hurt_iv:
+            avoid = hurt_iv
+            repairs.append("avoid_rebound_to_observed_wound")
+        prefer = raw_prefer
         if prefer not in valid_interventions or prefer == avoid:
             prefer = alternatives[0] if alternatives else ""
-        lesson_text = str(parsed.get("lesson") or "")[:280]
+            repairs.append("prefer_rebound_to_valid_alternative")
+        lesson_text = raw_lesson
+        if len(lesson_text.split()) < 4:
+            lesson_text = (
+                f"Avoid {avoid}; test {prefer} in the same situation and measure severity."
+            )
+            repairs.append("lesson_replaced_by_bounded_fallback")
+        raw_semantic_valid = not repairs
         lesson = {
             "organism_id": organism_id,
             "situation_key": situation,
@@ -162,13 +226,27 @@ class Teacher:
             "prefer": prefer,
             "lesson": lesson_text,
             "from_severity": severity,
+            "source_wound_episode_id": wound.get("episode_id"),
+            "teacher_source": "local_7b",
+            "teacher_model": "open-thoughts/OpenThinker3-7B",
+            "teacher_latency_s": res.get("latency_s"),
+            "teacher_prompt_tps": res.get("prompt_tps"),
+            "teacher_generation_tps": res.get("generation_tps"),
+            "teacher_raw_semantic_valid": raw_semantic_valid,
+            "teacher_repairs": repairs,
         }
+        lesson["lesson_id"] = hashlib.sha256(
+            json.dumps(lesson, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
         self._persist_lesson(lesson)
         return lesson
 
     def _persist_lesson(self, lesson: Dict[str, Any]) -> None:
-        """Graba la lección como experiencia REFORZADA (refuerza la cicatriz de lo que evitar,
-        y una experiencia benigna de lo que preferir) para que el sesgo E3 la recoja, y como evento."""
+        """Refuerza la herida observada y persiste la preferencia sólo como propuesta.
+
+        La recomendación del 7B no se escribe como éxito certificado: todavía no fue
+        ejecutada ni contrastada contra un outcome.
+        """
         situation = lesson["situation_key"]
         scenario = lesson["scenario"]
         regime = lesson["regime"]
@@ -180,18 +258,14 @@ class Teacher:
                 situation_key=situation, scenario=scenario, regime=regime,
                 intervention=str(lesson["avoid"]), severity=round(avoid_scar, 4), wound=True,
                 viability_margin=0.0, ioc=0.0, risk=1.0, reward=-1.0,
-                action="teacher_scar", verdict="uncertified",
-                metadata={"lesson": lesson.get("lesson"), "origin": "teacher"},
+                action="teacher_scar", verdict="teacher_evidence",
+                metadata={
+                    "lesson": lesson.get("lesson"),
+                    "lesson_id": lesson.get("lesson_id"),
+                    "prefer_proposal": lesson.get("prefer"),
+                    "origin": "teacher",
+                },
             ))
-            if lesson.get("prefer"):
-                self.experience.record(ExperienceRecord(
-                    organism_id=lesson.get("organism_id", ""), run_id="teacher", episode_id=f"lesson-prefer-{situation}",
-                    situation_key=situation, scenario=scenario, regime=regime,
-                    intervention=str(lesson["prefer"]), severity=0.0, wound=False,
-                    viability_margin=1.0, ioc=1.0, risk=0.0, reward=1.0,
-                    action="teacher_prefer", verdict="certified",
-                    metadata={"lesson": lesson.get("lesson"), "origin": "teacher"},
-                ))
         except Exception:
             pass
         try:

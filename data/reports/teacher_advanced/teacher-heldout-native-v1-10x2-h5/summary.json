@@ -1,0 +1,100 @@
+{
+  "comparisons": {
+    "codex_cross_scenario_gate_passed": false,
+    "codex_minus_control_reward_delta": 0.008194,
+    "codex_minus_control_severity_reduction": 0.000733,
+    "local_7b_semantic_gate_passed": true
+  },
+  "pair_count": 60,
+  "scenario_comparisons": {
+    "deferred_load_trap": {
+      "codex_minus_control_cumulative_reward": 0.0002,
+      "codex_minus_control_mean_severity": -0.00227
+    },
+    "resource_management": {
+      "codex_minus_control_cumulative_reward": 0.021166,
+      "codex_minus_control_mean_severity": -0.01005
+    },
+    "thermal_homeostasis": {
+      "codex_minus_control_cumulative_reward": 0.021542,
+      "codex_minus_control_mean_severity": -0.01152
+    }
+  },
+  "schema_version": "rnfe-teacher-campaign-summary-v1",
+  "stratified_reanalysis": {
+    "reason": "stratified_tradeoff_detected",
+    "schema_version": "rnfe-teacher-stratified-reanalysis-v1",
+    "supersedes_aggregate_candidate_claim": true
+  },
+  "stratum_comparisons": {
+    "deferred_load_trap:heldout-high": {
+      "codex_minus_control_cumulative_reward": 0.0005,
+      "codex_minus_control_mean_severity": -0.00022
+    },
+    "deferred_load_trap:heldout-low": {
+      "codex_minus_control_cumulative_reward": -0.0001,
+      "codex_minus_control_mean_severity": -0.00432
+    },
+    "resource_management:heldout-high": {
+      "codex_minus_control_cumulative_reward": 0.045333,
+      "codex_minus_control_mean_severity": 0.0022
+    },
+    "resource_management:heldout-low": {
+      "codex_minus_control_cumulative_reward": -0.003,
+      "codex_minus_control_mean_severity": -0.0223
+    },
+    "thermal_homeostasis:heldout-high": {
+      "codex_minus_control_cumulative_reward": 0.046333,
+      "codex_minus_control_mean_severity": 0.00172
+    },
+    "thermal_homeostasis:heldout-low": {
+      "codex_minus_control_cumulative_reward": -0.00325,
+      "codex_minus_control_mean_severity": -0.02476
+    }
+  },
+  "trial_count": 180,
+  "variants": {
+    "codex_frontier": {
+      "behavior_change_rate": 1.0,
+      "mean_cumulative_reward": -0.417022,
+      "mean_episode_severity": 0.120413,
+      "mean_generation_tps": null,
+      "mean_reward": -0.081944,
+      "mean_reward_delta": 0.008194,
+      "mean_severity_reduction": 0.000733,
+      "mean_teacher_latency_s": null,
+      "raw_semantic_pass_rate": 1.0,
+      "semantic_pass_rate": 1.0,
+      "trial_count": 60,
+      "unique_lesson_rate": 0.05
+    },
+    "local_7b": {
+      "behavior_change_rate": 1.0,
+      "mean_cumulative_reward": -0.417532,
+      "mean_episode_severity": 0.120445,
+      "mean_generation_tps": 45.223333,
+      "mean_reward": -0.081944,
+      "mean_reward_delta": 0.008194,
+      "mean_severity_reduction": 0.000733,
+      "mean_teacher_latency_s": 3.434785,
+      "raw_semantic_pass_rate": 1.0,
+      "semantic_pass_rate": 0.8,
+      "trial_count": 60,
+      "unique_lesson_rate": 0.433333
+    },
+    "no_teacher": {
+      "behavior_change_rate": 0.0,
+      "mean_cumulative_reward": -0.431324,
+      "mean_episode_severity": 0.12836,
+      "mean_generation_tps": null,
+      "mean_reward": -0.090139,
+      "mean_reward_delta": 0.0,
+      "mean_severity_reduction": 0.0,
+      "mean_teacher_latency_s": null,
+      "raw_semantic_pass_rate": null,
+      "semantic_pass_rate": null,
+      "trial_count": 60,
+      "unique_lesson_rate": null
+    }
+  }
+}

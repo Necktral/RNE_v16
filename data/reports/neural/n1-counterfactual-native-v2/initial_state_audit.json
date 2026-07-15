@@ -1,0 +1,6 @@
+{
+  "hash_schema": "n1-counterfactual-initial-state-v1",
+  "mismatches": [],
+  "pairs_checked": 360,
+  "schema": "n1-initial-state-audit-v1"
+}

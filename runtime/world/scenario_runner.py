@@ -896,6 +896,8 @@ class ScenarioEpisodeRunner:
             scenario_metadata=scenario_metadata,
             causal_attestation=causal_attestation,
             resources=self._resource_signals,
+            experience_lessons=self._experience_lessons,
+            experience_bias=self._experience_bias,
         )
         # Copia: los resultados del consumidor no deben mutar el candidato hasheado.
         n5_ingestion = dict(neural_signals.get("n5_ingestion") or {})
@@ -1058,6 +1060,15 @@ class ScenarioEpisodeRunner:
                 source="scenario_episode_runner",
                 payload={"episode_id": episode_id, **intervention_override.to_dict()},
             )
+
+        # N4 se vuelve a enlazar después de resolver cualquier override. Sólo esta
+        # comparación, ligada a la intervención final, recibe un ConsumerReceipt.
+        neural_comparisons["n4_comparison"] = self._neural.bind_committed_action(
+            episode_id=episode_id,
+            intervention=intervention,
+            causal_attestation=causal_attestation,
+            reasoning=reasoning,
+        )
 
         # 9c. Aplicar la acción FINAL una sola vez desde el estado pre-acción. Hasta aquí
         # nada mutó el escenario (greedy y candidatas se computaron por simulación); esta
@@ -1393,6 +1404,8 @@ class ScenarioEpisodeRunner:
             outcome={
                 "intervention": intervention,
                 "relation_kind": relation_kind,
+                "experience": episode_result.get("experience") or {},
+                "experience_bias": self._experience_bias or {},
             },
             certificate={
                 "certificate_id": cert.certificate_id,

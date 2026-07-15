@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rnfe-neural-agent-report-v1",
+  "title": "RNFE neural agent report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "agent_id",
+    "role",
+    "experimental",
+    "trace_group_id",
+    "organism_id",
+    "lineage_id",
+    "run_id",
+    "episode_id",
+    "scenario_id",
+    "decision_id",
+    "state",
+    "authority_effect",
+    "metrics",
+    "findings",
+    "outputs",
+    "report_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "rnfe-neural-agent-report-v1"},
+    "agent_id": {"type": "string", "minLength": 1},
+    "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "experimental": {"const": true},
+    "trace_group_id": {"type": "string", "minLength": 1},
+    "organism_id": {"type": "string", "minLength": 1},
+    "lineage_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "episode_id": {"type": "string", "minLength": 1},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": ["string", "null"]},
+    "state": {"enum": ["observed", "degraded", "abstained", "blocked"]},
+    "authority_effect": {"enum": ["none", "evidence_only"]},
+    "metrics": {"type": "object"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "detail", "subject", "evidence_refs"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "severity": {"enum": ["info", "warning", "critical"]},
+          "detail": {"type": "string", "minLength": 1},
+          "subject": {"type": ["string", "null"]},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "outputs": {"type": "object"},
+    "report_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

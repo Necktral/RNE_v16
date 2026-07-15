@@ -86,3 +86,8 @@ menores: `lotf`, `smg`, `telemetry`, `symbolic`, `agents`, `memory`, `utils`.
 | 16 | `archive/` | ✅ hecho | [16_archive.md](16_archive.md) |
 | 17 | Síntesis cruzada | ✅ hecho | [17_SYNTHESIS.md](17_SYNTHESIS.md) |
 | 19 | `runtime/conjunction/` + gate en `LifeKernel` | ✅ hecho | [19_operational_conjunction.md](19_operational_conjunction.md) |
+| 20 | `runtime/neural/agents/` + deudas N4/plasticidad | ✅ hecho | [20_NEURAL_AGENT_SUITE.md](20_NEURAL_AGENT_SUITE.md) |
+| 21 | eficiencia docente 7B y protocolo Codex/control | ✅ ensayo inicial | [21_TEACHER_7B_EFFICIENCY.md](21_TEACHER_7B_EFFICIENCY.md) |
+| 22 | campaña avanzada 7B vs Codex vs control | ✅ piloto 3×3×3 | [22_ADVANCED_TEACHER_CAMPAIGN.md](22_ADVANCED_TEACHER_CAMPAIGN.md) |
+| 23 | held-out y currículo Codex→7B | ⚠️ dataset rechazado honestamente | [23_HELDOUT_CODEX_TO_7B_CURRICULUM.md](23_HELDOUT_CODEX_TO_7B_CURRICULUM.md) |
+| 24 | prioridad P0: conectoma cerrado, evidencia y artefactos SHADOW | ✅ integrado, entrenamiento bloqueado | [24_NEURAL_INTEGRATION_PRIORITY.md](24_NEURAL_INTEGRATION_PRIORITY.md) |

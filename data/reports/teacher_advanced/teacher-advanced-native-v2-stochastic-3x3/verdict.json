@@ -1,0 +1,9 @@
+{
+  "campaign_id": "teacher-advanced-native-v2-stochastic-3x3",
+  "codex_teacher_candidate": true,
+  "curriculum_promotion_authorized": false,
+  "reason": "paired_pilot_not_sufficient_for_promotion",
+  "schema_version": "rnfe-teacher-campaign-verdict-v1",
+  "training_authorized": false,
+  "verdict": "retain_local_7b_as_supervised_student"
+}

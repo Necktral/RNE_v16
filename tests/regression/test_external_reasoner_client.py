@@ -68,6 +68,7 @@ def test_config_reads_latency_knobs_from_env(monkeypatch) -> None:
     monkeypatch.setenv("RNFE_EXTERNAL_REASONER_THREADS_BATCH", "8")
     monkeypatch.setenv("RNFE_EXTERNAL_REASONER_MLOCK", "true")
     monkeypatch.setenv("RNFE_EXTERNAL_REASONER_PROMPT_STYLE", "standard")
+    monkeypatch.setenv("RNFE_EXTERNAL_REASONER_SEED", "202")
 
     config = ExternalReasonerConfig.from_env()
 
@@ -79,6 +80,7 @@ def test_config_reads_latency_knobs_from_env(monkeypatch) -> None:
     assert config.threads_batch == 8
     assert config.mlock is True
     assert config.prompt_style == "standard"
+    assert config.seed == 202
 
 
 def test_latency_knobs_are_passed_to_llama_cli(monkeypatch, tmp_path: Path) -> None:
@@ -106,6 +108,7 @@ def test_latency_knobs_are_passed_to_llama_cli(monkeypatch, tmp_path: Path) -> N
         threads=6,
         threads_batch=4,
         mlock=True,
+        seed=101,
     )
 
     command = calls[0]
@@ -116,6 +119,7 @@ def test_latency_knobs_are_passed_to_llama_cli(monkeypatch, tmp_path: Path) -> N
     assert command[command.index("--threads") + 1] == "6"
     assert command[command.index("--threads-batch") + 1] == "4"
     assert "--mlock" in command
+    assert command[command.index("--seed") + 1] == "101"
 
 
 def test_timeout_returns_structured_error(monkeypatch, tmp_path: Path) -> None:

@@ -44,6 +44,58 @@ def _ece(probabilities: Sequence[float], labels: Sequence[float], bins: int = 10
     return value
 
 
+def _n1_split_metrics(
+    model: Any,
+    samples: Sequence[CounterfactualSample],
+    *,
+    feature_names: Sequence[str],
+    family_index: Mapping[str, int],
+    torch: Any,
+) -> dict[str, Any]:
+    if not samples:
+        return {"records": 0, "evaluated": False}
+    if any(sample.family not in family_index for sample in samples):
+        raise ValueError("n1_evaluation_family_outside_catalog_v2")
+    x = torch.tensor(
+        [
+            [float(sample.features.get(name, 0.0)) for name in feature_names]
+            for sample in samples
+        ],
+        dtype=torch.float32,
+    )
+    family = torch.tensor(
+        [family_index[sample.family] for sample in samples], dtype=torch.long
+    )
+    utility_target = torch.tensor(
+        [sample.utility_delta for sample in samples], dtype=torch.float32
+    )
+    positive_target = torch.tensor(
+        [float(sample.positive_utility) for sample in samples], dtype=torch.float32
+    )
+    with torch.inference_mode():
+        utility, logits = model(x)
+        selected_utility = utility.gather(1, family[:, None]).squeeze(1)
+        selected_logits = logits.gather(1, family[:, None]).squeeze(1)
+        probabilities = torch.sigmoid(selected_logits)
+        utility_rmse = torch.sqrt(
+            torch.nn.functional.mse_loss(selected_utility, utility_target)
+        )
+        binary_cross_entropy = torch.nn.functional.binary_cross_entropy(
+            probabilities, positive_target
+        )
+        accuracy = ((probabilities >= 0.5) == (positive_target >= 0.5)).float().mean()
+    probability_values = probabilities.tolist()
+    label_values = positive_target.tolist()
+    return {
+        "records": len(samples),
+        "evaluated": True,
+        "utility_rmse": float(utility_rmse),
+        "positive_bce": float(binary_cross_entropy),
+        "positive_accuracy": float(accuracy),
+        "calibration_ece": _ece(probability_values, label_values),
+    }
+
+
 def train_n1_router(
     samples: Sequence[CounterfactualSample],
     report: DatasetQualityReport,
@@ -52,6 +104,8 @@ def train_n1_router(
     seed: int = 31,
     epochs: int = 80,
     dataset_classification: str = "caller_supplied_counterfactual",
+    validation_samples: Sequence[CounterfactualSample] = (),
+    test_samples: Sequence[CounterfactualSample] = (),
 ) -> tuple[NeuralModelManifest, dict[str, Any]]:
     if not report.training_ready():
         raise ValueError("n1_dataset_quality_gate_failed")
@@ -101,10 +155,42 @@ def train_n1_router(
         loss.backward()
         optimizer.step()
         losses.append(float(loss.detach()))
-    with torch.inference_mode():
-        _utility, logits = model(x)
-        probabilities = torch.sigmoid(logits.gather(1, family[:, None]).squeeze(1)).tolist()
-    calibration_ece = _ece(probabilities, positive_target.tolist())
+    split_ids = {
+        "train": {sample.pair_id for sample in rows},
+        "validation": {sample.pair_id for sample in validation_samples},
+        "test": {sample.pair_id for sample in test_samples},
+    }
+    if (
+        split_ids["train"].intersection(split_ids["validation"])
+        or split_ids["train"].intersection(split_ids["test"])
+        or split_ids["validation"].intersection(split_ids["test"])
+    ):
+        raise ValueError("n1_train_validation_test_overlap")
+    split_metrics = {
+        "train": _n1_split_metrics(
+            model,
+            rows,
+            feature_names=feature_names,
+            family_index=family_index,
+            torch=torch,
+        ),
+        "validation": _n1_split_metrics(
+            model,
+            validation_samples,
+            feature_names=feature_names,
+            family_index=family_index,
+            torch=torch,
+        ),
+        "test": _n1_split_metrics(
+            model,
+            test_samples,
+            feature_names=feature_names,
+            family_index=family_index,
+            torch=torch,
+        ),
+    }
+    calibration_split = "validation" if validation_samples else "train"
+    calibration_ece = float(split_metrics[calibration_split]["calibration_ece"])
     evidence = {
         "classification": "counterfactual_paired",
         "dataset_classification": dataset_classification,
@@ -117,6 +203,9 @@ def train_n1_router(
         "initial_loss": losses[0],
         "final_loss": losses[-1],
         "calibration_ece": calibration_ece,
+        "calibration_split": calibration_split,
+        "heldout_evaluated": bool(validation_samples and test_samples),
+        "split_metrics": split_metrics,
         "promotion_eligible": False,
     }
     artifact = {
@@ -159,7 +248,11 @@ def train_n1_router(
     _write_json(target / "model_card.json", {
         "schema_version": "rnfe-model-card-v1", "model_id": manifest.model_id,
         "intended_use": "N1 shadow family routing proposal", "authority_effect": "none",
-        "limitations": ["scheduler retains authority", "promotion requires held-out positive CI and ECE <= 0.10"],
+        "limitations": [
+            "scheduler retains authority",
+            "promotion requires held-out positive CI and ECE <= 0.10",
+            "missing held-out splits fall back to train calibration and remain non-promotable",
+        ],
         "training_evidence": evidence,
     })
     return manifest, evidence

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rnfe-teacher-curriculum-v1",
+  "title": "RNFE candidate teacher curriculum v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "curriculum_id",
+    "source_campaign_id",
+    "source_evidence_manifest_sha256",
+    "record_count",
+    "eligible_record_count",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {"const": "rnfe-teacher-curriculum-v1"},
+    "curriculum_id": {"type": "string", "minLength": 1},
+    "source_campaign_id": {"type": "string", "minLength": 1},
+    "source_evidence_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "record_count": {"type": "integer", "minimum": 0},
+    "eligible_record_count": {"type": "integer", "minimum": 0},
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "record_id",
+          "teacher_source",
+          "student_target",
+          "input",
+          "target",
+          "evidence",
+          "training_eligible",
+          "training_authorized",
+          "record_hash"
+        ],
+        "properties": {
+          "schema_version": {"const": "rnfe-teacher-curriculum-record-v1"},
+          "record_id": {"type": "string", "minLength": 1},
+          "teacher_source": {"const": "codex_frontier"},
+          "student_target": {"type": "string", "minLength": 1},
+          "input": {"type": "object"},
+          "target": {
+            "type": "object",
+            "required": ["avoid", "prefer", "lesson"],
+            "properties": {
+              "avoid": {"type": "string", "minLength": 1},
+              "prefer": {"type": "string", "minLength": 1},
+              "lesson": {"type": "string", "minLength": 1}
+            }
+          },
+          "evidence": {"type": "object"},
+          "training_eligible": {"type": "boolean"},
+          "training_authorized": {"const": false},
+          "record_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "comparisons": {
+    "codex_minus_control_severity_reduction": 0.000733,
+    "local_7b_raw_semantic_gate_passed": true
+  },
+  "pair_count": 9,
+  "schema_version": "rnfe-teacher-campaign-summary-v1",
+  "trial_count": 27,
+  "variants": {
+    "codex_frontier": {
+      "behavior_change_rate": 1.0,
+      "mean_generation_tps": null,
+      "mean_reward": -0.07375,
+      "mean_severity_reduction": 0.000733,
+      "mean_teacher_latency_s": null,
+      "raw_semantic_pass_rate": 1.0,
+      "semantic_pass_rate": 1.0,
+      "trial_count": 9
+    },
+    "local_7b": {
+      "behavior_change_rate": 1.0,
+      "mean_generation_tps": 45.433333,
+      "mean_reward": -0.07375,
+      "mean_severity_reduction": 0.000733,
+      "mean_teacher_latency_s": 3.868719,
+      "raw_semantic_pass_rate": 1.0,
+      "semantic_pass_rate": 0.666667,
+      "trial_count": 9
+    },
+    "no_teacher": {
+      "behavior_change_rate": 0.0,
+      "mean_generation_tps": null,
+      "mean_reward": -0.090139,
+      "mean_severity_reduction": 0.0,
+      "mean_teacher_latency_s": null,
+      "raw_semantic_pass_rate": null,
+      "semantic_pass_rate": null,
+      "trial_count": 9
+    }
+  }
+}

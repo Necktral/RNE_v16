@@ -93,6 +93,15 @@ def test_canonical_connectome_is_typed_deterministic_and_non_authoritative() -> 
         if node_types[edge.source] is ConnectomeNodeType.NEURAL_ORGAN:
             assert edge.authority_ceiling is not ConnectomeAuthority.AUTHORITATIVE
     assert all(edge.source != edge.target for edge in first.edges)
+    assert all(
+        any(
+            edge.target == organ
+            and edge.target_port == "feedback"
+            and edge.edge_type is ConnectomeEdgeType.CONSUMER_FEEDBACK
+            for edge in first.edges
+        )
+        for organ in {"N1", "N2", "N3", "N4", "N5", "N6"}
+    )
 
 
 def test_connectome_validation_fails_closed() -> None:
@@ -130,13 +139,25 @@ def test_activity_requires_evidence_and_plasticity_never_applies() -> None:
     assert off.active_connections == ()
     assert off.graph_mutated is False
 
-    first_receipt = _receipt(identity, 1)
+    neutral_receipt = _receipt(identity, 1)
+    neutral = runtime.observe(
+        identity=identity, organs=(organ,), receipts=(neutral_receipt,), mode="shadow"
+    )
+    edge = next(item for item in neutral.active_connections if item.edge_id.startswith("N1->scheduler"))
+    assert edge.signal_state == "non_informative"
+    assert edge.authority_effect.value == "evidence_only"
+    feedback = next(
+        item for item in neutral.active_connections
+        if item.edge_id == "scheduler->N1:feedback"
+    )
+    assert feedback.signal_state == "non_informative"
+    assert feedback.receipt_ids == (neutral_receipt.receipt_id,)
+    assert neutral.plasticity_proposals == ()
+
+    first_receipt = _receipt(identity, 2, verdict=ConsumerVerdictClass.ACCEPTED)
     first = runtime.observe(
         identity=identity, organs=(organ,), receipts=(first_receipt,), mode="shadow"
     )
-    edge = next(item for item in first.active_connections if item.edge_id.startswith("N1->scheduler"))
-    assert edge.signal_state == "observed"
-    assert edge.authority_effect.value == "evidence_only"
     assert first.plasticity_proposals[0].eligible is False
     assert first.plasticity_proposals[0].proposed_delta == 0.0
 
@@ -148,7 +169,10 @@ def test_activity_requires_evidence_and_plasticity_never_applies() -> None:
     third = runtime.observe(
         identity=identity,
         organs=(organ,),
-        receipts=(_receipt(identity, 2), _receipt(identity, 3)),
+        receipts=(
+            _receipt(identity, 3, verdict=ConsumerVerdictClass.ACCEPTED),
+            _receipt(identity, 4, verdict=ConsumerVerdictClass.ACCEPTED),
+        ),
         mode="shadow",
     )
     proposal = third.plasticity_proposals[0]
@@ -165,7 +189,11 @@ def test_activity_requires_evidence_and_plasticity_never_applies() -> None:
     replayed = restored.observe(
         identity=identity,
         organs=(organ,),
-        receipts=(_receipt(identity, 1), _receipt(identity, 2), _receipt(identity, 3)),
+        receipts=(
+            _receipt(identity, 2, verdict=ConsumerVerdictClass.ACCEPTED),
+            _receipt(identity, 3, verdict=ConsumerVerdictClass.ACCEPTED),
+            _receipt(identity, 4, verdict=ConsumerVerdictClass.ACCEPTED),
+        ),
         mode="shadow",
     )
     assert replayed.plasticity_proposals[0].observation_count == 3
@@ -250,7 +278,13 @@ def test_coordinator_exposes_real_connectome_activity(tmp_path: Path, monkeypatc
     assert topology["topology_hash"] == activity["topology_hash"]
     assert activity["graph_mutated"] is False
     assert activity["authority_effect"] == "none"
-    assert {"N0", "N1", "N3", "N4", "N5"}.issubset(activity["active_nodes"])
+    assert {
+        "MSRC", "N0", "N1", "N3", "N4", "N5", "StorageFacade"
+    }.issubset(activity["active_nodes"])
+    active = {item["edge_id"]: item for item in activity["active_connections"]}
+    assert active["MSRC->N0:resources"]["signal_state"] == "available"
+    assert active["StorageFacade->N0:persistence"]["signal_state"] == "durable"
+    assert active["life-chain->N3:feedback"]["receipt_ids"]
     assert any(
         item["edge_id"] == "N3->life-chain:consumption"
         for item in activity["active_connections"]

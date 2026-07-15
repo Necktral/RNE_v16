@@ -121,6 +121,9 @@ class ExperienceRecord:
 
     def to_structure(self) -> Dict[str, Any]:
         return {
+            "organism_id": self.organism_id,
+            "run_id": self.run_id,
+            "episode_id": self.episode_id,
             "situation_key": self.situation_key,
             "scenario": self.scenario,
             "regime": self.regime,
@@ -134,6 +137,7 @@ class ExperienceRecord:
             "action": self.action,
             "verdict": self.verdict,
             "failure_class": self.failure_class,
+            "metadata": dict(self.metadata),
         }
 
 

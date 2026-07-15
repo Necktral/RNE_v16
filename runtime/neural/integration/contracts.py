@@ -339,6 +339,7 @@ class SymbiosisTrace:
     final_event_persisted: bool = False
     final_event_contains_receipts: bool = False
     connectome_activity: Mapping[str, Any] = field(default_factory=dict)
+    agent_extensions: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self, *, include_candidates: bool = True) -> dict[str, Any]:
         return {
@@ -371,6 +372,11 @@ class SymbiosisTrace:
             **(
                 {"connectome_activity": dict(self.connectome_activity)}
                 if self.connectome_activity
+                else {}
+            ),
+            **(
+                {"neural_agent_extensions": dict(self.agent_extensions)}
+                if self.agent_extensions
                 else {}
             ),
             "episode_result": dict(self.episode_result or {}),
@@ -449,6 +455,7 @@ class SymbiosisTrace:
             final_event_persisted=bool(raw.get("final_event_persisted")),
             final_event_contains_receipts=bool(raw.get("final_event_contains_receipts")),
             connectome_activity=dict(raw.get("connectome_activity") or {}),
+            agent_extensions=dict(raw.get("neural_agent_extensions") or {}),
         )
 
     @property

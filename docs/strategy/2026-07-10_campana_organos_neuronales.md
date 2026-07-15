@@ -58,7 +58,8 @@ robustez multisemilla ni su consistencia de signo como aprendizaje causal.
 N1 sólo acepta pares con igual estado inicial, generador y semilla, donde la única
 diferencia sea familia on/off. Los campos históricos `family_delta_*` se rechazan
 como etiquetas causales. Train/validation/test se agrupan por generador+semilla.
-El umbral mínimo inicial es 300 pares, 50 contextos, 3 generadores y 3 familias.
+El umbral mínimo inicial es 300 pares, 50 contextos, 3 generadores y 3 familias,
+con al menos 30 pares positivos, 30 negativos y rango de utilidad >= 0.02.
 
 Pesos viven bajo `RNFE_ARTIFACT_ROOT/neural/`; el repositorio conserva manifiesto,
 model card y reporte, no pesos grandes. Cada promoción exige tres semillas o

@@ -1,0 +1,27 @@
+{
+  "campaign_id": "teacher-advanced-native-v3-horizon3",
+  "commit": "f88a31413c9607175d3be2edbd9049e2049cd04f",
+  "elapsed_s": 42.489,
+  "experimental": true,
+  "horizon": 3,
+  "max_tokens": 160,
+  "native_models_root": "/home/wis/rnfe_models",
+  "scenarios": [
+    "thermal_homeostasis",
+    "resource_management",
+    "deferred_load_trap"
+  ],
+  "schema_version": "rnfe-teacher-campaign-manifest-v1",
+  "seeds": [
+    42,
+    101,
+    202
+  ],
+  "temperature": 0.25,
+  "timeout_s": 120.0,
+  "variants": [
+    "no_teacher",
+    "local_7b",
+    "codex_frontier"
+  ]
+}

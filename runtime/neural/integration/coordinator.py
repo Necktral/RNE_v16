@@ -5,10 +5,29 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
+from runtime.neural.agents import (
+    AgentCycleReport,
+    AgentReport,
+    AgentRole,
+    CurriculumLearningAgent,
+    DevelopmentLineageAgent,
+    HorizontalCreativityAgent,
+    InteroceptiveHomeostaticAgent,
+    MetacognitiveEpistemicAgent,
+    MemoryConsolidationAgent,
+    ModelDataImmuneAgent,
+    MetabolicBudgetAgent,
+    PedagogicalTeacherAgent,
+    SensorimotorWorldModelAgent,
+    SocialExocortexAgent,
+    NeuralOrchestrationAgent,
+    SpecializedAgentBundle,
+)
 from runtime.neural.config import NeuralRuntimeConfig
 from runtime.neural.connectome import ConnectomeRuntime
 from runtime.neural.contracts import (
@@ -41,6 +60,7 @@ class _EpisodeSession:
     trace: SymbiosisTrace
     inputs: dict[str, Any]
     entries: dict[str, OrganTrace] = field(default_factory=dict)
+    specialized_reports: dict[AgentRole, AgentReport] = field(default_factory=dict)
 
 
 class SymbioticNeuralCoordinator:
@@ -73,6 +93,18 @@ class SymbioticNeuralCoordinator:
         self._sessions: dict[str, _EpisodeSession] = {}
         self._adapters = canonical_adapter_registry()
         self.connectome = ConnectomeRuntime()
+        self.agents = NeuralOrchestrationAgent(connectome=self.connectome)
+        self.epistemic_agent = MetacognitiveEpistemicAgent()
+        self.memory_agent = MemoryConsolidationAgent()
+        self.immune_agent = ModelDataImmuneAgent()
+        self.curriculum_agent = CurriculumLearningAgent()
+        self.sensorimotor_agent = SensorimotorWorldModelAgent()
+        self.interoceptive_agent = InteroceptiveHomeostaticAgent()
+        self.metabolic_agent = MetabolicBudgetAgent()
+        self.development_agent = DevelopmentLineageAgent()
+        self.creativity_agent = HorizontalCreativityAgent()
+        self.social_agent = SocialExocortexAgent()
+        self.pedagogical_agent = PedagogicalTeacherAgent()
         self._disabled_organs = {
             item.strip().upper()
             for item in os.environ.get("RNFE_NEURAL_DISABLED_ORGANS", "").split(",")
@@ -90,6 +122,8 @@ class SymbioticNeuralCoordinator:
         scenario_metadata: Mapping[str, Any],
         causal_attestation: Mapping[str, Any],
         resources: Mapping[str, Any] | None,
+        experience_lessons: list[dict[str, Any]] | None = None,
+        experience_bias: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         raw_resources = dict(resources or {})
         resource_snapshot = ResourceSnapshot.from_mapping(resources)
@@ -101,6 +135,8 @@ class SymbioticNeuralCoordinator:
             "scenario_metadata": dict(scenario_metadata),
             "causal_attestation": dict(causal_attestation),
             "resources": asdict(resource_snapshot),
+            "experience_lessons": list(experience_lessons or ()),
+            "experience_bias": dict(experience_bias or {}),
         }
         session = _EpisodeSession(
             trace=SymbiosisTrace(
@@ -247,30 +283,15 @@ class SymbioticNeuralCoordinator:
                     evidence_refs=(authority,),
                 )
 
-        n4_entry = session.entries["N4"]
-        n4_adapter = self._adapters["N4"]
-        if not isinstance(n4_adapter, N4Adapter):
-            raise RuntimeError("canonical_n4_adapter_type_mismatch")
-        n4_comparison = n4_adapter.compare(n4_entry.candidate, state)
-        n4_entry.consumer_verdict = n4_comparison["verdict"]
-        if isinstance(n4_entry.candidate, dict):
-            n4_entry.candidate["canonical_comparison"] = n4_comparison
-            n4_entry.candidate_hash = canonical_sha256(n4_entry.candidate)
-        if n4_entry.candidate_hash is not None:
-            self.record_consumer_receipt(
-                episode_id=episode_id,
-                organ="N4",
-                consumer_id="canonical_causal_comparator",
-                consumer_input={"candidate_hash": n4_entry.candidate_hash},
-                consumer_output=n4_comparison,
-                verdict_class=(
-                    ConsumerVerdictClass.COMPARED
-                    if n4_comparison.get("agreement") is not None
-                    else ConsumerVerdictClass.UNAVAILABLE
-                ),
-                verdict_detail=str(n4_comparison["verdict"]),
-                evidence_refs=("CAU", "CTF", "C-GWM"),
-            )
+        # Esta comparación es explícitamente preliminar. El runner puede cambiar
+        # la intervención después del razonamiento; sólo bind_committed_action()
+        # emite el recibo N4 durable contra la acción finalmente comprometida.
+        n4_comparison = self._compare_n4(
+            session,
+            state,
+            record_receipt=False,
+            temporal_binding="preliminary_action",
+        )
 
         return {
             "n1_scheduler_comparison": {
@@ -282,6 +303,39 @@ class SymbioticNeuralCoordinator:
             "n2_verification": n2,
             "n4_comparison": n4_comparison,
         }
+
+    def bind_committed_action(
+        self,
+        *,
+        episode_id: str,
+        intervention: str,
+        causal_attestation: Mapping[str, Any],
+        reasoning: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Recalcula N4 contra la acción final y recién entonces emite recibo.
+
+        La ejecución preliminar permanece como evidencia shadow de diagnóstico,
+        pero se reemplaza en la traza soberana y nunca recibe recibo de consumo.
+        """
+
+        if not intervention.strip():
+            raise ValueError("n4_committed_intervention_required")
+        session = self._session(episode_id)
+        session.inputs["causal_attestation"] = dict(causal_attestation)
+        session.inputs["committed_intervention"] = intervention
+        session.trace.organs = [entry for entry in session.trace.organs if entry.organ != "N4"]
+        session.entries.pop("N4", None)
+        self._execute(
+            session,
+            organ="N4",
+            context={"identity": session.trace.identity, "inputs": session.inputs},
+        )
+        return self._compare_n4(
+            session,
+            dict(reasoning.get("state") or {}),
+            record_receipt=True,
+            temporal_binding="committed_action",
+        )
 
     def prepare_certification(
         self,
@@ -319,13 +373,83 @@ class SymbioticNeuralCoordinator:
                 verdict_detail=str(n6.get("sandbox_verdict") or "abstained"),
                 evidence_refs=("shadow-sandbox",),
             )
+        session.specialized_reports[AgentRole.METACOGNITIVE_EPISTEMIC] = (
+            self.epistemic_agent.assess(
+                identity=session.trace.identity,
+                reasoning=reasoning,
+                organs=session.trace.organs,
+                receipts=session.trace.consumer_receipts,
+            )
+        )
+        session.specialized_reports[AgentRole.MEMORY_CONSOLIDATION] = (
+            self.memory_agent.assess(
+                identity=session.trace.identity,
+                memory_hits=session.inputs.get("memory_hits") or (),
+                organs=session.trace.organs,
+                receipts=session.trace.consumer_receipts,
+            )
+        )
         health = asdict(self.runtime.trace_health)
         session.trace.trace_health = health
+        session.specialized_reports[AgentRole.MODEL_DATA_IMMUNE] = (
+            self.immune_agent.assess(
+                identity=session.trace.identity,
+                organs=session.trace.organs,
+                receipts=session.trace.consumer_receipts,
+                trace_health=health,
+            )
+        )
+        session.specialized_reports[AgentRole.SENSORIMOTOR_WORLD_MODEL] = (
+            self.sensorimotor_agent.assess(
+                identity=session.trace.identity,
+                observation=session.inputs.get("observation") or {},
+                causal_attestation=session.inputs.get("causal_attestation") or {},
+                organs=session.trace.organs,
+            )
+        )
+        session.specialized_reports[AgentRole.INTEROCEPTIVE_HOMEOSTATIC] = (
+            self.interoceptive_agent.assess(
+                identity=session.trace.identity,
+                viability=viability,
+                resources=session.inputs.get("resources") or {},
+                measurement_status=session.trace.measurement_status,
+                trace_health=health,
+            )
+        )
+        session.specialized_reports[AgentRole.METABOLIC_BUDGET] = (
+            self.metabolic_agent.assess(
+                identity=session.trace.identity,
+                resources=session.inputs.get("resources") or {},
+            )
+        )
+        session.specialized_reports[AgentRole.DEVELOPMENT_LINEAGE] = (
+            self.development_agent.assess(
+                identity=session.trace.identity,
+                viability=viability,
+                organs=session.trace.organs,
+            )
+        )
+        session.specialized_reports[AgentRole.HORIZONTAL_CREATIVITY] = (
+            self.creativity_agent.assess(
+                identity=session.trace.identity,
+                reasoning=reasoning,
+                memory_hits=session.inputs.get("memory_hits") or (),
+            )
+        )
+        session.specialized_reports[AgentRole.SOCIAL_EXOCORTEX] = (
+            self.social_agent.assess(
+                identity=session.trace.identity,
+                scenario_metadata=session.inputs.get("scenario_metadata") or {},
+            )
+        )
         return self.certification_block(episode_id)
 
     def certification_block(self, episode_id: str) -> dict[str, Any]:
         session = self._session(episode_id)
         connectome_activity = self._refresh_connectome(session)
+        agent_cycle = self._agent_cycle(session, connectome_activity)
+        specialized = self._specialized_bundle(session)
+        session.trace.agent_extensions = specialized.to_dict() if specialized else {}
         entries = [entry.to_dict(include_candidate=True) for entry in session.trace.organs]
         return {
             "schema_version": "neural-symbiosis-certificate-v1",
@@ -363,6 +487,12 @@ class SymbioticNeuralCoordinator:
             "trace_health": asdict(self.runtime.trace_health),
             "resource_snapshot": dict(session.inputs.get("resources") or {}),
             "verdict_influence": "none",
+            "neural_agents": agent_cycle.to_dict(),
+            **(
+                {"neural_agent_extensions": specialized.to_dict()}
+                if specialized is not None
+                else {}
+            ),
             **({"connectome_activity": connectome_activity} if connectome_activity else {}),
         }
 
@@ -397,6 +527,24 @@ class SymbioticNeuralCoordinator:
         reward: Mapping[str, Any],
     ) -> dict[str, Any]:
         session = self._session(episode_id)
+        session.specialized_reports[AgentRole.PEDAGOGICAL_TEACHER] = (
+            self.pedagogical_agent.assess(
+                identity=session.trace.identity,
+                lessons=session.inputs.get("experience_lessons") or (),
+                outcome=outcome,
+                certificate=certificate,
+                reward=reward,
+            )
+        )
+        session.specialized_reports[AgentRole.CURRICULUM_LEARNING] = (
+            self.curriculum_agent.assess(
+                identity=session.trace.identity,
+                lessons=session.inputs.get("experience_lessons") or (),
+                pedagogical_report=session.specialized_reports[
+                    AgentRole.PEDAGOGICAL_TEACHER
+                ],
+            )
+        )
         n1 = session.entries["N1"]
         reward_value = reward.get("reward")
         reward_detail = (
@@ -460,6 +608,8 @@ class SymbioticNeuralCoordinator:
         )
         session.trace.trace_health = asdict(self.runtime.trace_health)
         self._refresh_connectome(session)
+        specialized = self._specialized_bundle(session)
+        session.trace.agent_extensions = specialized.to_dict() if specialized else {}
         payload = session.trace.to_dict(include_candidates=True)
         payload["trace_persisted"] = False
         payload["trace_health"] = asdict(self.runtime.trace_health)
@@ -538,6 +688,7 @@ class SymbioticNeuralCoordinator:
             evidence_refs=evidence_refs,
             authority_effect=authority_effect,
             persisted=False,
+            generated_at=_receipt_timestamp(entry.generated_at),
         )
         validate_consumer_receipt(
             receipt, trace_identity=session.trace.identity, organ_trace=entry
@@ -561,6 +712,35 @@ class SymbioticNeuralCoordinator:
 
         return self.connectome.topology.to_dict()
 
+    def agent_cycle(self, episode_id: str) -> AgentCycleReport:
+        """Expone el último ciclo de cinco agentes sobre evidencia ya observada."""
+
+        session = self._session(episode_id)
+        return self._agent_cycle(session, self._refresh_connectome(session))
+
+    def _agent_cycle(
+        self,
+        session: _EpisodeSession,
+        connectome_activity: Mapping[str, Any],
+    ) -> AgentCycleReport:
+        return self.agents.run_cycle(
+            identity=session.trace.identity,
+            organs=session.trace.organs,
+            receipts=session.trace.consumer_receipts,
+            connectome_activity=connectome_activity,
+        )
+
+    def _specialized_bundle(
+        self,
+        session: _EpisodeSession,
+    ) -> SpecializedAgentBundle | None:
+        if not session.specialized_reports:
+            return None
+        return SpecializedAgentBundle.create(
+            identity=session.trace.identity,
+            reports=tuple(session.specialized_reports.values()),
+        )
+
     def _refresh_connectome(self, session: _EpisodeSession) -> dict[str, Any]:
         if self.config.mode is NeuralMode.OFF:
             session.trace.connectome_activity = {}
@@ -570,6 +750,8 @@ class SymbioticNeuralCoordinator:
             organs=session.trace.organs,
             receipts=session.trace.consumer_receipts,
             mode=self.config.mode,
+            resource_state=session.trace.resource_state,
+            persistence_state=asdict(self.runtime.trace_health),
         )
         session.trace.connectome_activity = snapshot.to_dict()
         return dict(session.trace.connectome_activity)
@@ -698,6 +880,45 @@ class SymbioticNeuralCoordinator:
         session.trace.organs.append(entry)
         return candidate if candidate is not None else result.effective_output
 
+    def _compare_n4(
+        self,
+        session: _EpisodeSession,
+        state: Mapping[str, Any],
+        *,
+        record_receipt: bool,
+        temporal_binding: str,
+    ) -> dict[str, Any]:
+        n4_entry = session.entries["N4"]
+        n4_adapter = self._adapters["N4"]
+        if not isinstance(n4_adapter, N4Adapter):
+            raise RuntimeError("canonical_n4_adapter_type_mismatch")
+        comparison = n4_adapter.compare(n4_entry.candidate, state)
+        comparison["temporal_binding"] = temporal_binding
+        comparison["committed_intervention"] = session.inputs.get("committed_intervention")
+        n4_entry.consumer_verdict = comparison["verdict"]
+        if isinstance(n4_entry.candidate, dict):
+            n4_entry.candidate["canonical_comparison"] = comparison
+            n4_entry.candidate_hash = canonical_sha256(n4_entry.candidate)
+        if record_receipt and n4_entry.candidate_hash is not None:
+            self.record_consumer_receipt(
+                episode_id=session.trace.identity.episode_id,
+                organ="N4",
+                consumer_id="canonical_causal_comparator",
+                consumer_input={
+                    "candidate_hash": n4_entry.candidate_hash,
+                    "committed_intervention": session.inputs.get("committed_intervention"),
+                },
+                consumer_output=comparison,
+                verdict_class=(
+                    ConsumerVerdictClass.COMPARED
+                    if comparison.get("agreement") is not None
+                    else ConsumerVerdictClass.UNAVAILABLE
+                ),
+                verdict_detail=str(comparison["verdict"]),
+                evidence_refs=("CAU", "CTF", "C-GWM", temporal_binding),
+            )
+        return comparison
+
     def _session(self, episode_id: str) -> _EpisodeSession:
         try:
             return self._sessions[episode_id]
@@ -763,3 +984,11 @@ def _safe_exception_reason(exc: BaseException) -> str:
     name = exc.__class__.__name__.lower()
     detail = str(exc).strip().replace(" ", "_")[:160]
     return f"{name}:{detail}" if detail else name
+
+
+def _receipt_timestamp(candidate_generated_at: str) -> str:
+    """Ancla el recibo al candidato aunque el reloj de pared retroceda."""
+
+    candidate_time = datetime.fromisoformat(candidate_generated_at.replace("Z", "+00:00"))
+    now = datetime.now(timezone.utc)
+    return max(now, candidate_time).isoformat()

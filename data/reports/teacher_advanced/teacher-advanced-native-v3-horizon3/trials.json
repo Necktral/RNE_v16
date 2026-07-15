@@ -1,0 +1,1939 @@
+{
+  "trials": [
+    {
+      "baseline": {
+        "episode_id": "episode-cc4bf9b4-c5f5-4503-85ed-f608e2982540",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.274133,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-f6d74847-ffc3-4bc5-8661-29f6e1108e17",
+        "experience_bias": null,
+        "final_severity": 0.1244,
+        "horizon": 3,
+        "intervention": "deactivate_cooling",
+        "interventions": [
+          "deactivate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.139733,
+        "origin_to_final_severity_reduction": 0.0068,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.098333,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.098333,
+          -0.10155,
+          -0.07425
+        ],
+        "severities": [
+          0.1312,
+          0.1636,
+          0.1244
+        ],
+        "severity": 0.1312,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-42",
+      "external_input": 0.08,
+      "lesson": null,
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-44d32ab0-1d7e-4658-ad49-77255f4efc18",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22455,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-1f37932a-a47e-4241-a9a0-91b635498f59",
+        "experience_bias": {
+          "avoided": "deactivate_cooling",
+          "chose": "activate_cooling"
+        },
+        "final_severity": 0.0941,
+        "horizon": 3,
+        "intervention": "activate_cooling",
+        "interventions": [
+          "activate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.1043,
+        "origin_to_final_severity_reduction": 0.0371,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07655,
+          -0.07425
+        ],
+        "severities": [
+          0.13,
+          0.0888,
+          0.0941
+        ],
+        "severity": 0.13,
+        "severity_reduction": 0.0012
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-42",
+      "external_input": 0.08,
+      "lesson": {
+        "avoid": "deactivate_cooling",
+        "evaluation_pair_id": "thermal_homeostasis-seed-42",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1312,
+        "lesson": "Reactive fixes can backfire; anticipate needs before acting.",
+        "lesson_id": "74c7c837507763e919b78f2da3b334e3759622cbe0987a981685e01ee4b70284",
+        "organism_id": "organism-6ac9c02d4e483506c86c",
+        "prefer": "activate_cooling",
+        "regime": "calm",
+        "scenario": "thermal_homeostasis",
+        "situation_key": "thermal_homeostasis:calm:c670c7f1394c530c",
+        "source_wound_episode_id": "episode-44d32ab0-1d7e-4658-ad49-77255f4efc18",
+        "teacher_generation_tps": 45.8,
+        "teacher_latency_s": 3.253757205999136,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 1019.0,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 45.8,
+        "latency_s": 3.253757205999136,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": 1019.0,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-e2dfe288-17ef-46cf-b59f-cdc3e4d68da0",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22455,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-024c776f-0562-40ab-8a5a-0f9adea59691",
+        "experience_bias": {
+          "avoided": "deactivate_cooling",
+          "chose": "activate_cooling"
+        },
+        "final_severity": 0.0941,
+        "horizon": 3,
+        "intervention": "activate_cooling",
+        "interventions": [
+          "activate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.1043,
+        "origin_to_final_severity_reduction": 0.0371,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07655,
+          -0.07425
+        ],
+        "severities": [
+          0.13,
+          0.0888,
+          0.0941
+        ],
+        "severity": 0.13,
+        "severity_reduction": 0.0012
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-42",
+      "external_input": 0.08,
+      "lesson": {
+        "avoid": "deactivate_cooling",
+        "evaluation_pair_id": "thermal_homeostasis-seed-42",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1312,
+        "lesson": "Activa enfriamiento ante calor externo y verifica que la temperatura descienda.",
+        "lesson_id": "3e23249819cacb5a9441b9da2ef0bc0e9ab7192206d7aa659dc2ad68ff181a7c",
+        "organism_id": "organism-23300a5946e3b0b97513",
+        "prefer": "activate_cooling",
+        "regime": "calm",
+        "scenario": "thermal_homeostasis",
+        "situation_key": "thermal_homeostasis:calm:c670c7f1394c530c",
+        "source_wound_episode_id": "episode-e2dfe288-17ef-46cf-b59f-cdc3e4d68da0",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-901bee26-cb0e-43ef-8de2-a4743f5b0b0b",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.274133,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-03f41c08-a624-4788-82e5-42fa101b8bed",
+        "experience_bias": null,
+        "final_severity": 0.1244,
+        "horizon": 3,
+        "intervention": "deactivate_cooling",
+        "interventions": [
+          "deactivate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.139733,
+        "origin_to_final_severity_reduction": 0.0068,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.098333,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.098333,
+          -0.10155,
+          -0.07425
+        ],
+        "severities": [
+          0.1312,
+          0.1636,
+          0.1244
+        ],
+        "severity": 0.1312,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-101",
+      "external_input": 0.08,
+      "lesson": null,
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-d56c1bbb-3f2d-4086-a645-a8f3401008ac",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22455,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-3be6894e-1a16-4287-a1bb-7ae9c195afe6",
+        "experience_bias": {
+          "avoided": "deactivate_cooling",
+          "chose": "activate_cooling"
+        },
+        "final_severity": 0.0941,
+        "horizon": 3,
+        "intervention": "activate_cooling",
+        "interventions": [
+          "activate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.1043,
+        "origin_to_final_severity_reduction": 0.0371,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07655,
+          -0.07425
+        ],
+        "severities": [
+          0.13,
+          0.0888,
+          0.0941
+        ],
+        "severity": 0.13,
+        "severity_reduction": 0.0012
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-101",
+      "external_input": 0.08,
+      "lesson": {
+        "avoid": "deactivate_cooling",
+        "evaluation_pair_id": "thermal_homeostasis-seed-101",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1312,
+        "lesson": "Avoid deactivating cooling; activate it instead to maintain equilibrium.",
+        "lesson_id": "85d284aee18519d90c51e0323a8a3abbbaf5409358ce06eea764497989ee8e47",
+        "organism_id": "organism-4823136b086ee58c9c3b",
+        "prefer": "activate_cooling",
+        "regime": "calm",
+        "scenario": "thermal_homeostasis",
+        "situation_key": "thermal_homeostasis:calm:c670c7f1394c530c",
+        "source_wound_episode_id": "episode-d56c1bbb-3f2d-4086-a645-a8f3401008ac",
+        "teacher_generation_tps": 47.8,
+        "teacher_latency_s": 3.169016464999004,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 951.5,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 47.8,
+        "latency_s": 3.169016464999004,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": 951.5,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-cd6210b3-3a25-4266-9a60-599acb6336ff",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22455,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-9ba39658-6641-4121-aae7-dc7f1d3f99b7",
+        "experience_bias": {
+          "avoided": "deactivate_cooling",
+          "chose": "activate_cooling"
+        },
+        "final_severity": 0.0941,
+        "horizon": 3,
+        "intervention": "activate_cooling",
+        "interventions": [
+          "activate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.1043,
+        "origin_to_final_severity_reduction": 0.0371,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07655,
+          -0.07425
+        ],
+        "severities": [
+          0.13,
+          0.0888,
+          0.0941
+        ],
+        "severity": 0.13,
+        "severity_reduction": 0.0012
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-101",
+      "external_input": 0.08,
+      "lesson": {
+        "avoid": "deactivate_cooling",
+        "evaluation_pair_id": "thermal_homeostasis-seed-101",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1312,
+        "lesson": "Activa enfriamiento ante calor externo y verifica que la temperatura descienda.",
+        "lesson_id": "f67820013912ed41e3a84fc59a5cc2fd306ea1d06976e8ff41016fbbcff42e52",
+        "organism_id": "organism-5d511737e9b0d32e99a7",
+        "prefer": "activate_cooling",
+        "regime": "calm",
+        "scenario": "thermal_homeostasis",
+        "situation_key": "thermal_homeostasis:calm:c670c7f1394c530c",
+        "source_wound_episode_id": "episode-cd6210b3-3a25-4266-9a60-599acb6336ff",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-a30cfc8c-dc5a-4fa5-9cba-b2e45c99aa3b",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.274133,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-718eaab5-5ce9-4991-a665-2b97ea3cd1a4",
+        "experience_bias": null,
+        "final_severity": 0.1244,
+        "horizon": 3,
+        "intervention": "deactivate_cooling",
+        "interventions": [
+          "deactivate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.139733,
+        "origin_to_final_severity_reduction": 0.0068,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.098333,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.098333,
+          -0.10155,
+          -0.07425
+        ],
+        "severities": [
+          0.1312,
+          0.1636,
+          0.1244
+        ],
+        "severity": 0.1312,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-202",
+      "external_input": 0.08,
+      "lesson": null,
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-c0bb6fc5-9d20-4499-8488-4ee97907f640",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22455,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-1c5d26ce-1234-47d2-86d8-a3e52082815c",
+        "experience_bias": {
+          "avoided": "deactivate_cooling",
+          "chose": "activate_cooling"
+        },
+        "final_severity": 0.0941,
+        "horizon": 3,
+        "intervention": "activate_cooling",
+        "interventions": [
+          "activate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.1043,
+        "origin_to_final_severity_reduction": 0.0371,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07655,
+          -0.07425
+        ],
+        "severities": [
+          0.13,
+          0.0888,
+          0.0941
+        ],
+        "severity": 0.13,
+        "severity_reduction": 0.0012
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-202",
+      "external_input": 0.08,
+      "lesson": {
+        "avoid": "deactivate_cooling",
+        "evaluation_pair_id": "thermal_homeostasis-seed-202",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1312,
+        "lesson": "Don't turn off cooling when the system is already overheating.",
+        "lesson_id": "6d6f3166dc91ed8d1151c5c19bf0b93b83d2a94a7e7f94d8e91e60228ca1d70d",
+        "organism_id": "organism-a63c1b9de057665b0b3f",
+        "prefer": "activate_cooling",
+        "regime": "calm",
+        "scenario": "thermal_homeostasis",
+        "situation_key": "thermal_homeostasis:calm:c670c7f1394c530c",
+        "source_wound_episode_id": "episode-c0bb6fc5-9d20-4499-8488-4ee97907f640",
+        "teacher_generation_tps": 49.3,
+        "teacher_latency_s": 3.0721511709998595,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 975.6,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 49.3,
+        "latency_s": 3.0721511709998595,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": 975.6,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-391cb4ef-38e7-437d-9076-f71b2e4e1be9",
+        "intervention": "deactivate_cooling",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22455,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-0b09d9ad-ad3a-4e46-8ecd-5b374c827e94",
+        "experience_bias": {
+          "avoided": "deactivate_cooling",
+          "chose": "activate_cooling"
+        },
+        "final_severity": 0.0941,
+        "horizon": 3,
+        "intervention": "activate_cooling",
+        "interventions": [
+          "activate_cooling",
+          "activate_cooling",
+          "activate_cooling"
+        ],
+        "mean_severity": 0.1043,
+        "origin_to_final_severity_reduction": 0.0371,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07655,
+          -0.07425
+        ],
+        "severities": [
+          0.13,
+          0.0888,
+          0.0941
+        ],
+        "severity": 0.13,
+        "severity_reduction": 0.0012
+      },
+      "evaluation_pair_id": "thermal_homeostasis-seed-202",
+      "external_input": 0.08,
+      "lesson": {
+        "avoid": "deactivate_cooling",
+        "evaluation_pair_id": "thermal_homeostasis-seed-202",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1312,
+        "lesson": "Activa enfriamiento ante calor externo y verifica que la temperatura descienda.",
+        "lesson_id": "47ba188a8a0c243fd77af9d7e0c15ddcfc93ce1f8430c9bf91087a357e19ca8c",
+        "organism_id": "organism-3c08ac5850c3b654707c",
+        "prefer": "activate_cooling",
+        "regime": "calm",
+        "scenario": "thermal_homeostasis",
+        "situation_key": "thermal_homeostasis:calm:c670c7f1394c530c",
+        "source_wound_episode_id": "episode-391cb4ef-38e7-437d-9076-f71b2e4e1be9",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "thermal_homeostasis",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-d7846331-2eba-41db-adce-1113dacebb5c",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.277433,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-09406d87-8f72-492f-8579-8e28ddae9d26",
+        "experience_bias": null,
+        "final_severity": 0.1246,
+        "horizon": 3,
+        "intervention": "stop_production",
+        "interventions": [
+          "stop_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.139733,
+        "origin_to_final_severity_reduction": 0.0066,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.098333,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.098333,
+          -0.10435,
+          -0.07475
+        ],
+        "severities": [
+          0.1312,
+          0.1634,
+          0.1246
+        ],
+        "severity": 0.1312,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "resource_management-seed-42",
+      "external_input": 0.1,
+      "lesson": null,
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-4af434e2-1d72-4bb6-924a-1496e5c4c9fa",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22785,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-c5ff02a2-0c46-4b69-be4c-5b747e4994b4",
+        "experience_bias": {
+          "avoided": "stop_production",
+          "chose": "start_production"
+        },
+        "final_severity": 0.0944,
+        "horizon": 3,
+        "intervention": "start_production",
+        "interventions": [
+          "start_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.104467,
+        "origin_to_final_severity_reduction": 0.0368,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07935,
+          -0.07475
+        ],
+        "severities": [
+          0.1298,
+          0.0892,
+          0.0944
+        ],
+        "severity": 0.1298,
+        "severity_reduction": 0.0014
+      },
+      "evaluation_pair_id": "resource_management-seed-42",
+      "external_input": 0.1,
+      "lesson": {
+        "avoid": "stop_production",
+        "evaluation_pair_id": "resource_management-seed-42",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1312,
+        "lesson": "Avoid stopping production; restart instead.",
+        "lesson_id": "f1f7cc03623490dffc12536d7ec23c61d7eaac40c3cce04fe11d5753e35bc2bb",
+        "organism_id": "organism-d620efdcaf7e637aa19d",
+        "prefer": "start_production",
+        "regime": "calm",
+        "scenario": "resource_management",
+        "situation_key": "resource_management:calm:9c096d5aa116fa3d",
+        "source_wound_episode_id": "episode-4af434e2-1d72-4bb6-924a-1496e5c4c9fa",
+        "teacher_generation_tps": 47.0,
+        "teacher_latency_s": 2.79377295499944,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 904.1,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 47.0,
+        "latency_s": 2.79377295499944,
+        "lesson_informative": false,
+        "prefer_in_catalog": true,
+        "prompt_tps": 904.1,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": false
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-ed52a5b0-ef6c-4b51-b8d9-bd42ffd103a2",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22785,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-59bd9d93-be33-47f1-ba3c-7702de0639f3",
+        "experience_bias": {
+          "avoided": "stop_production",
+          "chose": "start_production"
+        },
+        "final_severity": 0.0944,
+        "horizon": 3,
+        "intervention": "start_production",
+        "interventions": [
+          "start_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.104467,
+        "origin_to_final_severity_reduction": 0.0368,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07935,
+          -0.07475
+        ],
+        "severities": [
+          0.1298,
+          0.0892,
+          0.0944
+        ],
+        "severity": 0.1298,
+        "severity_reduction": 0.0014
+      },
+      "evaluation_pair_id": "resource_management-seed-42",
+      "external_input": 0.1,
+      "lesson": {
+        "avoid": "stop_production",
+        "evaluation_pair_id": "resource_management-seed-42",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1312,
+        "lesson": "Inicia producción antes de cruzar escasez y mide la recuperación del stock.",
+        "lesson_id": "1dfe9c50bbb15bf3dc73c0e1a2cb21d41ddfbcdd79dadadcfd7999977ba4dba4",
+        "organism_id": "organism-cc08ba893b99db495fa8",
+        "prefer": "start_production",
+        "regime": "calm",
+        "scenario": "resource_management",
+        "situation_key": "resource_management:calm:9c096d5aa116fa3d",
+        "source_wound_episode_id": "episode-ed52a5b0-ef6c-4b51-b8d9-bd42ffd103a2",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-1025d1ec-7c59-4f46-bb5d-840de0332984",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.277433,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-0547a75a-a2b3-46f2-ac14-12b02fe93263",
+        "experience_bias": null,
+        "final_severity": 0.1246,
+        "horizon": 3,
+        "intervention": "stop_production",
+        "interventions": [
+          "stop_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.139733,
+        "origin_to_final_severity_reduction": 0.0066,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.098333,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.098333,
+          -0.10435,
+          -0.07475
+        ],
+        "severities": [
+          0.1312,
+          0.1634,
+          0.1246
+        ],
+        "severity": 0.1312,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "resource_management-seed-101",
+      "external_input": 0.1,
+      "lesson": null,
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-547e02fa-350b-4142-b381-25046d9eff65",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22785,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-7b0a70ab-eb4a-4a97-a442-3c31d0a937f8",
+        "experience_bias": {
+          "avoided": "stop_production",
+          "chose": "start_production"
+        },
+        "final_severity": 0.0944,
+        "horizon": 3,
+        "intervention": "start_production",
+        "interventions": [
+          "start_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.104467,
+        "origin_to_final_severity_reduction": 0.0368,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07935,
+          -0.07475
+        ],
+        "severities": [
+          0.1298,
+          0.0892,
+          0.0944
+        ],
+        "severity": 0.1298,
+        "severity_reduction": 0.0014
+      },
+      "evaluation_pair_id": "resource_management-seed-101",
+      "external_input": 0.1,
+      "lesson": {
+        "avoid": "stop_production",
+        "evaluation_pair_id": "resource_management-seed-101",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1312,
+        "lesson": "Avoid stopping production; restart instead.",
+        "lesson_id": "30858e9859436ff5e8904548a31801f0ded674456a96cf2f6447f4ec6bdec971",
+        "organism_id": "organism-72714d4cf550cc9c2597",
+        "prefer": "start_production",
+        "regime": "calm",
+        "scenario": "resource_management",
+        "situation_key": "resource_management:calm:9c096d5aa116fa3d",
+        "source_wound_episode_id": "episode-547e02fa-350b-4142-b381-25046d9eff65",
+        "teacher_generation_tps": 45.9,
+        "teacher_latency_s": 2.8140480529982597,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 851.0,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 45.9,
+        "latency_s": 2.8140480529982597,
+        "lesson_informative": false,
+        "prefer_in_catalog": true,
+        "prompt_tps": 851.0,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": false
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-4ee9965f-13e4-4276-872e-c5b3df77b7ec",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22785,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-597e316b-7b9a-401f-8603-a826c0f5205a",
+        "experience_bias": {
+          "avoided": "stop_production",
+          "chose": "start_production"
+        },
+        "final_severity": 0.0944,
+        "horizon": 3,
+        "intervention": "start_production",
+        "interventions": [
+          "start_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.104467,
+        "origin_to_final_severity_reduction": 0.0368,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07935,
+          -0.07475
+        ],
+        "severities": [
+          0.1298,
+          0.0892,
+          0.0944
+        ],
+        "severity": 0.1298,
+        "severity_reduction": 0.0014
+      },
+      "evaluation_pair_id": "resource_management-seed-101",
+      "external_input": 0.1,
+      "lesson": {
+        "avoid": "stop_production",
+        "evaluation_pair_id": "resource_management-seed-101",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1312,
+        "lesson": "Inicia producción antes de cruzar escasez y mide la recuperación del stock.",
+        "lesson_id": "1a1b744a9ae6c4af5c8e8d186021c721bf4beb6156dc4ae651ba2bbb3e06ff90",
+        "organism_id": "organism-05bdc6f71cb3e9653ca1",
+        "prefer": "start_production",
+        "regime": "calm",
+        "scenario": "resource_management",
+        "situation_key": "resource_management:calm:9c096d5aa116fa3d",
+        "source_wound_episode_id": "episode-4ee9965f-13e4-4276-872e-c5b3df77b7ec",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-f2547785-3dc3-43fd-94f9-1c8565b98188",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.277433,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-ee7ac9de-e64b-439c-8425-54030c0fbe21",
+        "experience_bias": null,
+        "final_severity": 0.1246,
+        "horizon": 3,
+        "intervention": "stop_production",
+        "interventions": [
+          "stop_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.139733,
+        "origin_to_final_severity_reduction": 0.0066,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.098333,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.098333,
+          -0.10435,
+          -0.07475
+        ],
+        "severities": [
+          0.1312,
+          0.1634,
+          0.1246
+        ],
+        "severity": 0.1312,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "resource_management-seed-202",
+      "external_input": 0.1,
+      "lesson": null,
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-2d2279fc-7b7e-431c-9ef0-9f6f6666764a",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22785,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-8e26b9f3-d1b1-48d7-8e0d-0c4c12513f7a",
+        "experience_bias": {
+          "avoided": "stop_production",
+          "chose": "start_production"
+        },
+        "final_severity": 0.0944,
+        "horizon": 3,
+        "intervention": "start_production",
+        "interventions": [
+          "start_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.104467,
+        "origin_to_final_severity_reduction": 0.0368,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07935,
+          -0.07475
+        ],
+        "severities": [
+          0.1298,
+          0.0892,
+          0.0944
+        ],
+        "severity": 0.1298,
+        "severity_reduction": 0.0014
+      },
+      "evaluation_pair_id": "resource_management-seed-202",
+      "external_input": 0.1,
+      "lesson": {
+        "avoid": "stop_production",
+        "evaluation_pair_id": "resource_management-seed-202",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1312,
+        "lesson": "Avoid stopping production; restart instead.",
+        "lesson_id": "66ccbc17048499b3a55f147c91ce452be72bc836aa8affd092d7ed3025f58997",
+        "organism_id": "organism-44040524d68c559da068",
+        "prefer": "start_production",
+        "regime": "calm",
+        "scenario": "resource_management",
+        "situation_key": "resource_management:calm:9c096d5aa116fa3d",
+        "source_wound_episode_id": "episode-2d2279fc-7b7e-431c-9ef0-9f6f6666764a",
+        "teacher_generation_tps": 47.8,
+        "teacher_latency_s": 2.8441933850008354,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 856.7,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 47.8,
+        "latency_s": 2.8441933850008354,
+        "lesson_informative": false,
+        "prefer_in_catalog": true,
+        "prompt_tps": 856.7,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": false
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-7716e496-58ee-4459-9afb-7d659ae942fb",
+        "intervention": "stop_production",
+        "reward": -0.098333,
+        "severity": 0.1312
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.22785,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-cf4db8d0-66b7-43fb-a0f7-047669fc7efa",
+        "experience_bias": {
+          "avoided": "stop_production",
+          "chose": "start_production"
+        },
+        "final_severity": 0.0944,
+        "horizon": 3,
+        "intervention": "start_production",
+        "interventions": [
+          "start_production",
+          "start_production",
+          "start_production"
+        ],
+        "mean_severity": 0.104467,
+        "origin_to_final_severity_reduction": 0.0368,
+        "pedagogical_class": "applied_improved_single_observation",
+        "reward": -0.07375,
+        "reward_delta": 0.024583,
+        "rewards": [
+          -0.07375,
+          -0.07935,
+          -0.07475
+        ],
+        "severities": [
+          0.1298,
+          0.0892,
+          0.0944
+        ],
+        "severity": 0.1298,
+        "severity_reduction": 0.0014
+      },
+      "evaluation_pair_id": "resource_management-seed-202",
+      "external_input": 0.1,
+      "lesson": {
+        "avoid": "stop_production",
+        "evaluation_pair_id": "resource_management-seed-202",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1312,
+        "lesson": "Inicia producción antes de cruzar escasez y mide la recuperación del stock.",
+        "lesson_id": "895d5368b74194593ac9ee31a95fd26282f5069564ad74f9a5042a02c4496f16",
+        "organism_id": "organism-6b2c123fcfce7a9d21c2",
+        "prefer": "start_production",
+        "regime": "calm",
+        "scenario": "resource_management",
+        "situation_key": "resource_management:calm:9c096d5aa116fa3d",
+        "source_wound_episode_id": "episode-7716e496-58ee-4459-9afb-7d659ae942fb",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "resource_management",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-0938607b-8b03-4a4d-894d-8407568d0da5",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.25115,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-4f69ea89-b6a2-4c7d-a40f-63c2f2eb5044",
+        "experience_bias": null,
+        "final_severity": 0.1236,
+        "horizon": 3,
+        "intervention": "boost_throughput",
+        "interventions": [
+          "boost_throughput",
+          "boost_throughput",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.116667,
+        "origin_to_final_severity_reduction": 0.0072,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.11575,
+          -0.06165
+        ],
+        "severities": [
+          0.1308,
+          0.0956,
+          0.1236
+        ],
+        "severity": 0.1308,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-42",
+      "external_input": 0.14,
+      "lesson": null,
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-328b1cc5-d10b-439b-9a00-57bd9e698f29",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.24535,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-089e2ceb-370e-414b-9a05-e383d80b4ada",
+        "experience_bias": {
+          "avoided": "boost_throughput",
+          "chose": "shed_load"
+        },
+        "final_severity": 0.1224,
+        "horizon": 3,
+        "intervention": "shed_load",
+        "interventions": [
+          "shed_load",
+          "shed_load",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.115533,
+        "origin_to_final_severity_reduction": 0.0084,
+        "pedagogical_class": "applied_without_improvement",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.09895,
+          -0.07265
+        ],
+        "severities": [
+          0.1312,
+          0.093,
+          0.1224
+        ],
+        "severity": 0.1312,
+        "severity_reduction": -0.0004
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-42",
+      "external_input": 0.14,
+      "lesson": {
+        "avoid": "boost_throughput",
+        "evaluation_pair_id": "deferred_load_trap-seed-42",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1308,
+        "lesson": "Avoid boosting throughput without considering load reduction.",
+        "lesson_id": "a42b218ac158ee6587a46dccad1cf6575487231de786fc9949b2c000686b8635",
+        "organism_id": "organism-3e8692b1b28c42a340a5",
+        "prefer": "shed_load",
+        "regime": "calm",
+        "scenario": "deferred_load_trap",
+        "situation_key": "deferred_load_trap:calm:0702e49857484c48",
+        "source_wound_episode_id": "episode-328b1cc5-d10b-439b-9a00-57bd9e698f29",
+        "teacher_generation_tps": 47.3,
+        "teacher_latency_s": 2.9282133919987245,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 930.7,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 47.3,
+        "latency_s": 2.9282133919987245,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": 930.7,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-a72c55c5-36b7-47e8-be5d-8564a439f591",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.24535,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-6521c18c-ed62-4225-bfd8-1c7e34293f1f",
+        "experience_bias": {
+          "avoided": "boost_throughput",
+          "chose": "shed_load"
+        },
+        "final_severity": 0.1224,
+        "horizon": 3,
+        "intervention": "shed_load",
+        "interventions": [
+          "shed_load",
+          "shed_load",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.115533,
+        "origin_to_final_severity_reduction": 0.0084,
+        "pedagogical_class": "applied_without_improvement",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.09895,
+          -0.07265
+        ],
+        "severities": [
+          0.1312,
+          0.093,
+          0.1224
+        ],
+        "severity": 0.1312,
+        "severity_reduction": -0.0004
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-42",
+      "external_input": 0.14,
+      "lesson": {
+        "avoid": "boost_throughput",
+        "evaluation_pair_id": "deferred_load_trap-seed-42",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1308,
+        "lesson": "Evita alivio inmediato con deuda; reduce carga de forma sostenible y mide el rebote.",
+        "lesson_id": "1244551adaa72605fa27aa989adde2337f4cac80e6191b91ac06311b0a393fda",
+        "organism_id": "organism-91182f133c4f10ba2ece",
+        "prefer": "shed_load",
+        "regime": "calm",
+        "scenario": "deferred_load_trap",
+        "situation_key": "deferred_load_trap:calm:0702e49857484c48",
+        "source_wound_episode_id": "episode-a72c55c5-36b7-47e8-be5d-8564a439f591",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 42,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-709cdf4b-4e98-4af7-bda4-c15b79abbce8",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.25115,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-11cb4898-6b12-4848-80b6-d65829219712",
+        "experience_bias": null,
+        "final_severity": 0.1236,
+        "horizon": 3,
+        "intervention": "boost_throughput",
+        "interventions": [
+          "boost_throughput",
+          "boost_throughput",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.116667,
+        "origin_to_final_severity_reduction": 0.0072,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.11575,
+          -0.06165
+        ],
+        "severities": [
+          0.1308,
+          0.0956,
+          0.1236
+        ],
+        "severity": 0.1308,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-101",
+      "external_input": 0.14,
+      "lesson": null,
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-f7ec4ecd-029f-49d6-987e-2bb5b4990aad",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.24535,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-2838fdf6-ed77-4849-9431-b42e208f44df",
+        "experience_bias": {
+          "avoided": "boost_throughput",
+          "chose": "shed_load"
+        },
+        "final_severity": 0.1224,
+        "horizon": 3,
+        "intervention": "shed_load",
+        "interventions": [
+          "shed_load",
+          "shed_load",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.115533,
+        "origin_to_final_severity_reduction": 0.0084,
+        "pedagogical_class": "applied_without_improvement",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.09895,
+          -0.07265
+        ],
+        "severities": [
+          0.1312,
+          0.093,
+          0.1224
+        ],
+        "severity": 0.1312,
+        "severity_reduction": -0.0004
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-101",
+      "external_input": 0.14,
+      "lesson": {
+        "avoid": "boost_throughput",
+        "evaluation_pair_id": "deferred_load_trap-seed-101",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1308,
+        "lesson": "Prioritize shedding load over boosting throughput to prevent resource strain.",
+        "lesson_id": "43c2c0dc5bb8c1594249793f541e9a2d7b54c71ab19109ed9551253a31cb8eb7",
+        "organism_id": "organism-1b4ef69bc1f0346ddfe1",
+        "prefer": "shed_load",
+        "regime": "calm",
+        "scenario": "deferred_load_trap",
+        "situation_key": "deferred_load_trap:calm:0702e49857484c48",
+        "source_wound_episode_id": "episode-f7ec4ecd-029f-49d6-987e-2bb5b4990aad",
+        "teacher_generation_tps": 46.7,
+        "teacher_latency_s": 2.9686420369998814,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 941.2,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 46.7,
+        "latency_s": 2.9686420369998814,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": 941.2,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-d564a7fa-5685-481e-b683-4f2f98559c37",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.24535,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-06e08060-a61b-4f3b-845a-1abdd05a4b32",
+        "experience_bias": {
+          "avoided": "boost_throughput",
+          "chose": "shed_load"
+        },
+        "final_severity": 0.1224,
+        "horizon": 3,
+        "intervention": "shed_load",
+        "interventions": [
+          "shed_load",
+          "shed_load",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.115533,
+        "origin_to_final_severity_reduction": 0.0084,
+        "pedagogical_class": "applied_without_improvement",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.09895,
+          -0.07265
+        ],
+        "severities": [
+          0.1312,
+          0.093,
+          0.1224
+        ],
+        "severity": 0.1312,
+        "severity_reduction": -0.0004
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-101",
+      "external_input": 0.14,
+      "lesson": {
+        "avoid": "boost_throughput",
+        "evaluation_pair_id": "deferred_load_trap-seed-101",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1308,
+        "lesson": "Evita alivio inmediato con deuda; reduce carga de forma sostenible y mide el rebote.",
+        "lesson_id": "41179fb52de0c32f7fa3220f5999fc876b9617d4b1ad8e44c5d0812bb2f01949",
+        "organism_id": "organism-861a268b586a63bcbea1",
+        "prefer": "shed_load",
+        "regime": "calm",
+        "scenario": "deferred_load_trap",
+        "situation_key": "deferred_load_trap:calm:0702e49857484c48",
+        "source_wound_episode_id": "episode-d564a7fa-5685-481e-b683-4f2f98559c37",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 101,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-9c0f7ad0-8f13-4cc7-aa32-ec938b674577",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": false,
+        "cumulative_reward": -0.25115,
+        "curriculum_class": "curriculum_inactive",
+        "episode_id": "episode-1be02a22-fe0e-4c42-8247-179743dedea0",
+        "experience_bias": null,
+        "final_severity": 0.1236,
+        "horizon": 3,
+        "intervention": "boost_throughput",
+        "interventions": [
+          "boost_throughput",
+          "boost_throughput",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.116667,
+        "origin_to_final_severity_reduction": 0.0072,
+        "pedagogical_class": "teacher_inactive",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.11575,
+          -0.06165
+        ],
+        "severities": [
+          0.1308,
+          0.0956,
+          0.1236
+        ],
+        "severity": 0.1308,
+        "severity_reduction": 0.0
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-202",
+      "external_input": 0.14,
+      "lesson": null,
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": false,
+        "semantic_pass": null
+      },
+      "variant": "no_teacher"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-edfa0075-34d9-41c2-b528-4cff3e4f1d3e",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.24535,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-d5fd6e36-011b-413b-9c89-6752366e5d1b",
+        "experience_bias": {
+          "avoided": "boost_throughput",
+          "chose": "shed_load"
+        },
+        "final_severity": 0.1224,
+        "horizon": 3,
+        "intervention": "shed_load",
+        "interventions": [
+          "shed_load",
+          "shed_load",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.115533,
+        "origin_to_final_severity_reduction": 0.0084,
+        "pedagogical_class": "applied_without_improvement",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.09895,
+          -0.07265
+        ],
+        "severities": [
+          0.1312,
+          0.093,
+          0.1224
+        ],
+        "severity": 0.1312,
+        "severity_reduction": -0.0004
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-202",
+      "external_input": 0.14,
+      "lesson": {
+        "avoid": "boost_throughput",
+        "evaluation_pair_id": "deferred_load_trap-seed-202",
+        "evaluation_variant": "local_7b",
+        "from_severity": 0.1308,
+        "lesson": "Avoid boosting throughput without considering load reduction first.",
+        "lesson_id": "ae98747806f2dec9babdba7a83f0811511017d56c15fc11e22702de172ae3b62",
+        "organism_id": "organism-3a282d85d013b0e491a4",
+        "prefer": "shed_load",
+        "regime": "calm",
+        "scenario": "deferred_load_trap",
+        "situation_key": "deferred_load_trap:calm:0702e49857484c48",
+        "source_wound_episode_id": "episode-edfa0075-34d9-41c2-b528-4cff3e4f1d3e",
+        "teacher_generation_tps": 46.3,
+        "teacher_latency_s": 2.9082340040004055,
+        "teacher_model": "open-thoughts/OpenThinker3-7B",
+        "teacher_prompt_tps": 837.4,
+        "teacher_raw_semantic_valid": true,
+        "teacher_repairs": [],
+        "teacher_source": "local_7b"
+      },
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": 46.3,
+        "latency_s": 2.9082340040004055,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": 837.4,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "local_7b"
+    },
+    {
+      "baseline": {
+        "episode_id": "episode-32c52501-86f3-4017-8a16-f86f61998d0c",
+        "intervention": "boost_throughput",
+        "reward": -0.07375,
+        "severity": 0.1308
+      },
+      "campaign_id": "teacher-advanced-native-v3-horizon3",
+      "evaluation": {
+        "behavior_changed": true,
+        "cumulative_reward": -0.24535,
+        "curriculum_class": "efficiency_unmeasured_unpaired",
+        "episode_id": "episode-ce00c677-3045-4cc5-9f40-7ba9a064a902",
+        "experience_bias": {
+          "avoided": "boost_throughput",
+          "chose": "shed_load"
+        },
+        "final_severity": 0.1224,
+        "horizon": 3,
+        "intervention": "shed_load",
+        "interventions": [
+          "shed_load",
+          "shed_load",
+          "boost_throughput"
+        ],
+        "mean_severity": 0.115533,
+        "origin_to_final_severity_reduction": 0.0084,
+        "pedagogical_class": "applied_without_improvement",
+        "reward": -0.07375,
+        "reward_delta": 0.0,
+        "rewards": [
+          -0.07375,
+          -0.09895,
+          -0.07265
+        ],
+        "severities": [
+          0.1312,
+          0.093,
+          0.1224
+        ],
+        "severity": 0.1312,
+        "severity_reduction": -0.0004
+      },
+      "evaluation_pair_id": "deferred_load_trap-seed-202",
+      "external_input": 0.14,
+      "lesson": {
+        "avoid": "boost_throughput",
+        "evaluation_pair_id": "deferred_load_trap-seed-202",
+        "evaluation_variant": "codex_frontier",
+        "from_severity": 0.1308,
+        "lesson": "Evita alivio inmediato con deuda; reduce carga de forma sostenible y mide el rebote.",
+        "lesson_id": "b155aa28379f8408b79892b9e09050d364cd4227dec12d735cad3dce5d8fc32d",
+        "organism_id": "organism-f3f75e9627cd60d3e03c",
+        "prefer": "shed_load",
+        "regime": "calm",
+        "scenario": "deferred_load_trap",
+        "situation_key": "deferred_load_trap:calm:0702e49857484c48",
+        "source_wound_episode_id": "episode-32c52501-86f3-4017-8a16-f86f61998d0c",
+        "teacher_generation_mode": "offline_curated_by_codex",
+        "teacher_model": "codex_frontier",
+        "teacher_raw_semantic_valid": true,
+        "teacher_source": "codex_frontier"
+      },
+      "scenario": "deferred_load_trap",
+      "schema_version": "rnfe-teacher-trial-v1",
+      "seed": 202,
+      "teacher_semantics": {
+        "available": true,
+        "avoid_matches_observed_action": true,
+        "generation_tps": null,
+        "latency_s": null,
+        "lesson_informative": true,
+        "prefer_in_catalog": true,
+        "prompt_tps": null,
+        "raw_semantic_valid": true,
+        "repairs": [],
+        "semantic_pass": true
+      },
+      "variant": "codex_frontier"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ from .n1_dataset import (
     CounterfactualDatasetBuilder,
     CounterfactualSample,
     DatasetQualityReport,
+    counterfactual_initial_state_hash,
 )
 from .technology_training import train_hnet_boundary_model, train_mamba2_temporal_model
 from .n1_n4_training import train_n1_router, train_n4_causal_graph
@@ -12,6 +13,7 @@ __all__ = [
     "CounterfactualDatasetBuilder",
     "CounterfactualSample",
     "DatasetQualityReport",
+    "counterfactual_initial_state_hash",
     "train_hnet_boundary_model",
     "train_mamba2_temporal_model",
     "train_n1_router",

@@ -1,0 +1,75 @@
+{
+  "artifact_path": "n1/router-lab-v1.json",
+  "artifact_sha256": "e04c46bdcf6ce41ba5e21ab9314f2a8e51b726f3b5a0364e45fc6792d45cc80e",
+  "backend": "rnfe-compact-mlp-router-v1",
+  "capability": "family_routing_proposal",
+  "input_schema_version": "n1-context-features-v1",
+  "license_id": "Unlicense",
+  "metrics": {
+    "ece": 0.15451364108400104,
+    "training_loss": 0.24140231311321259
+  },
+  "model_id": "rnfe-n1-router-lab-v1",
+  "organ": "N1",
+  "output_schema_version": "n1-routing-proposal-v2",
+  "parameter_count": 676,
+  "peak_vram_gb": 0.0,
+  "supported_devices": [
+    "cpu"
+  ],
+  "supported_dtypes": [
+    "float32"
+  ],
+  "training_provenance": {
+    "calibration_ece": 0.15451364108400104,
+    "calibration_split": "validation",
+    "classification": "counterfactual_paired",
+    "dataset_classification": "runtime_paired_family_ablation_v1",
+    "epochs": 80,
+    "families": [
+      "DIA_ADV",
+      "FAL_GUARD",
+      "HEUR",
+      "IND",
+      "OPT",
+      "PLAN"
+    ],
+    "final_loss": 0.24140231311321259,
+    "generators": 3,
+    "heldout_evaluated": true,
+    "initial_loss": 0.7012166976928711,
+    "promotion_eligible": false,
+    "seed": 31,
+    "split_metrics": {
+      "test": {
+        "calibration_ece": 0.1820548541067789,
+        "evaluated": true,
+        "positive_accuracy": 0.949999988079071,
+        "positive_bce": 0.26214534044265747,
+        "records": 60,
+        "utility_rmse": 0.019395627081394196
+      },
+      "train": {
+        "calibration_ece": 0.09904643260597368,
+        "evaluated": true,
+        "positive_accuracy": 0.925000011920929,
+        "positive_bce": 0.23683594167232513,
+        "records": 240,
+        "utility_rmse": 0.023018211126327515
+      },
+      "validation": {
+        "calibration_ece": 0.15451364108400104,
+        "evaluated": true,
+        "positive_accuracy": 0.800000011920929,
+        "positive_bce": 0.3751678168773651,
+        "records": 60,
+        "utility_rmse": 0.033566009253263474
+      }
+    },
+    "unique_contexts": 60,
+    "valid_pairs": 360
+  },
+  "upstream_commit": "n1-router-contract-v2",
+  "upstream_url": "repo://rnfe/runtime/neural/organs/n1_router.py",
+  "version": "1.0.0-lab"
+}

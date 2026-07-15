@@ -26,7 +26,7 @@
   "llama_cpp_reasoning": "off",
   "llama_cpp_reasoning_budget": 0,
   "model": "open-thoughts/OpenThinker3-7B",
-  "recommended_models_root": "/mnt/d/rnfe_models",
+  "recommended_models_root": "/home/wis/rnfe_models",
   "schema_required": true,
   "adopted_variant": "tokens_256_standard",
   "cost_per_corrected_failure_s": 60.714,

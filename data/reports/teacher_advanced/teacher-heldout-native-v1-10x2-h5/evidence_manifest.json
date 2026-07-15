@@ -1,0 +1,30 @@
+{
+  "artifacts": {
+    "REPORT.md": {
+      "bytes": 1138,
+      "sha256": "33a4538c9036059187d8ee8e39368fd2a191f8353cbe2fabb6e3b49371e86860"
+    },
+    "manifest.json": {
+      "bytes": 664,
+      "sha256": "e14a5c6b27d31768a4081ba612929927f77ad2833d4c6bb798ae38bb7d73386b"
+    },
+    "stratified_reanalysis.json": {
+      "bytes": 1977,
+      "sha256": "74dd3435ac154b175c984dc6fb93f91750228800bd9750ede0c00a85058aaeb2"
+    },
+    "summary.json": {
+      "bytes": 3344,
+      "sha256": "ecc67ef4f98f70e9fee8f61b96850f4a1a88740791d8fbd87f2c3d5534c8b371"
+    },
+    "trials.json": {
+      "bytes": 467757,
+      "sha256": "cca36815e111e98e26a846c7cd36bf382018b601fc2bad16715cb5148805a5d1"
+    },
+    "verdict.json": {
+      "bytes": 418,
+      "sha256": "0c559434333356e16c0d799b93f2c22dce49761987b3e98a45d79481b07489f9"
+    }
+  },
+  "campaign_id": "teacher-heldout-native-v1-10x2-h5",
+  "schema_version": "rnfe-teacher-evidence-manifest-v1"
+}

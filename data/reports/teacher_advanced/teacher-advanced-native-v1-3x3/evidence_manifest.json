@@ -1,0 +1,26 @@
+{
+  "artifacts": {
+    "REPORT.md": {
+      "bytes": 682,
+      "sha256": "15627e5c0df67fd3c9353b1671367762f5e585a798cd823885dcab52f3a24e76"
+    },
+    "manifest.json": {
+      "bytes": 526,
+      "sha256": "93a432d1b9168c4739dca6a9ee9ee9fefd0f303d022fe2a391ce1cf24145319d"
+    },
+    "summary.json": {
+      "bytes": 1165,
+      "sha256": "e89bab709e2f988c52080f16a0b26ce6820c4824587532fc36fcf7718cb95c3e"
+    },
+    "trials.json": {
+      "bytes": 50805,
+      "sha256": "0939764d1f017ed24acce421dd72c24bc64eb4948c9389490924eeb840fb8607"
+    },
+    "verdict.json": {
+      "bytes": 339,
+      "sha256": "ad44d5dae22686daa4e16313322ae46dbfc54564a2f01f21e493deb3ae1dd380"
+    }
+  },
+  "campaign_id": "teacher-advanced-native-v1-3x3",
+  "schema_version": "rnfe-teacher-evidence-manifest-v1"
+}

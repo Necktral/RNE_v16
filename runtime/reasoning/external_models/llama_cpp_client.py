@@ -31,6 +31,7 @@ class LlamaCppRequest:
     threads: int | None = None
     threads_batch: int | None = None
     mlock: bool = False
+    seed: int | None = None
 
 
 class LlamaCppClient:
@@ -77,6 +78,8 @@ class LlamaCppClient:
             command.extend(["--threads-batch", str(int(request.threads_batch))])
         if request.mlock:
             command.append("--mlock")
+        if request.seed is not None:
+            command.extend(["--seed", str(int(request.seed))])
         mode = (self.config.structured_output_mode or "off").strip().lower()
         if mode == "json_schema" and self.config.json_schema_path:
             command.extend(["--json-schema-file", self.config.json_schema_path])
@@ -100,6 +103,7 @@ class LlamaCppClient:
         threads: int | None = None,
         threads_batch: int | None = None,
         mlock: bool | None = None,
+        seed: int | None = None,
         allow_cpu_fallback: bool = False,
     ) -> Dict[str, Any]:
         selected = (backend or self.config.backend or "cuda").strip().lower()
@@ -118,6 +122,7 @@ class LlamaCppClient:
                 threads=int(threads) if threads is not None else self.config.threads,
                 threads_batch=int(threads_batch) if threads_batch is not None else self.config.threads_batch,
                 mlock=bool(mlock) if mlock is not None else bool(self.config.mlock),
+                seed=int(seed) if seed is not None else self.config.seed,
             )
         )
         if primary.get("ok") or selected == "cpu" or not allow_cpu_fallback:
@@ -138,6 +143,7 @@ class LlamaCppClient:
                 threads=int(threads) if threads is not None else self.config.threads,
                 threads_batch=int(threads_batch) if threads_batch is not None else self.config.threads_batch,
                 mlock=bool(mlock) if mlock is not None else bool(self.config.mlock),
+                seed=int(seed) if seed is not None else self.config.seed,
             )
         )
         fallback["fallback_attempted"] = True

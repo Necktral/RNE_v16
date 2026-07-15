@@ -24,8 +24,17 @@ producir evidencia compatible con esta frontera.
   autoevolución conservan sus autoridades actuales.
 - `off` produce cero actividad funcional.
 - Un snapshot nunca muta el grafo ni autoriza una acción.
-- La plasticidad acumula observaciones únicas y sólo emite deltas propuestos,
-  acotados a `[-0.05, 0.05]`, tras al menos tres observaciones.
+- Cada `ConsumerReceipt` activa tanto la arista órgano→consumidor como una arista
+  consumidor→órgano sobre el puerto `feedback`. El retorno conserva
+  `evidence_only`: cerrar el circuito de evidencia no concede autoridad al órgano.
+- `MSRC→N0` y `StorageFacade→N0` aparecen en la actividad funcional con hashes del
+  estado de recursos y persistencia. Una arista estructural de gobierno no se
+  presenta como activa sin su estado observado.
+- La plasticidad acumula únicamente veredictos semánticamente informativos:
+  `accepted` es positivo; `rejected`, `invalid` y `persistence_degraded` son
+  negativos. `observed`, `compared`, `abstained` y `unavailable` son neutrales y
+  no aumentan conteos ni confianza. Sólo se emiten deltas propuestos, acotados a
+  `[-0.05, 0.05]`, tras al menos tres observaciones informativas.
 - Toda propuesta plástica mantiene `apply_authorized=false` y
   `authority_effect=none`; aplicar cambios requerirá sandbox, certificación,
   rollback y una decisión posterior explícita.
@@ -47,6 +56,10 @@ queda encadenado sin modificar el runner autoritativo. El coordinador expone pue
 de exportación/restauración del estado conectómico para que el dueño del sustrato
 los incorpore al checkpoint en una ventana coordinada. La integración no agrega
 hooks de decisión ni modifica grafos causales, memoria, certificación o autoevolución.
+
+La topología v1 integrada contiene 22 nodos y 38 aristas: 23 conexiones de
+gobierno/consumo y 15 retornos de feedback. El hash cambia de forma determinista al
+incorporar estos retornos; checkpoints con el hash anterior fallan cerrados.
 
 ## Promoción y rollback
 

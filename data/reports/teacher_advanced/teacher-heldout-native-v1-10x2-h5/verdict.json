@@ -1,0 +1,11 @@
+{
+  "campaign_id": "teacher-heldout-native-v1-10x2-h5",
+  "codex_cross_scenario_gate_passed": false,
+  "codex_teacher_candidate": false,
+  "curriculum_promotion_authorized": false,
+  "evidence_basis": "stratified_reanalysis.json",
+  "reason": "stratified_tradeoff_detected",
+  "schema_version": "rnfe-teacher-campaign-verdict-v1",
+  "training_authorized": false,
+  "verdict": "retain_local_7b_as_supervised_student"
+}

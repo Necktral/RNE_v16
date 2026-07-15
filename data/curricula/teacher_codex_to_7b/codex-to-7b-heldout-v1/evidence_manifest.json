@@ -1,0 +1,22 @@
+{
+  "artifacts": {
+    "REPORT.md": {
+      "bytes": 323,
+      "sha256": "b0e885dee9af32d5ce537371f15f00edc11538991b3ff82e58209f9fae2d5791"
+    },
+    "curriculum.json": {
+      "bytes": 9773,
+      "sha256": "628cf1db042fa4535343242282807c14e733e20e063c47bb89b7dd9c4571bbe8"
+    },
+    "curriculum.jsonl": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "verdict.json": {
+      "bytes": 317,
+      "sha256": "aff8a73dbffb08c011972845d08350a11e60e725df405d9037a444a59c7bc835"
+    }
+  },
+  "curriculum_id": "codex-to-7b-heldout-v1",
+  "schema_version": "rnfe-teacher-curriculum-evidence-v1"
+}

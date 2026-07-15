@@ -13,7 +13,6 @@ from .contracts import (
     SymbiosisTrace,
     validate_consumer_receipt,
 )
-from .coordinator import SymbioticNeuralCoordinator
 from runtime.neural.connectome import (
     CONNECTOME_ACTIVITY_SCHEMA_VERSION,
     CONNECTOME_SCHEMA_VERSION,
@@ -41,4 +40,53 @@ __all__ = [
     "CONNECTOME_SCHEMA_VERSION",
     "ConnectomeRuntime",
     "canonical_connectome",
+    "AdversarialAgent",
+    "AgentCycleReport",
+    "ConnectomicsAgent",
+    "CurriculumLearningAgent",
+    "DevelopmentLineageAgent",
+    "HorizontalCreativityAgent",
+    "LatentCommunicationAgent",
+    "MetacognitiveEpistemicAgent",
+    "MemoryConsolidationAgent",
+    "ModelDataImmuneAgent",
+    "MetabolicBudgetAgent",
+    "PedagogicalTeacherAgent",
+    "NeuralOrchestrationAgent",
+    "SensorimotorWorldModelAgent",
+    "SocialExocortexAgent",
+    "SymbiosisSynergyAgent",
+    "SpecializedAgentBundle",
 ]
+
+
+def __getattr__(name: str):
+    """Evita ciclos entre contratos de integración, coordinador y agentes."""
+
+    if name == "SymbioticNeuralCoordinator":
+        from .coordinator import SymbioticNeuralCoordinator
+
+        return SymbioticNeuralCoordinator
+    if name in {
+        "AdversarialAgent",
+        "AgentCycleReport",
+        "ConnectomicsAgent",
+        "CurriculumLearningAgent",
+        "DevelopmentLineageAgent",
+        "HorizontalCreativityAgent",
+        "LatentCommunicationAgent",
+        "MetacognitiveEpistemicAgent",
+        "MemoryConsolidationAgent",
+        "ModelDataImmuneAgent",
+        "MetabolicBudgetAgent",
+        "PedagogicalTeacherAgent",
+        "NeuralOrchestrationAgent",
+        "SensorimotorWorldModelAgent",
+        "SocialExocortexAgent",
+        "SymbiosisSynergyAgent",
+        "SpecializedAgentBundle",
+    }:
+        from runtime.neural import agents
+
+        return getattr(agents, name)
+    raise AttributeError(name)

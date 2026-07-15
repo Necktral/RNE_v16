@@ -62,6 +62,7 @@ class ConnectomeEdgeType(str, Enum):
     CERTIFICATION_OBSERVATION = "certification_observation"
     EVOLUTION_EVIDENCE = "evolution_evidence"
     PERSISTENCE = "persistence"
+    CONSUMER_FEEDBACK = "consumer_feedback"
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,6 +278,8 @@ class ConnectomeRuntime:
         organs: Sequence[Any],
         receipts: Sequence[Any],
         mode: NeuralMode | str,
+        resource_state: Mapping[str, Any] | None = None,
+        persistence_state: Mapping[str, Any] | None = None,
     ) -> ConnectomeActivitySnapshot:
         try:
             mode_value = NeuralMode(mode).value
@@ -298,7 +301,57 @@ class ConnectomeRuntime:
                 for target in targets:
                     receipt_groups.setdefault((receipt.organ, target), []).append(receipt)
             connections: list[ActiveConnection] = []
-            nodes = {"N0"}
+            nodes = {"MSRC", "N0", "StorageFacade"}
+            normalized_resources = dict(resource_state or {})
+            normalized_persistence = dict(persistence_state or {})
+            pressures = tuple(
+                float(normalized_resources.get(name, 0.0) or 0.0)
+                for name in ("cpu_pressure", "memory_pressure", "thermal_pressure")
+            )
+            budget_available = bool(
+                normalized_resources.get("msrc_budget_available", True)
+            )
+            resource_signal = (
+                "blocked"
+                if not budget_available
+                else "constrained"
+                if max(pressures, default=0.0) >= 0.8
+                else "available"
+            )
+            connections.append(
+                ActiveConnection(
+                    edge_id="MSRC->N0:resources",
+                    signal_state=resource_signal,
+                    evidence_refs=(f"resource_state:{_canonical_sha256(normalized_resources)}",),
+                    receipt_ids=(),
+                    authority_effect=AuthorityEffect.NONE,
+                )
+            )
+            storage_configured = bool(
+                normalized_persistence.get("storage_configured", False)
+            )
+            persistence_degraded = bool(
+                normalized_persistence.get("degraded", False)
+                or int(normalized_persistence.get("pending_events", 0) or 0) > 0
+            )
+            persistence_signal = (
+                "unavailable"
+                if not storage_configured
+                else "degraded"
+                if persistence_degraded
+                else "durable"
+            )
+            connections.append(
+                ActiveConnection(
+                    edge_id="StorageFacade->N0:persistence",
+                    signal_state=persistence_signal,
+                    evidence_refs=(
+                        f"persistence_state:{_canonical_sha256(normalized_persistence)}",
+                    ),
+                    receipt_ids=(),
+                    authority_effect=AuthorityEffect.NONE,
+                )
+            )
             for organ in sorted(candidates):
                 edge_id = f"N0->{organ}:resource_gating"
                 organ_trace = organ_map[organ]
@@ -318,19 +371,42 @@ class ConnectomeRuntime:
                     getattr(item.verdict_class, "value", str(item.verdict_class))
                     for item in group
                 }
-                negative = bool(verdicts & {
-                    "rejected", "invalid", "persistence_degraded",
-                })
+                semantic_signals = tuple(_plasticity_signal(value) for value in verdicts)
+                negative = any(value is False for value in semantic_signals)
+                positive = any(value is True for value in semantic_signals)
                 connections.append(
                     ActiveConnection(
                         edge_id=edge_id,
-                        signal_state="rejected" if negative else "observed",
+                        signal_state=(
+                            "rejected"
+                            if negative
+                            else "accepted"
+                            if positive
+                            else "non_informative"
+                        ),
                         evidence_refs=tuple(sorted({ref for item in group for ref in item.evidence_refs})),
                         receipt_ids=tuple(sorted(item.receipt_id for item in group)),
                         authority_effect=max(
                             (item.authority_effect for item in group),
                             key=lambda effect: list(AuthorityEffect).index(effect),
                         ),
+                    )
+                )
+                connections.append(
+                    ActiveConnection(
+                        edge_id=f"{target}->{organ}:feedback",
+                        signal_state=(
+                            "rejected"
+                            if negative
+                            else "accepted"
+                            if positive
+                            else "non_informative"
+                        ),
+                        evidence_refs=tuple(
+                            sorted({ref for item in group for ref in item.evidence_refs})
+                        ),
+                        receipt_ids=tuple(sorted(item.receipt_id for item in group)),
+                        authority_effect=AuthorityEffect.EVIDENCE_ONLY,
                     )
                 )
                 nodes.update((organ, target))
@@ -344,12 +420,13 @@ class ConnectomeRuntime:
                         verdict = getattr(
                             item.verdict_class, "value", str(item.verdict_class)
                         )
-                        observations.append(
-                            verdict not in {
-                                "rejected", "invalid", "persistence_degraded",
-                            }
-                        )
-                    self._observations[edge_id] = self._observations[edge_id][-128:]
+                        signal = _plasticity_signal(verdict)
+                        if signal is not None:
+                            observations.append(signal)
+                    if observations:
+                        self._observations[edge_id] = observations[-128:]
+                    else:
+                        self._observations.pop(edge_id, None)
                     for item in fresh:
                         observation_id = f"{edge_id}\x1f{item.receipt_id}"
                         if observation_id not in self._observed_receipts:
@@ -538,8 +615,34 @@ def canonical_connectome() -> ConnectomeTopology:
     }
     for (source, target), edge_type in consumer_edges.items():
         edges.append(ConnectomeEdge(f"{source}->{target}:consumption", source, target, edge_type, "candidate", target_ports[target], AuthorityEffect.EVIDENCE_ONLY, "validated ConsumerReceipt", plastic=True))
+        target_node = next(item for item in nodes if item.node_id == target)
+        feedback_port = target_node.output_ports[0]
+        edges.append(
+            ConnectomeEdge(
+                f"{target}->{source}:feedback",
+                target,
+                source,
+                ConnectomeEdgeType.CONSUMER_FEEDBACK,
+                feedback_port,
+                "feedback",
+                AuthorityEffect.EVIDENCE_ONLY,
+                "validated ConsumerReceipt feedback",
+            )
+        )
     edges.extend((
         ConnectomeEdge("MSRC->N0:resources", "MSRC", "N0", ConnectomeEdgeType.RESOURCE_GATING, "resources", "resources", AuthorityEffect.NONE, "NeuralRuntimeConfig resource policy"),
         ConnectomeEdge("StorageFacade->N0:persistence", "StorageFacade", "N0", ConnectomeEdgeType.PERSISTENCE, "persistence", "persistence", AuthorityEffect.NONE, "NeuralRuntime bounded observability"),
     ))
     return ConnectomeTopology.create(nodes=nodes, edges=edges)
+
+
+def _plasticity_signal(verdict: str) -> bool | None:
+    """Mapeo semántico explícito; neutral/ausente jamás cuenta como éxito."""
+
+    if verdict == "accepted":
+        return True
+    if verdict in {"rejected", "invalid", "persistence_degraded"}:
+        return False
+    if verdict in {"observed", "compared", "abstained", "unavailable"}:
+        return None
+    raise ValueError(f"connectome_verdict_unknown:{verdict}")

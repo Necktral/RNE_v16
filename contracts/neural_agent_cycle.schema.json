@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rnfe-neural-agent-cycle-v1",
+  "title": "RNFE neural agent cycle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "trace_group_id",
+    "organism_id",
+    "lineage_id",
+    "run_id",
+    "episode_id",
+    "scenario_id",
+    "decision_id",
+    "experimental",
+    "blocked",
+    "reports",
+    "cycle_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "rnfe-neural-agent-cycle-v1"},
+    "trace_group_id": {"type": "string", "minLength": 1},
+    "organism_id": {"type": "string", "minLength": 1},
+    "lineage_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "episode_id": {"type": "string", "minLength": 1},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": ["string", "null"]},
+    "experimental": {"const": true},
+    "blocked": {"type": "boolean"},
+    "reports": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {"$ref": "neural_agent_report.schema.json"}
+    },
+    "cycle_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

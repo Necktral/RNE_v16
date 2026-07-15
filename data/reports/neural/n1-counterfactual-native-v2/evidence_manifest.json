@@ -1,0 +1,41 @@
+{
+  "files": {
+    "artifacts/n1/manifest.json": {
+      "bytes": 2186,
+      "sha256": "22f929f0d567f9a6f54a72811651dcbaf671e1503be68ff4e17e3be8524d3b55"
+    },
+    "artifacts/n1/model_card.json": {
+      "bytes": 1785,
+      "sha256": "04fbc9b05bb0f983a1b4e3b1e6d19cb2d4b0355505417dd1847f00d2c9fa8e92"
+    },
+    "artifacts/n1/router-lab-v1.json": {
+      "bytes": 21267,
+      "sha256": "e04c46bdcf6ce41ba5e21ab9314f2a8e51b726f3b5a0364e45fc6792d45cc80e"
+    },
+    "counterfactual_samples.jsonl": {
+      "bytes": 299002,
+      "sha256": "484fa6ce68fd74acb5c4fc68037019b00f70e1e438c859de700d7829e1c98bf7"
+    },
+    "dataset_quality.json": {
+      "bytes": 346,
+      "sha256": "8c3e0446820cd9cba288e18e907dc2c4e52449efea523d5b89e59175ca672d63"
+    },
+    "initial_state_audit.json": {
+      "bytes": 143,
+      "sha256": "910ac1d0f7afcb240a4b91cb224e2d408a7ee5f3b5dae58cf6200123979df9af"
+    },
+    "paired_records.jsonl": {
+      "bytes": 662639,
+      "sha256": "d59f6f56a7113a520872c1700220e45237846f408939153fa06e2976b597656f"
+    },
+    "split_summary.json": {
+      "bytes": 230,
+      "sha256": "57372962030560340ade5588f5f1561959fc4c27d200dc3e84a74a9c4c66b448"
+    },
+    "verdict.json": {
+      "bytes": 4928,
+      "sha256": "9697684657e174a6bda00aa0687bf9a1ad87ea11269337315ceac028c985f499"
+    }
+  },
+  "schema": "n1-counterfactual-evidence-manifest-v1"
+}
