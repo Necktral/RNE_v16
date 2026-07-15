@@ -39,6 +39,11 @@ postgresql://rnfe:rnfe_local_dev_only@localhost:5432/rnfe
 2. Usar `/mnt/d` para artifact plane y exportes, no como hot path del data directory de PostgreSQL.
 3. Para cargas altas en artefactos, preferir escritura inicial en ruta Linux (ext4) y sincronización por lote a `D`.
 
+El compose acepta `POSTGRES_IMAGE` para reutilizar una imagen PostgreSQL 16 local
+cuando el acceso al registry no esté disponible. La campaña neural integral también
+puede invocar `docker.exe` de Docker Desktop desde WSL y pasa el `.env` raíz como
+archivo de interpolación, sin copiar credenciales al worktree.
+
 ## Comandos de verificación rápida
 
 ```bash

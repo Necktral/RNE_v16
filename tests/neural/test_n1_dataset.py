@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import replace
+import json
 
 import pytest
 
@@ -170,10 +171,15 @@ def test_n1_trainer_uses_validation_for_calibration_and_reports_test(tmp_path) -
     )
 
     assert evidence["calibration_split"] == "validation"
+    assert evidence["calibration_method"] == "validation_scalar_temperature_log_grid_v1"
+    assert 0.05 <= evidence["temperature"] <= 10.0
+    assert evidence["validation_ece_before_calibration"] is not None
     assert evidence["heldout_evaluated"] is True
     assert evidence["split_metrics"]["validation"]["records"] == 6
     assert evidence["split_metrics"]["test"]["evaluated"] is True
     assert evidence["promotion_eligible"] is False
+    artifact = json.loads((tmp_path / "n1/router-lab-v1.json").read_text())
+    assert artifact["temperature"] == evidence["temperature"]
 
 
 def test_n1_trainer_rejects_split_overlap(tmp_path) -> None:
