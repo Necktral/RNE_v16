@@ -18,6 +18,7 @@ from runtime.neural.campaign import (
     seal_holdout_spec,
 )
 from scripts.stage_neural_lab_artifacts import stage_lab_artifacts
+from scripts.run_integral_neural_campaign import _accept_all_skipped_pytest_shard
 from tests.neural.test_artifact_staging import _source
 
 
@@ -217,3 +218,21 @@ def test_qualified_staging_rejects_incomplete_proof(tmp_path: Path) -> None:
             organs=("N1",),
             qualification={"staging_authorized": True},
         )
+
+
+def test_pytest_shard_accepts_module_level_skip_but_not_empty_file(tmp_path: Path) -> None:
+    skipped_log = tmp_path / "skipped.log"
+    skipped_log.write_text("1 skipped in 0.02s\n", encoding="utf-8")
+    empty_log = tmp_path / "empty.log"
+    empty_log.write_text("no tests ran in 0.01s\n", encoding="utf-8")
+
+    skipped = _accept_all_skipped_pytest_shard(
+        {"returncode": 5, "passed": False, "log_path": str(skipped_log)}
+    )
+    empty = _accept_all_skipped_pytest_shard(
+        {"returncode": 5, "passed": False, "log_path": str(empty_log)}
+    )
+
+    assert skipped["passed"] is True
+    assert skipped["all_skipped"] is True
+    assert empty["passed"] is False

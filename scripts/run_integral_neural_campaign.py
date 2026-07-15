@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -526,6 +527,26 @@ def _run_command(
     }
 
 
+def _accept_all_skipped_pytest_shard(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Treat pytest exit 5 as success only when the isolated module reports skips.
+
+    Pytest returns NO_TESTS_COLLECTED for a file whose module-level gate skips every
+    test. In the monolithic suite that file is a valid skip; sharding must preserve
+    the same semantics without accepting genuinely empty or broken test files.
+    """
+    normalized = dict(result)
+    if int(normalized.get("returncode", -1)) != 5:
+        return normalized
+    log_path = Path(str(normalized.get("log_path") or ""))
+    output = log_path.read_text(encoding="utf-8") if log_path.is_file() else ""
+    skipped = re.search(r"(?:^|\s)\d+\s+skipped(?:\s|$)", output, re.I) is not None
+    has_error = re.search(r"(?:^|\n)(?:ERROR|FAILED)(?:\s|:)", output) is not None
+    if skipped and not has_error:
+        normalized["passed"] = True
+        normalized["all_skipped"] = True
+    return normalized
+
+
 def _regression(ctx: RuntimeContext, *, skip: bool) -> dict[str, Any]:
     if skip:
         return {"passed": False, "skipped": True, "staging_blocked": True}
@@ -553,6 +574,7 @@ def _regression(ctx: RuntimeContext, *, skip: bool) -> dict[str, Any]:
             name="pytest-" + relative.replace("/", "-").removesuffix(".py"),
             command=[sys.executable, "-m", "pytest", "-q", relative],
         )
+        result = _accept_all_skipped_pytest_shard(result)
         shard_state["shards"][relative] = result
         atomic_write_json(shard_path, shard_state)
         if not result["passed"]:
