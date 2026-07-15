@@ -13,6 +13,7 @@ from runtime.neural.campaign import (
     campaign_database_name,
     load_env_file,
     redact,
+    resolve_writable_artifact_root,
     replace_dsn_database,
     seal_holdout_spec,
 )
@@ -96,6 +97,23 @@ def test_campaign_database_is_deterministic_and_dsn_only_replaces_database() -> 
     )
     assert replaced.endswith(f"/{name}?sslmode=disable")
     assert "rnfe:secret@localhost:5432" in replaced
+
+
+def test_stale_native_mount_uses_explicit_writable_fallback(tmp_path: Path) -> None:
+    requested = tmp_path / "read-only" / "missing" / "artifacts"
+    requested.parent.parent.mkdir()
+    requested.parent.parent.chmod(0o500)
+    fallback = tmp_path / "native-ext4" / "rnfe_artifacts"
+    fallback.parent.mkdir()
+    try:
+        resolved, remapped = resolve_writable_artifact_root(
+            requested, native_fallback=fallback
+        )
+    finally:
+        requested.parent.parent.chmod(0o700)
+
+    assert resolved == fallback.resolve()
+    assert remapped is True
 
 
 def test_holdout_spec_is_immutable_and_hash_verified(tmp_path: Path) -> None:

@@ -135,6 +135,31 @@ def validate_campaign_id(value: str) -> str:
     return campaign_id
 
 
+def resolve_writable_artifact_root(
+    requested: str | Path, *, native_fallback: str | Path
+) -> tuple[Path, bool]:
+    """Resolve stale native-Linux mount paths without leaving the ext4 workspace.
+
+    The root `.env` may retain a `/media/<user>/<uuid>/...` path from a direct
+    Linux boot. Under WSL the same physical partition is mounted at `/home/wis`.
+    We use the requested path whenever its nearest existing ancestor is writable;
+    otherwise we require an explicitly supplied, writable native fallback.
+    """
+    requested_path = Path(requested).expanduser().resolve()
+    anchor = requested_path
+    while not anchor.exists() and anchor != anchor.parent:
+        anchor = anchor.parent
+    if anchor.exists() and os.access(anchor, os.W_OK):
+        return requested_path, False
+    fallback = Path(native_fallback).expanduser().resolve()
+    fallback_anchor = fallback
+    while not fallback_anchor.exists() and fallback_anchor != fallback_anchor.parent:
+        fallback_anchor = fallback_anchor.parent
+    if not fallback_anchor.exists() or not os.access(fallback_anchor, os.W_OK):
+        raise CampaignError("campaign_artifact_root_has_no_writable_native_mount")
+    return fallback, True
+
+
 def campaign_database_name(campaign_id: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", validate_campaign_id(campaign_id)).strip("_")
     digest = hashlib.sha256(campaign_id.encode("utf-8")).hexdigest()[:8]
@@ -773,6 +798,7 @@ __all__ = [
     "postgres_endpoint",
     "reconcile_artifact_plane",
     "redact",
+    "resolve_writable_artifact_root",
     "replace_dsn_database",
     "seal_holdout_spec",
     "validate_campaign_id",

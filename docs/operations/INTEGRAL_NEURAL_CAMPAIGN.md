@@ -22,6 +22,10 @@ el repositorio y los hot paths permanecen en ext4 Linux:
 
 La configuración se lee explícitamente desde `/home/wis/Desarrollo/RNE_v16/.env`.
 No se copia el DSN al worktree y los manifiestos redactan cualquier clave sensible.
+Si `RNFE_ARTIFACT_ROOT` aún apunta al montaje de un arranque Linux directo bajo
+`/media/wis/<uuid>`, el runner comprueba que no sea escribible y lo remapea a
+`/home/wis/Desarrollo/RNE_v16/rnfe_artifacts`. Ambas rutas quedan declaradas en el
+manifiesto; `/home/wis` sigue siendo ext4 de la partición física 3, no `/mnt/c`.
 Docker Desktop puede ser invocado mediante `docker.exe` cuando el stub `docker` de
 WSL no tenga integración habilitada. Si `postgres:16-alpine` no está disponible y
 `postgres:16` ya existe localmente, la campaña genera un override sin secretos.

@@ -39,6 +39,7 @@ from runtime.neural.campaign import (
     load_env_file,
     n1_recalibrate_candidates,
     reconcile_artifact_plane,
+    resolve_writable_artifact_root,
     seal_holdout_spec,
     validate_campaign_id,
 )
@@ -157,10 +158,16 @@ def _load_context(args: argparse.Namespace) -> RuntimeContext:
     if config.mode != "postgres" or not config.postgres_dsn:
         raise CampaignError("integral_campaign_requires_postgres_direct_configuration")
     campaign_id = validate_campaign_id(args.campaign_id)
+    requested_artifact_root = config.artifact_root.resolve()
+    effective_artifact_root, artifact_root_remapped = resolve_writable_artifact_root(
+        requested_artifact_root,
+        native_fallback=env_file.parent / "rnfe_artifacts",
+    )
+    os.environ["RNFE_ARTIFACT_ROOT"] = str(effective_artifact_root)
     output_base = (
         Path(args.output_root).expanduser().resolve()
         if args.output_root
-        else config.artifact_root.resolve() / "integral_campaigns"
+        else effective_artifact_root / "integral_campaigns"
     )
     root = output_base / campaign_id
     postgres = PostgresCampaignDatabase(
@@ -187,6 +194,9 @@ def _load_context(args: argparse.Namespace) -> RuntimeContext:
             configuration={
                 "env_file": str(env_file),
                 "env_keys_loaded": list(loaded_keys),
+                "artifact_root_requested": str(requested_artifact_root),
+                "artifact_root_effective": str(effective_artifact_root),
+                "artifact_root_remapped_from_stale_native_mount": artifact_root_remapped,
                 "scenarios": list(SCENARIOS),
                 "rehearsal_max_minutes": 90,
                 "overnight_max_minutes": 480,
