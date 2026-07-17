@@ -513,7 +513,12 @@ def _artifact_report() -> dict[str, Any]:
 
 
 def _run_command(
-    *, ctx: RuntimeContext, name: str, command: Sequence[str], env: Mapping[str, str] | None = None
+    *,
+    ctx: RuntimeContext,
+    name: str,
+    command: Sequence[str],
+    env: Mapping[str, str] | None = None,
+    secrets: Sequence[str] = (),
 ) -> dict[str, Any]:
     started = time.monotonic()
     process = subprocess.run(
@@ -525,7 +530,7 @@ def _run_command(
         text=True,
     )
     output = (process.stdout or "") + (process.stderr or "")
-    for secret in (ctx.postgres.base_dsn, ctx.postgres.dsn):
+    for secret in (ctx.postgres.base_dsn, ctx.postgres.dsn, *secrets):
         output = output.replace(secret, "<redacted-postgres-dsn>")
     log_path = ctx.state.root / "logs" / f"{name}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -558,6 +563,14 @@ def _accept_all_skipped_pytest_shard(result: Mapping[str, Any]) -> dict[str, Any
         normalized["passed"] = True
         normalized["all_skipped"] = True
     return normalized
+
+
+def _postgres_test_campaign_id(campaign_id: str, *, attempt: int) -> str:
+    """Create an isolated database identity for one PostgreSQL regression attempt."""
+    if attempt < 1:
+        raise CampaignError("postgres_test_attempt_must_be_positive")
+    prefix = validate_campaign_id(campaign_id)[:55].rstrip("._-")
+    return validate_campaign_id(f"{prefix}-pgtests-a{attempt}")
 
 
 def _regression(ctx: RuntimeContext, *, skip: bool) -> dict[str, Any]:
@@ -604,13 +617,29 @@ def _regression(ctx: RuntimeContext, *, skip: bool) -> dict[str, Any]:
         "state_path": str(shard_path),
         "state_sha256": file_sha256(shard_path),
     }
+    regression_attempt = int(
+        ctx.state.manifest["blocks"]["regression_full"].get("attempts") or 1
+    )
+    pg_test = PostgresCampaignDatabase(
+        base_dsn=ctx.postgres.base_dsn,
+        campaign_id=_postgres_test_campaign_id(
+            ctx.state.campaign_id,
+            attempt=regression_attempt,
+        ),
+        schema_path=SCHEMA_PATH,
+    )
+    pg_test.ensure(allow_existing=False)
+    pg_test_artifact_root = (
+        ctx.state.root / "postgres_test_artifacts" / pg_test.database
+    )
+    pg_test_artifact_root.mkdir(parents=True, exist_ok=True)
     pg_env = os.environ.copy()
     pg_env.update(
         {
             "RNFE_RUN_PG_TESTS": "1",
             "RNFE_STORAGE_MODE": "postgres",
-            "RNFE_POSTGRES_DSN": ctx.postgres.dsn,
-            "RNFE_ARTIFACT_ROOT": str(ctx.artifact_root / "pg-tests"),
+            "RNFE_POSTGRES_DSN": pg_test.dsn,
+            "RNFE_ARTIFACT_ROOT": str(pg_test_artifact_root),
         }
     )
     postgres = (
@@ -619,6 +648,7 @@ def _regression(ctx: RuntimeContext, *, skip: bool) -> dict[str, Any]:
             name="pytest-postgres",
             command=[sys.executable, "-m", "pytest", "-q", "-m", "requires_postgres"],
             env=pg_env,
+            secrets=(pg_test.dsn,),
         )
         if base_passed
         else {"passed": False, "skipped": True, "reason": "base_shard_failed"}
@@ -628,6 +658,14 @@ def _regression(ctx: RuntimeContext, *, skip: bool) -> dict[str, Any]:
         shard_path,
         kind="regression_shard_state",
         run_id=ctx.state.campaign_id,
+    )
+    postgres.update(
+        {
+            "isolated": True,
+            "official_evidence": False,
+            "database": pg_test.database,
+            "artifact_root": str(pg_test_artifact_root),
+        }
     )
     return {
         "passed": base["passed"] and postgres["passed"],

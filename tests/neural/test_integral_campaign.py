@@ -18,7 +18,10 @@ from runtime.neural.campaign import (
     seal_holdout_spec,
 )
 from scripts.stage_neural_lab_artifacts import stage_lab_artifacts
-from scripts.run_integral_neural_campaign import _accept_all_skipped_pytest_shard
+from scripts.run_integral_neural_campaign import (
+    _accept_all_skipped_pytest_shard,
+    _postgres_test_campaign_id,
+)
 from tests.neural.test_artifact_staging import _source
 
 
@@ -236,3 +239,16 @@ def test_pytest_shard_accepts_module_level_skip_but_not_empty_file(tmp_path: Pat
     assert skipped["passed"] is True
     assert skipped["all_skipped"] is True
     assert empty["passed"] is False
+
+
+def test_postgres_contract_tests_get_isolated_database_per_attempt() -> None:
+    first = _postgres_test_campaign_id("neural-nightly-20260715-deadbeef", attempt=1)
+    retry = _postgres_test_campaign_id("neural-nightly-20260715-deadbeef", attempt=2)
+
+    assert first.endswith("-pgtests-a1")
+    assert retry.endswith("-pgtests-a2")
+    assert first != retry
+    assert len(first) <= 80
+
+    with pytest.raises(CampaignError, match="attempt_must_be_positive"):
+        _postgres_test_campaign_id("neural-nightly-20260715-deadbeef", attempt=0)
