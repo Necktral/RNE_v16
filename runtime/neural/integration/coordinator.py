@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import math
 import os
 from dataclasses import asdict, dataclass, field, replace
@@ -739,6 +740,27 @@ class SymbioticNeuralCoordinator:
         """Indica si el candidato fue admitido y puede llegar a consumidores."""
 
         return _organ_trace_is_consumable(self._session(episode_id).entries[organ])
+
+    def admitted_candidate_snapshot(
+        self,
+        episode_id: str,
+        organ: str,
+    ) -> dict[str, Any] | None:
+        """Expose a copied admitted candidate to non-authoritative P1 evaluators."""
+
+        entry = self._session(episode_id).entries.get(str(organ).upper())
+        if entry is None or not _organ_trace_is_consumable(entry):
+            return None
+        return {
+            "organ": entry.organ,
+            "candidate_hash": entry.candidate_hash,
+            "input_hash": entry.input_hash,
+            "candidate": deepcopy(entry.candidate),
+            "confidence": entry.confidence,
+            "uncertainty": entry.uncertainty,
+            "effective_mode": entry.effective_mode,
+            "authority_ceiling": entry.authority_ceiling,
+        }
 
     def connectome_topology(self) -> dict[str, Any]:
         """Expone la topología declarada sin permitir mutarla."""

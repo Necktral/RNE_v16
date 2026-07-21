@@ -37,9 +37,20 @@ def execute(state):
     cau = dc.safe_dict(state.get("cau_link"))
     prob = dc.safe_dict(state.get("prob_posterior"))
     point = dc.num(prob.get("point"), 0.5)
-    numeric_support = (cau.get("helps_goal") is True) or (point >= 0.55)
+    ind_action = state.get("ind_best_intervention")
+    ind_support = bool(
+        symbiotic_verify
+        and chosen is not None
+        and ind_action == chosen
+        and dc.num(state.get("ind_law_fit_signal"), 0.0) >= 0.2
+    )
+    numeric_support = (cau.get("helps_goal") is True) or (point >= 0.55) or ind_support
 
-    numeric_action = state.get("abd_top_intervention") or state.get("opt_intervention")
+    numeric_action = (
+        ind_action
+        if ind_support
+        else state.get("abd_top_intervention") or state.get("opt_intervention")
+    )
     action_agree = (numeric_action is None) or (chosen is None) or (numeric_action == chosen)
 
     dissonance = []
@@ -61,6 +72,7 @@ def execute(state):
             "nesy_dissonance": dissonance,
             "nesy_symbolic_ok": symbolic_ok,
             "nesy_numeric_support": numeric_support,
+            "nesy_inductive_support": ind_support,
             "nesy_fused_confidence": round(fused, 4),
         },
         "confidence": round(fused, 4),

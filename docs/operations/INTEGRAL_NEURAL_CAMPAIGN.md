@@ -162,6 +162,70 @@ cambió durante la matriz, escribe `stable_during_run=false` y falla cerrado.
 - `all-on_minus_without` puede contener interacciones con otros órganos y
   `only_minus_shadow_none` puede omitirlas; ambos deben leerse juntos.
 
+## P1: cierre experimental de N2, N3 y N4
+
+`p1-ablate` ejecuta exclusivamente ramas contrafactuales SHADOW. La acción,
+memoria canónica, certificación, transición del mundo y autoevolución siguen bajo
+la política existente. La evidencia retornada usa
+`rnfe-p1-cognitive-loop-v1`, declara `authority_effect=none` y nunca autoriza
+staging ni promoción. El bloque P1 se adjunta al resultado de laboratorio recién
+después de cerrar todos los consumidores canónicos; `episode.closed` no recibe el
+oracle ni sus outcomes.
+
+El contrato docente permanece congelado: Codex sigue siendo docente externo y
+OpenThinker3-7B alumno supervisado. P1 fuerza `RNFE_TEACHER=0`,
+`RNFE_EXTERNAL_REASONER_RUNTIME=0`, `RNFE_ALLOW_EXTERNAL_REASONER=0` y
+`RNFE_CORE_FAMILIES_LLM=0` para no mezclar el efecto del 7B con N2/N3/N4.
+
+Las ramas se habilitan con `RNFE_P1_COGNITIVE_LOOPS=1`; N3 requiere además
+`RNFE_N3_SHADOW_COUNTERFACTUAL=1`. `RNFE_P1_DISABLED_LOOPS` permite la ablación
+aislada. El runner materializa diez perfiles: `off`, `shadow-none`, N2 aislado,
+N3 reference/trained, N4-v2 aislado, `p1-all` y tres leave-one-out.
+
+- N2 conserva el candidato y recibos iniciales. Sólo un rechazo NESY posterior a
+  DED+LOT-F válidos obtiene una pasada `core_plus_ind`, con presupuesto exacto
+  para una única IND, confianza penalizada y cero influencia sobre el override.
+- N3 deriva señales acotadas, atesta el mismo snapshot MFM, hace un segundo
+  retrieval de solo lectura con `k<=8` y ejecuta el scheduler mediante
+  `run_shadow()` sin persistencia ni razonador externo.
+- N4 carga únicamente un artefacto entrenado
+  `n4-preaction-artifact-v2`. El prior causal queda como baseline, no como
+  predicción N4. Artefacto ausente/incompatible u OOD abstiene todas las acciones.
+  El candidato preacción se liga al hash del artefacto y se evalúa contra un set de
+  outcomes sandbox sellado, sin escoger ni comprometer una intervención.
+
+Antes de cada matriz se entrena N4-v2 de forma determinista sobre 24 trayectorias
+de entrenamiento y 6 de validación; 12 trayectorias completas quedan selladas y
+sin abrir. Cada trayectoria contiene 32 pasos sobre los cuatro escenarios y los
+splits se verifican por trajectory/state hash. El manifiesto y artefacto se guardan
+bajo `p1/models/n4_preaction_v2/` dentro de la campaña.
+
+Rehearsal obligatorio, 3 semillas por 8 pasos:
+
+```bash
+PYTHONPATH=. /home/wis/Desarrollo/RNE_v16/.venv/bin/python \
+  scripts/run_integral_neural_campaign.py \
+  --campaign-id neural-p1-rehearsal-20260721 p1-ablate --life-steps 8
+```
+
+Final, 12 semillas por 32 pasos y 3.840 episodios:
+
+```bash
+PYTHONPATH=. /home/wis/Desarrollo/RNE_v16/.venv/bin/python \
+  scripts/run_integral_neural_campaign.py \
+  --campaign-id neural-p1-final-20260721 p1-ablate --life-steps 32
+```
+
+Las dos primeras visitas a cada escenario son warm-up: quedan 24 pasos puntuables
+por lane final. Semillas, schedules de perturbación, orden rotado de escenarios,
+snapshot de recursos, hashes, skips y latencia quedan en `p1/matrix.json`. El gate
+global exige cierre y certificación completos y cero violaciones. N3 exige IC95%
+positivo en nDCG y Brier no peor; N4 exige artefacto `trained_v2`, cobertura >=80%,
+hashes preservados y reducción de regret con IC95% positivo frente a política y
+prior. Si ningún endpoint pasa, la conclusión explícita es
+`no_aporta_cognicion_demostrable`. Incluso con gates positivos, P1 no concede
+autoridad live.
+
 `report` reconstruye el veredicto desde evidencia ya persistida. `stage` exige una
 nocturna cerrada, checkpoint válido y todos los gates en verde:
 

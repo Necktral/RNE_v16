@@ -19,6 +19,13 @@ from runtime.neural.connectome import (
     ConnectomeRuntime,
     canonical_connectome,
 )
+from .p1_n2 import N2RevisionRequest, N2ShadowRevisionRecord
+from .p1_n3 import N3ShadowCounterfactualReport, N3ShadowDirective
+from .p1_n4 import (
+    N4InterventionScoreSet,
+    N4PreactionArtifactV2,
+    N4PreactionInterventionSet,
+)
 
 __all__ = [
     "ComponentClass",
@@ -40,6 +47,13 @@ __all__ = [
     "CONNECTOME_SCHEMA_VERSION",
     "ConnectomeRuntime",
     "canonical_connectome",
+    "N2RevisionRequest",
+    "N2ShadowRevisionRecord",
+    "N3ShadowDirective",
+    "N3ShadowCounterfactualReport",
+    "N4PreactionInterventionSet",
+    "N4PreactionArtifactV2",
+    "N4InterventionScoreSet",
     "AdversarialAgent",
     "AgentCycleReport",
     "ConnectomicsAgent",

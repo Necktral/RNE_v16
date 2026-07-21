@@ -27,6 +27,9 @@ from scripts.run_integral_neural_campaign import (
     _accept_all_skipped_pytest_shard,
     _ablation_profiles,
     _capture_ablation_resource_snapshot,
+    _p1_external_input,
+    _p1_profile_summary,
+    _p1_profiles,
     _postgres_test_campaign_id,
     _run_ablation_matrix,
 )
@@ -297,6 +300,174 @@ def test_ablation_profiles_cover_off_shadow_control_single_all_on_and_leave_one_
     assert profiles[9].enabled_organs == ("N2", "N3", "N4", "N5", "N6")
     assert profiles[9].disabled_organs == ("N1",)
     assert all(profile.to_dict()["promotion_authorized"] is False for profile in profiles)
+
+
+def test_p1_profiles_cover_control_isolated_trained_all_and_leave_one_out() -> None:
+    profiles = _p1_profiles()
+
+    assert [profile.profile_id for profile in profiles] == [
+        "off",
+        "shadow-none",
+        "only-n2",
+        "only-n3-reference",
+        "only-n3-trained",
+        "only-n4-v2",
+        "p1-all",
+        "p1-without-n2",
+        "p1-without-n3",
+        "p1-without-n4",
+    ]
+    assert all(
+        profile.environment()["RNFE_EXTERNAL_REASONER_RUNTIME"] == "0"
+        and profile.environment()["RNFE_ALLOW_EXTERNAL_REASONER"] == "0"
+        and profile.environment()["RNFE_TEACHER"] == "0"
+        for profile in profiles
+    )
+    assert profiles[3].environment()["RNFE_NEURAL_N3_MANIFEST"] == ""
+    assert all(profile.to_dict()["promotion_authorized"] is False for profile in profiles)
+
+
+def test_p1_seed_schedules_are_unique_and_deterministic() -> None:
+    seeds = tuple(911001 + index * 101 for index in range(12))
+    schedules = {
+        tuple(_p1_external_input(seed, step) for step in range(32)) for seed in seeds
+    }
+
+    assert len(schedules) == 12
+    assert _p1_external_input(seeds[0], 0) == _p1_external_input(seeds[0], 0)
+
+
+def test_p1_profile_summary_excludes_two_warmup_visits_per_scenario() -> None:
+    report = {
+                    "n2": {
+            "attempt_count": 1,
+            "status": "accepted",
+            "ground_truth": {
+                "scored": True,
+                "initial_false_rejection": True,
+                "final_false_rejection": False,
+                "valid_correction": True,
+                "retry_false_accept": False,
+            },
+                    },
+                    "n3": {
+            "ground_truth_metrics": {
+                "ndcg_delta": 0.2,
+                "mrr_delta": 0.1,
+                "risk_brier": 0.0,
+            },
+                    },
+                    "n4": {
+            "evaluation": {
+                "coverage": 1.0,
+                "mae_delta": 0.1,
+                "pairwise_ranking_accuracy": 1.0,
+                "top1_correct": True,
+                "regret_delta_vs_canonical": 0.2,
+                "regret_delta_vs_prior": 0.1,
+                "candidate_hash_preserved": True,
+            },
+                    },
+    }
+    rows = [
+        {
+            "episode_result": {
+                "episode": {
+                    "scenario": "thermal",
+                    "result": {"p1_cognitive_loop": report},
+                }
+            }
+        }
+        for _ in range(3)
+    ]
+    run = {
+        "seed": 7,
+        "rows": rows,
+        "vector": {
+            "closure_rate": 1.0,
+            "certification_rate": 1.0,
+            "safety_violations": 0,
+        },
+    }
+
+    summary = _p1_profile_summary(_p1_profiles()[6], [run])
+
+    lane = summary["lanes"][0]["summary"]
+    assert lane["scored_steps"] == 1
+    assert lane["warmup_steps"] == 2
+    assert summary["n2_totals"]["valid_corrections"] == 1
+    assert summary["metrics"]["n4_coverage"]["mean"] == 1.0
+
+
+def test_p1_matrix_trains_n4_before_all_rehearsal_lanes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls = []
+    trained_manifest = tmp_path / "models/n4/manifest.json"
+    trained_manifest.parent.mkdir(parents=True)
+    trained_manifest.write_text("{}")
+    monkeypatch.setattr(
+        integral_runner,
+        "train_n4_preaction_v2",
+        lambda _root: {"manifest_path": str(trained_manifest), "manifest": {}},
+    )
+    monkeypatch.setattr(
+        integral_runner,
+        "_capture_ablation_resource_snapshot",
+        lambda _ctx: {
+            "snapshot": {"available": True},
+            "snapshot_sha256": "a" * 64,
+            "path": str(tmp_path / "snapshot.json"),
+            "artifact_sha256": "b" * 64,
+        },
+    )
+    provenance = {"worktree_snapshot_sha256": "c" * 64}
+    monkeypatch.setattr(
+        integral_runner, "_materialize_worktree_provenance", lambda _ctx: provenance
+    )
+    monkeypatch.setattr(
+        integral_runner,
+        "_worktree_snapshot",
+        lambda: (b"", {"worktree_snapshot_sha256": "c" * 64}),
+    )
+    monkeypatch.setattr(integral_runner, "_register_report", lambda *_a, **_k: None)
+
+    def fake_lane(_ctx, **kwargs):
+        calls.append(kwargs)
+        return {
+            "seed": kwargs["seed"],
+            "rows": [],
+            "vector": {
+                "closure_rate": 1.0,
+                "certification_rate": 1.0,
+                "safety_violations": 0,
+            },
+            "backend_provenance": {
+                organ: {"execution_class": "disabled"}
+                for organ in ("N2", "N3", "N4")
+            },
+        }
+
+    monkeypatch.setattr(integral_runner, "_run_life_lane", fake_lane)
+    ctx = SimpleNamespace(
+        state=SimpleNamespace(
+            root=tmp_path,
+            campaign_id="p1-matrix-test",
+            manifest={"commit": "d" * 40},
+        )
+    )
+
+    report = integral_runner._run_p1_matrix(
+        ctx, steps=8, seeds=(101, 202, 303)
+    )
+
+    assert len(calls) == 30
+    assert all(
+        call["extra_environment"]["RNFE_NEURAL_N4_PREACTION_MANIFEST"]
+        == str(trained_manifest)
+        for call in calls
+    )
+    assert report["n4_preaction_training"]["manifest_path"] == str(trained_manifest)
 
 
 def test_ablation_matrix_is_paired_reproducible_and_never_promotable(

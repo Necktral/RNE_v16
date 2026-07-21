@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import math
 import os
-from typing import Any, Dict, List
+import hashlib
+import json
+from typing import Any, Dict, List, Mapping
 
 from runtime.storage import StorageFacade
 from runtime.memory.embeddings import (
@@ -145,6 +148,7 @@ class MemoryRetrieval:
         scenario_version: str | None = None,
         scenario_filter_mode: str = "strict_same_scenario",
         candidate_pool_size: int | None = None,
+        scale_weights: Mapping[str, float] | None = None,
     ) -> List[Dict[str, Any]]:
         """Retrieve memory records scored by structural overlap.
 
@@ -167,6 +171,7 @@ class MemoryRetrieval:
         Returns:
             List of scored memory dicts with retrieval_metrics.
         """
+        resolved_scale_weights = self._validate_scale_weights(scale_weights)
         # Normalize alias
         if scenario_filter_mode == "analogical":
             scenario_filter_mode = "cross_scenario_analogical"
@@ -206,6 +211,11 @@ class MemoryRetrieval:
                 embedder=embedder,
                 query_embedding=query_embedding,
             )
+            # Ruta exclusivamente opt-in para comparaciones shadow. Cuando no se
+            # pasan pesos no se multiplica ni se agregan campos: retrieval conserva
+            # exactamente el contrato y ranking historicos.
+            if resolved_scale_weights is not None:
+                score *= resolved_scale_weights.get(str(item.scale), 1.0)
 
             # Scenario filtering
             is_cross_scenario = False
@@ -351,6 +361,108 @@ class MemoryRetrieval:
             entry["rag_attestation"] = rag_attestation
 
         return out
+
+    def snapshot_hash(
+        self,
+        *,
+        run_id: str,
+        candidate_pool_size: int | None = None,
+    ) -> str:
+        """Hash the read-visible MFM snapshot without writing or embedding."""
+
+        limit = _resolve_candidate_pool_size(limit=1, override=candidate_pool_size)
+        records = self.storage.retrieve_memory_records(
+            run_id=run_id,
+            scales=["macro", "meso", "micro"],
+            limit=limit,
+        )
+        projection = [
+            {
+                "memory_id": item.memory_id,
+                "scale": item.scale,
+                "structure_json": item.structure_json,
+                "metadata": item.metadata,
+                "support_count": item.support_count,
+                "certificate_id": item.certificate_id,
+            }
+            for item in records
+        ]
+        return hashlib.sha256(
+            json.dumps(
+                projection, sort_keys=True, separators=(",", ":"), default=str
+            ).encode()
+        ).hexdigest()
+
+    def retrieve_shadow(
+        self,
+        *,
+        run_id: str,
+        query: Dict[str, Any],
+        scales: list[str] | None = None,
+        limit: int = 5,
+        limit_delta: int = 0,
+        maximum_limit: int = 8,
+        scale_signals: Mapping[str, float] | None = None,
+        scenario_name: str | None = None,
+        scenario_version: str | None = None,
+        scenario_filter_mode: str = "strict_same_scenario",
+        candidate_pool_size: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Read-only alternative ranking for an N3 shadow comparison.
+
+        Signals in [0,1] become conservative multipliers in [0.75,1]. With no
+        signals and zero delta this delegates to :meth:`retrieve` neutrally.
+        """
+
+        if limit < 1 or maximum_limit < 1:
+            raise ValueError("retrieval_limits_must_be_positive")
+        try:
+            delta = int(limit_delta)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("shadow_limit_delta_invalid") from exc
+        if delta < 0:
+            raise ValueError("shadow_limit_delta_must_be_nonnegative")
+        weights = None
+        if scale_signals is not None:
+            signals = self._validate_scale_weights(scale_signals, unit_interval=True)
+            weights = {
+                scale: 0.75 + (0.25 * signal)
+                for scale, signal in (signals or {}).items()
+            }
+        return self.retrieve(
+            run_id=run_id,
+            query=query,
+            scales=scales,
+            limit=min(maximum_limit, limit + delta),
+            scenario_name=scenario_name,
+            scenario_version=scenario_version,
+            scenario_filter_mode=scenario_filter_mode,
+            candidate_pool_size=candidate_pool_size,
+            scale_weights=weights,
+        )
+
+    @staticmethod
+    def _validate_scale_weights(
+        weights: Mapping[str, float] | None,
+        *,
+        unit_interval: bool = False,
+    ) -> dict[str, float] | None:
+        if weights is None:
+            return None
+        resolved: dict[str, float] = {}
+        for raw_scale, raw_weight in weights.items():
+            scale = str(raw_scale).strip().lower()
+            if scale not in {"micro", "meso", "macro"}:
+                raise ValueError(f"retrieval_scale_unknown:{scale or 'empty'}")
+            if isinstance(raw_weight, bool) or not isinstance(raw_weight, (int, float)):
+                raise ValueError(f"retrieval_scale_weight_invalid:{scale}")
+            weight = float(raw_weight)
+            if not math.isfinite(weight) or weight < 0.0:
+                raise ValueError(f"retrieval_scale_weight_invalid:{scale}")
+            if unit_interval and weight > 1.0:
+                raise ValueError(f"retrieval_scale_signal_out_of_range:{scale}")
+            resolved[scale] = weight
+        return resolved
 
     def _score(
         self,

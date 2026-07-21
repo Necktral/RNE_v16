@@ -155,31 +155,56 @@ class N2Adapter:
     reference_id = "rnfe:N2:semantic_neurosymbolic_candidate:nesy-v1"
     admission_gate = None
 
-    def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
+    @staticmethod
+    def verify(
+        *,
+        reasoning_state: Mapping[str, Any],
+        lotf_valid: bool,
+        formula: str = "",
+    ) -> BackendOutput:
+        """Verify one N2 candidate without mutating the supplied reasoning state.
+
+        Keeping this operation independent from ``NeuralRuntime`` lets a future
+        shadow counterfactual pass reuse exactly the canonical DED+LOT-F+NESY
+        boundary without emitting a second organ trace or gaining authority.
+        """
+
         from runtime.reasoning.families import nesy
 
-        state = dict(context.get("reasoning_state") or {})
-        inputs = context["inputs"]
-        lotf_valid = bool(context.get("lotf_valid"))
+        state = dict(reasoning_state)
         nesy_result = nesy.execute({**state, "_symbiotic_n2_verify": True})
         nesy_delta = dict(nesy_result.get("state_delta") or {})
         ded_verified = bool(state.get("ded_validated"))
         nesy_verified = bool(nesy_delta.get("nesy_coherent"))
-        verified = ded_verified and lotf_valid and nesy_verified
+        lotf_verified = bool(lotf_valid)
+        verified = ded_verified and lotf_verified and nesy_verified
         verdict = "accepted_as_shadow_evidence" if verified else "rejected_by_symbolic_verifier"
         return BackendOutput(
             candidate_output={
                 "status": "ok",
-                "proposition": str(state.get("ded_conclusion") or inputs.get("formula") or ""),
+                "proposition": str(state.get("ded_conclusion") or formula or ""),
+                "intervention": state.get("intervention"),
                 "verified": verified,
                 "verdict": verdict,
-                "verification": {"DED": ded_verified, "LOT-F": lotf_valid, "NESY": nesy_verified},
+                "verification": {
+                    "DED": ded_verified,
+                    "LOT-F": lotf_verified,
+                    "NESY": nesy_verified,
+                },
                 "nesy": nesy_result,
                 "authority": "DED+LOT-F+NESY",
             },
             confidence=float(nesy_result.get("confidence", 0.0) or 0.0),
             uncertainty=0.0 if verified else 1.0,
             cost={"verifiers": 3, "ram_mb": 0.05, "vram_mb": 0.0},
+        )
+
+    def infer(self, request: NeuralInferenceRequest, context: Mapping[str, Any]) -> BackendOutput:
+        inputs = context["inputs"]
+        return self.verify(
+            reasoning_state=context.get("reasoning_state") or {},
+            lotf_valid=bool(context.get("lotf_valid")),
+            formula=str(inputs.get("formula") or ""),
         )
 
     def fallback(self, identity: SymbiosisIdentity) -> Mapping[str, Any]:

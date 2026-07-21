@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
+import time
+from copy import deepcopy
 from dataclasses import asdict
 from typing import Any, Dict, Mapping
 from uuid import uuid4
@@ -18,6 +21,27 @@ from runtime.neural.integration import (
     ConsumerVerdictClass,
     SymbiosisIdentity,
     SymbioticNeuralCoordinator,
+)
+from runtime.neural.integration.adapters import N2Adapter
+from runtime.neural.integration.contracts import canonical_sha256
+from runtime.neural.integration.p1_n2 import (
+    N2ShadowRevisionRecord,
+    build_n2_revision_request,
+    cap_n2_revision_confidence,
+    n2_revision_eligibility,
+    score_n2_ground_truth,
+)
+from runtime.neural.integration.p1_n3 import (
+    compare_n3_shadow_retrieval,
+    derive_n3_shadow_directive,
+)
+from runtime.neural.integration.p1_n4 import (
+    N4PreactionInterventionSet,
+    causal_signature_prior_evidence,
+    evaluate_preaction_scores,
+    lagged_evidence_from_memory,
+    load_preaction_artifact_v2,
+    score_preaction_interventions,
 )
 from runtime.organism.autoevolution import AutoEvolutionController
 from runtime.organism.adaptive_state import AdaptationPlanner, AdaptiveStateStore
@@ -52,6 +76,10 @@ from runtime.world.intervention_override import (
     outcome_effectiveness,
 )
 from runtime.world.causal_attestation import build_causal_attestation
+from runtime.world.counterfactual_oracle import (
+    CounterfactualOracleResult,
+    enumerate_counterfactual_outcomes,
+)
 from runtime.symbolic.eml import EMLRunner
 
 from .scenario import CognitiveScenario, ScenarioObservation
@@ -68,12 +96,140 @@ def _external_reasoner_runtime_flag() -> bool:
     }
 
 
+def _p1_cognitive_loops_enabled() -> bool:
+    """Explicit laboratory gate for P1 counterfactual cognitive loops."""
+
+    return os.environ.get("RNFE_P1_COGNITIVE_LOOPS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _p1_loop_enabled(organ: str) -> bool:
+    if not _p1_cognitive_loops_enabled():
+        return False
+    disabled = {
+        item.strip().upper()
+        for item in os.environ.get("RNFE_P1_DISABLED_LOOPS", "").split(",")
+        if item.strip()
+    }
+    return str(organ).upper() not in disabled
+
+
+def _n3_shadow_counterfactual_enabled() -> bool:
+    return _p1_loop_enabled("N3") and os.environ.get(
+        "RNFE_N3_SHADOW_COUNTERFACTUAL", ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _p1_n4_artifact_from_environment():
+    manifest = os.environ.get("RNFE_NEURAL_N4_PREACTION_MANIFEST", "").strip()
+    if not manifest:
+        return None, "artifact_missing"
+    try:
+        artifact = load_preaction_artifact_v2(
+            manifest,
+            artifact_root=os.environ.get("RNFE_ARTIFACT_ROOT"),
+        )
+    except Exception as exc:
+        return None, f"artifact_incompatible:{type(exc).__name__}"
+    return artifact, None
+
+
+def _p1_retrieval_rank_metrics(
+    hits: list[dict[str, Any]],
+    *,
+    best_actions: tuple[str, ...],
+    ideal_relevant_count: int | None = None,
+) -> dict[str, Any]:
+    """Binary nDCG/MRR using earlier memories of an oracle-optimal action."""
+
+    import math as _math
+
+    best = set(best_actions)
+    relevance: list[int] = []
+    for hit in hits:
+        structure = hit.get("structure") if isinstance(hit, Mapping) else None
+        structure = structure if isinstance(structure, Mapping) else {}
+        context = structure.get("context")
+        context = context if isinstance(context, Mapping) else {}
+        action = str(context.get("intervention") or structure.get("intervention") or "")
+        relevance.append(int(action in best))
+    dcg = sum(value / _math.log2(index + 2.0) for index, value in enumerate(relevance))
+    resolved_ideal_count = (
+        max(0, int(ideal_relevant_count))
+        if ideal_relevant_count is not None
+        else sum(relevance)
+    )
+    ideal = [1] * min(resolved_ideal_count, len(relevance))
+    idcg = sum(value / _math.log2(index + 2.0) for index, value in enumerate(ideal))
+    first = next((index + 1 for index, value in enumerate(relevance) if value), None)
+    return {
+        "ndcg_at_k": dcg / idcg if idcg > 0.0 else 0.0 if best and relevance else None,
+        "mrr": 1.0 / first if first is not None else 0.0 if best else None,
+        "relevant_count": sum(relevance),
+        "evaluated_count": len(relevance),
+    }
+
+
 class ScenarioEpisodeRunner:
     """Runner de episodio cognitivo que opera sobre escenarios parametrizables.
 
     Este runner es la versión generalizada de MinimalCognitiveEpisodeRunner
     que puede operar sobre cualquier escenario que implemente CognitiveScenario.
     """
+
+    def _p1_n3_lagged_preaction_signals(
+        self,
+        *,
+        scenario_id: str,
+        observed_value: Any,
+        optimization_direction: str,
+    ) -> dict[str, Any]:
+        """Project the previous admitted N3 state without running the current organ."""
+
+        try:
+            current = float(observed_value)
+            if not math.isfinite(current):
+                return {}
+        except (TypeError, ValueError):
+            return {}
+        checkpoint = self._neural.export_temporal_state()
+        previous = None
+        for entry in checkpoint.get("entries") or ():
+            key = entry.get("state_key") if isinstance(entry, Mapping) else None
+            if (
+                isinstance(key, list)
+                and len(key) >= 2
+                and (
+                    str(key[1]) == scenario_id
+                    or str(key[1]).startswith(f"{scenario_id}@")
+                )
+            ):
+                previous = entry.get("state")
+        if not isinstance(previous, Mapping):
+            return {}
+        prior_value = previous.get("last_measured_value")
+        try:
+            trend = current - float(prior_value)
+        except (TypeError, ValueError):
+            return {}
+        count = max(int(previous.get("measurement_count", 0) or 0), 0)
+        uncertainty = 1.0 / (count + 1.0) if count else 1.0
+        threshold = abs(float(self.scenario.config.alarm_threshold or 0.0))
+        scale = threshold if threshold > 1e-9 else max(abs(current), 1.0)
+        adverse = max(trend, 0.0) if optimization_direction == "minimize" else max(-trend, 0.0)
+        importance = min(abs(trend) / scale, 1.0)
+        return {
+            "trend": trend,
+            "uncertainty": uncertainty,
+            "risk": min(adverse / scale, 1.0),
+            "importance": importance,
+            "continuity": 1.0 - importance,
+            "evidence_ref": f"n3-lagged-checkpoint:{canonical_sha256(previous)}",
+        }
 
     def __init__(
         self,
@@ -251,6 +407,334 @@ class ScenarioEpisodeRunner:
             lineage_id=self._lineage.lineage_id,
         )
         self._adaptation_planner = AdaptationPlanner()
+
+    def _p1_n2_shadow_revision(
+        self,
+        *,
+        episode_id: str,
+        formula: str,
+        base_intervention: str,
+        reasoning: Mapping[str, Any],
+        reasoning_context: Mapping[str, Any],
+        oracle: CounterfactualOracleResult | None,
+    ) -> dict[str, Any]:
+        if not _p1_loop_enabled("N2"):
+            return {"status": "disabled", "authority_effect": "none"}
+        snapshot = self._neural.admitted_candidate_snapshot(episode_id, "N2")
+        if snapshot is None:
+            return {"status": "unavailable", "reason": "n2_candidate_not_admitted", "authority_effect": "none"}
+        candidate = snapshot.get("candidate")
+        candidate = candidate if isinstance(candidate, Mapping) else None
+        eligible, triggers, eligibility_reason = n2_revision_eligibility(candidate)
+        if not eligible:
+            return {
+                "status": "initial_accepted" if candidate and candidate.get("verified") else "abstained",
+                "reason": eligibility_reason,
+                "trigger_codes": list(triggers),
+                "initial_candidate_hash": snapshot.get("candidate_hash"),
+                "attempt_count": 0,
+                "authority_effect": "none",
+                "decision_influence": "none",
+            }
+        request = build_n2_revision_request(
+            candidate=candidate,
+            initial_candidate_hash=str(snapshot.get("candidate_hash") or ""),
+            initial_input_hash=str(snapshot.get("input_hash") or ""),
+            reasoning_state=reasoning.get("state") or {},
+            allowed_interventions=self.scenario.config.interventions,
+            base_intervention=base_intervention,
+        )
+        if request is None:
+            return {
+                "status": "abstained",
+                "reason": "eligible_rejection_without_valid_alternative",
+                "attempt_count": 0,
+                "authority_effect": "none",
+                "decision_influence": "none",
+            }
+
+        initial_confidence = float(snapshot.get("confidence") or 0.0)
+        try:
+            # Explicit whitelist: no factual/counterfactual/oracle/attestation fields
+            # can enter the retry that will later be scored by that oracle.
+            shadow_context = {
+                key: deepcopy(reasoning_context[key])
+                for key in (
+                    "episode_id",
+                    "observation",
+                    "formula",
+                    "memory_hits",
+                    "retrieved_memory",
+                    "memory_rag_attestation",
+                    "memory_purity_confidence",
+                    "closure_profile",
+                    "reasoning_mode",
+                    "scenario",
+                    "scenario_metadata",
+                )
+                if key in reasoning_context
+            }
+            shadow_context["intervention"] = request.candidate_intervention
+            # Seis familias core + exactamente IND. Sin este presupuesto explícito
+            # el validador conserva el core pero desplaza el único órgano del retry.
+            shadow_context["reasoning_max_steps"] = 7
+            shadow_reasoning = self.scheduler.run_shadow(
+                shadow_context,
+                family_profile="core_plus_ind",
+            )
+            revised_output = N2Adapter.verify(
+                reasoning_state=shadow_reasoning.get("state") or {},
+                lotf_valid=True,
+                formula=formula,
+            )
+            revised_candidate = dict(revised_output.candidate_output or {})
+            verification = dict(revised_candidate.get("verification") or {})
+            revised_verified = bool(revised_candidate.get("verified"))
+            revised_hash = canonical_sha256(revised_candidate)
+            action_values = {
+                item.intervention: item.value for item in (oracle.outcomes if oracle else ())
+            }
+            ground_truth = score_n2_ground_truth(
+                action_values=action_values,
+                optimization_direction=(oracle.optimization_direction if oracle else ""),
+                base_intervention=request.base_intervention,
+                retry_intervention=request.candidate_intervention,
+                initial_verified=bool(candidate and candidate.get("verified")),
+                retry_verified=revised_verified,
+            )
+            revised_confidence = float(revised_output.confidence or 0.0)
+            record = N2ShadowRevisionRecord(
+                request=request,
+                status="accepted" if revised_verified else "abstained",
+                initial_confidence=initial_confidence,
+                revised_confidence=revised_confidence,
+                effective_confidence=cap_n2_revision_confidence(
+                    initial_confidence=initial_confidence,
+                    revised_confidence=revised_confidence,
+                ),
+                revised_verification=verification,
+                revised_candidate_hash=revised_hash,
+                ground_truth=ground_truth,
+                failure_reason=(
+                    None if revised_verified else "second_verification_rejected"
+                ),
+            )
+            payload = {
+                **record.to_dict(),
+                "episode_id": episode_id,
+                "shadow_reasoning_sequence": list(shadow_reasoning.get("sequence") or ()),
+                "shadow_trace_persisted": False,
+            }
+        except Exception as exc:
+            record = N2ShadowRevisionRecord(
+                request=request,
+                status="error",
+                initial_confidence=initial_confidence,
+                revised_confidence=0.0,
+                effective_confidence=0.0,
+                failure_reason=f"{type(exc).__name__}:{exc}",
+            )
+            payload = {**record.to_dict(), "episode_id": episode_id}
+        try:
+            self.storage.append_event(
+                event_type="neural.n2.shadow_revision",
+                run_id=self.run_id,
+                source="p1_n2_shadow_revision",
+                payload=payload,
+            )
+        except Exception:
+            payload["persistence_degraded"] = True
+        return payload
+
+    def _p1_n3_shadow_comparison(
+        self,
+        *,
+        episode_id: str,
+        observation: Mapping[str, Any],
+        proposition: str,
+        scenario_metadata: Mapping[str, Any],
+        canonical_hits: list[dict[str, Any]],
+        reasoning_context: Mapping[str, Any],
+        reasoning: Mapping[str, Any],
+        oracle: CounterfactualOracleResult | None,
+        base_intervention: str,
+        canonical_snapshot_sha256: str | None,
+    ) -> dict[str, Any]:
+        if not _n3_shadow_counterfactual_enabled():
+            return {"status": "disabled", "authority_effect": "none"}
+        snapshot = self._neural.admitted_candidate_snapshot(episode_id, "N3")
+        candidate = snapshot.get("candidate") if snapshot else None
+        try:
+            direction = str(self.scenario.causal_signature.optimization_direction)
+        except Exception:
+            direction = ""
+        directive = derive_n3_shadow_directive(
+            candidate if isinstance(candidate, Mapping) else None,
+            candidate_hash=(str(snapshot.get("candidate_hash")) if snapshot else None),
+            optimization_direction=direction,
+            alarm_threshold=self.scenario.config.alarm_threshold,
+        )
+        if not directive.eligible:
+            return directive.to_dict()
+        try:
+            shadow_hits = self.memory_retrieval.retrieve_shadow(
+                run_id=self.run_id,
+                query={"proposition": proposition, "alarm": bool(observation.get("alarm"))},
+                limit=self.memory_retrieval_limit,
+                limit_delta=directive.retrieval_limit_delta,
+                maximum_limit=8,
+                scale_signals=directive.scale_signals,
+                scenario_name=str(scenario_metadata.get("scenario_name") or "") or None,
+                scenario_version=str(scenario_metadata.get("scenario_version") or "") or None,
+                scenario_filter_mode=self.memory_filter_mode,
+            )
+            shadow_context = deepcopy(dict(reasoning_context))
+            shadow_context["memory_hits"] = deepcopy(shadow_hits)
+            shadow_context["retrieved_memory"] = deepcopy(shadow_hits)
+            shadow_context["uncertainty"] = max(
+                float(shadow_context.get("uncertainty", 0.0) or 0.0),
+                float(directive.uncertainty or 0.0),
+            )
+            shadow_context["continuity_recent"] = min(
+                float(shadow_context.get("continuity_recent", 1.0) or 1.0),
+                float(directive.continuity or 0.0),
+            )
+            shadow_context["edge_pressure"] = max(
+                float(shadow_context.get("edge_pressure", 0.0) or 0.0),
+                float(directive.risk or 0.0),
+            )
+            shadow_reasoning = self.scheduler.run_shadow(
+                shadow_context,
+                family_profile=str(reasoning.get("family_profile") or "") or None,
+            )
+            shadow_snapshot_sha256 = self.memory_retrieval.snapshot_hash(
+                run_id=self.run_id
+            )
+            report = compare_n3_shadow_retrieval(
+                directive=directive,
+                canonical_hits=canonical_hits,
+                shadow_hits=shadow_hits,
+                canonical_scheduler_sequence=reasoning.get("sequence") or (),
+                shadow_scheduler_sequence=shadow_reasoning.get("sequence") or (),
+                snapshot_match=(
+                    canonical_snapshot_sha256 == shadow_snapshot_sha256
+                    if canonical_snapshot_sha256 is not None
+                    else None
+                ),
+            ).to_dict()
+            report["canonical_snapshot_sha256"] = canonical_snapshot_sha256
+            report["shadow_snapshot_sha256"] = shadow_snapshot_sha256
+            report["shadow_scheduler"] = {
+                "family_profile": shadow_reasoning.get("family_profile"),
+                "effective_max_steps": shadow_reasoning.get("effective_max_steps"),
+                "trace_persisted": False,
+            }
+            canonical_budget = reasoning.get("effective_max_steps")
+            shadow_budget = shadow_reasoning.get("effective_max_steps")
+            report["scheduler_comparison"] = {
+                "sequence_changed": list(reasoning.get("sequence") or ())
+                != list(shadow_reasoning.get("sequence") or ()),
+                "canonical_budget": canonical_budget,
+                "shadow_budget": shadow_budget,
+                "budget_delta": (
+                    int(shadow_budget) - int(canonical_budget)
+                    if isinstance(canonical_budget, int)
+                    and isinstance(shadow_budget, int)
+                    else None
+                ),
+            }
+            best_actions = oracle.best_actions if oracle and oracle.status == "scored" else ()
+            def relevant_count(hits):
+                best = set(best_actions)
+                return sum(
+                    str(
+                        ((hit.get("structure") or {}).get("context") or {}).get(
+                            "intervention"
+                        )
+                        or (hit.get("structure") or {}).get("intervention")
+                        or ""
+                    )
+                    in best
+                    for hit in hits
+                    if isinstance(hit, Mapping)
+                    and isinstance(hit.get("structure"), Mapping)
+                )
+
+            ideal_relevant = max(
+                relevant_count(canonical_hits), relevant_count(shadow_hits)
+            )
+            if best_actions and (canonical_hits or shadow_hits):
+                ideal_relevant = max(ideal_relevant, 1)
+            canonical_rank = _p1_retrieval_rank_metrics(
+                canonical_hits,
+                best_actions=best_actions,
+                ideal_relevant_count=ideal_relevant,
+            )
+            shadow_rank = _p1_retrieval_rank_metrics(
+                shadow_hits,
+                best_actions=best_actions,
+                ideal_relevant_count=ideal_relevant,
+            )
+            factual_outcome = next(
+                (
+                    item
+                    for item in (oracle.outcomes if oracle else ())
+                    if item.intervention == base_intervention
+                ),
+                None,
+            )
+            adverse = None
+            if factual_outcome is not None:
+                adverse = (
+                    factual_outcome.delta > 0.0
+                    if direction == "minimize"
+                    else factual_outcome.delta < 0.0
+                    if direction == "maximize"
+                    else None
+                )
+            risk = directive.risk
+            report["ground_truth_metrics"] = {
+                "best_actions": list(best_actions),
+                "canonical_retrieval": canonical_rank,
+                "shadow_retrieval": shadow_rank,
+                "ndcg_delta": (
+                    shadow_rank["ndcg_at_k"] - canonical_rank["ndcg_at_k"]
+                    if shadow_rank["ndcg_at_k"] is not None
+                    and canonical_rank["ndcg_at_k"] is not None
+                    else None
+                ),
+                "mrr_delta": (
+                    shadow_rank["mrr"] - canonical_rank["mrr"]
+                    if shadow_rank["mrr"] is not None
+                    and canonical_rank["mrr"] is not None
+                    else None
+                ),
+                "adverse_outcome": adverse,
+                "risk_prediction": risk,
+                "risk_brier": (
+                    (float(risk) - float(adverse)) ** 2
+                    if risk is not None and adverse is not None
+                    else None
+                ),
+            }
+        except Exception as exc:
+            report = {
+                "status": "unavailable",
+                "reason": f"{type(exc).__name__}:{exc}",
+                "directive": directive.to_dict(),
+                "authority_effect": "none",
+                "writes_performed": False,
+            }
+        try:
+            self.storage.append_event(
+                event_type="neural.n3.shadow_counterfactual",
+                run_id=self.run_id,
+                source="p1_n3_shadow_counterfactual",
+                payload={"episode_id": episode_id, **report},
+            )
+        except Exception:
+            report["persistence_degraded"] = True
+        return report
 
     def _maybe_override_intervention(
         self,
@@ -802,6 +1286,11 @@ class ScenarioEpisodeRunner:
             scenario_name=scenario_metadata["scenario_name"],
             scenario_filter_mode=self.memory_filter_mode,
         )
+        p1_memory_snapshot_sha256 = (
+            self.memory_retrieval.snapshot_hash(run_id=self.run_id)
+            if _n3_shadow_counterfactual_enabled()
+            else None
+        )
 
         # 5. Seleccionar intervención
         intervention = self.scenario.select_intervention(observation)
@@ -819,6 +1308,100 @@ class ScenarioEpisodeRunner:
             if alternative is not None and alternative != intervention:
                 self._experience_bias = {"avoided": intervention, "chose": alternative}
                 intervention = alternative
+
+        # N4-P1 is constructed from a whitelist of pre-action fields before the
+        # hidden outcome oracle runs.  The candidate is frozen and evaluated later.
+        p1_n4_candidate = None
+        p1_n4_error: str | None = None
+        p1_n4_preaction_latency_ms: float | None = None
+        if _p1_loop_enabled("N4"):
+            p1_n4_started = time.perf_counter()
+            try:
+                signature = self.scenario.causal_signature
+                p1_n4_request = N4PreactionInterventionSet(
+                    scenario_id=str(scenario_metadata["scenario_name"]),
+                    main_variable=self.scenario.config.main_variable,
+                    optimization_direction=str(signature.optimization_direction),
+                    observation=observation_dict,
+                    interventions=tuple(self.scenario.config.interventions),
+                    canonical_intervention=intervention,
+                    prior_evidence=causal_signature_prior_evidence(
+                        signature,
+                        interventions=self.scenario.config.interventions,
+                    ),
+                    lagged_evidence=lagged_evidence_from_memory(
+                        memory_hits,
+                        interventions=self.scenario.config.interventions,
+                    ),
+                    n3_signals=self._p1_n3_lagged_preaction_signals(
+                        scenario_id=str(scenario_metadata["scenario_name"]),
+                        observed_value=observation_dict.get(
+                            self.scenario.config.main_variable
+                        ),
+                        optimization_direction=str(signature.optimization_direction),
+                    ),
+                )
+                p1_n4_artifact, artifact_error = _p1_n4_artifact_from_environment()
+                p1_n4_candidate = score_preaction_interventions(
+                    p1_n4_request,
+                    artifact=p1_n4_artifact,
+                    artifact_error=artifact_error,
+                )
+            except Exception as exc:
+                p1_n4_error = f"{type(exc).__name__}:{exc}"
+            finally:
+                p1_n4_preaction_latency_ms = (
+                    time.perf_counter() - p1_n4_started
+                ) * 1000.0
+
+        # P1 oracle is runner-owned and never enters either reasoning context or an
+        # organ payload.  It exists only to score already-produced SHADOW candidates.
+        p1_oracle: CounterfactualOracleResult | None = None
+        p1_cognitive_loop: Dict[str, Any] | None = None
+        if _p1_cognitive_loops_enabled():
+            try:
+                optimization_direction = str(
+                    self.scenario.causal_signature.optimization_direction
+                )
+            except Exception:
+                optimization_direction = ""
+            p1_oracle = enumerate_counterfactual_outcomes(
+                scenario=self.scenario,
+                observation=observation_dict,
+                interventions=self.scenario.config.interventions,
+                external_input=external_input,
+                optimization_direction=optimization_direction,
+            )
+            p1_cognitive_loop = {
+                "schema_version": "rnfe-p1-cognitive-loop-v1",
+                "authority_effect": "none",
+                "promotion_authorized": False,
+                "canonical_writes_performed": False,
+                "shadow_evidence_persisted": True,
+                "oracle_seal": {
+                    "status": p1_oracle.status,
+                    "snapshot_sha256": p1_oracle.snapshot_sha256,
+                    "outcome_set_sha256": p1_oracle.outcome_set_sha256,
+                    "unavailable_reason": p1_oracle.unavailable_reason,
+                    "authority_effect": "none",
+                },
+                "n2": {"status": "pending"},
+                "n3": {"status": "pending"},
+                "n4": (
+                    {
+                        "status": "candidate_ready",
+                        "candidate": p1_n4_candidate.to_dict(),
+                        "candidate_hash": p1_n4_candidate.candidate_hash,
+                        "preaction_latency_ms": p1_n4_preaction_latency_ms,
+                    }
+                    if p1_n4_candidate is not None
+                    else {
+                        "status": "unavailable",
+                        "reason": p1_n4_error or "p1_n4_disabled",
+                        "preaction_latency_ms": p1_n4_preaction_latency_ms,
+                    }
+                ),
+            }
 
         # 6. Simular contrafactual (sin intervención o con opuesta)
         counter_intervention = (
@@ -1000,6 +1583,35 @@ class ScenarioEpisodeRunner:
             reasoning=reasoning,
             lotf_valid=True,
         )
+        if p1_cognitive_loop is not None:
+            n2_started = time.perf_counter()
+            p1_cognitive_loop["n2"] = self._p1_n2_shadow_revision(
+                episode_id=episode_id,
+                formula=formula,
+                base_intervention=intervention,
+                reasoning=reasoning,
+                reasoning_context=reasoning_context,
+                oracle=p1_oracle,
+            )
+            p1_cognitive_loop["n2"]["latency_ms"] = (
+                time.perf_counter() - n2_started
+            ) * 1000.0
+            n3_started = time.perf_counter()
+            p1_cognitive_loop["n3"] = self._p1_n3_shadow_comparison(
+                episode_id=episode_id,
+                observation=observation_dict,
+                proposition=main_proposition,
+                scenario_metadata=scenario_metadata,
+                canonical_hits=memory_hits,
+                reasoning_context=reasoning_context,
+                reasoning=reasoning,
+                oracle=p1_oracle,
+                base_intervention=intervention,
+                canonical_snapshot_sha256=p1_memory_snapshot_sha256,
+            )
+            p1_cognitive_loop["n3"]["latency_ms"] = (
+                time.perf_counter() - n3_started
+            ) * 1000.0
 
         # 9b. Override determinista guardado (actuación del razonamiento). Gated por
         # RNFE_REASONING_ACTUATES=1 (sombra OFF ⇒ camino nominal byte-idéntico). En
@@ -1061,6 +1673,62 @@ class ScenarioEpisodeRunner:
                 payload={"episode_id": episode_id, **intervention_override.to_dict()},
             )
 
+        if p1_cognitive_loop is not None and p1_n4_candidate is not None:
+            n4_evaluation_started = time.perf_counter()
+            try:
+                outcome_rows = {
+                    item.intervention: {"state": dict(item.state)}
+                    for item in (p1_oracle.outcomes if p1_oracle else ())
+                }
+                evaluation = evaluate_preaction_scores(
+                    p1_n4_candidate,
+                    outcomes=outcome_rows,
+                    observed_value=float(
+                        observation_dict[self.scenario.config.main_variable]
+                    ),
+                    oracle_snapshot_sha256=(
+                        p1_oracle.snapshot_sha256 if p1_oracle else None
+                    ),
+                    outcome_set_sha256=(
+                        p1_oracle.outcome_set_sha256 if p1_oracle else None
+                    ),
+                )
+                p1_cognitive_loop["n4"] = {
+                    "status": "evaluated",
+                    "candidate": p1_n4_candidate.to_dict(),
+                    "candidate_hash": p1_n4_candidate.candidate_hash,
+                    "evaluation": evaluation,
+                    "committed_intervention": intervention,
+                    "committed_agrees_with_shadow": intervention
+                    == evaluation.get("shadow_intervention"),
+                    "authority_effect": "none",
+                    "decision_influence": "none",
+                    "preaction_latency_ms": p1_n4_preaction_latency_ms,
+                    "evaluation_latency_ms": (
+                        time.perf_counter() - n4_evaluation_started
+                    )
+                    * 1000.0,
+                }
+                self.storage.append_event(
+                    event_type="neural.n4.preaction_evaluated",
+                    run_id=self.run_id,
+                    source="p1_n4_preaction_evaluator",
+                    payload={"episode_id": episode_id, **p1_cognitive_loop["n4"]},
+                )
+            except Exception as exc:
+                p1_cognitive_loop["n4"] = {
+                    "status": "unavailable",
+                    "reason": f"{type(exc).__name__}:{exc}",
+                    "candidate_hash": p1_n4_candidate.candidate_hash,
+                    "authority_effect": "none",
+                    "decision_influence": "none",
+                    "preaction_latency_ms": p1_n4_preaction_latency_ms,
+                    "evaluation_latency_ms": (
+                        time.perf_counter() - n4_evaluation_started
+                    )
+                    * 1000.0,
+                }
+
         # N4 se vuelve a enlazar después de resolver cualquier override. Sólo esta
         # comparación, ligada a la intervención final, recibe un ConsumerReceipt.
         neural_comparisons["n4_comparison"] = self._neural.bind_committed_action(
@@ -1117,7 +1785,6 @@ class ScenarioEpisodeRunner:
             },
             "trace": reasoning["trace"],
         }
-
         # 11. Persistir evento de cierre. B41: el sobre CausalContext viaja como clave
         # aditiva (gated). Ausente ⇒ episode_payload byte-idéntico a pre-B41.
         if self._causal_context is not None:
@@ -1667,6 +2334,12 @@ class ScenarioEpisodeRunner:
                 "top_composite": eml_shadow["top_composite"],
                 "top_expr_signature": eml_shadow["top_expr_signature"],
             }
+
+        # La evidencia P1 se adjunta únicamente al valor retornado, después de cierre,
+        # certificación, autoevolución y transición vital. Ningún consumidor canónico
+        # puede observar los outcomes sellados usados para puntuar las ramas shadow.
+        if p1_cognitive_loop is not None:
+            episode_result["episode"]["result"]["p1_cognitive_loop"] = p1_cognitive_loop
 
         return {
             **episode_result,

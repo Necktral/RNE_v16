@@ -1045,7 +1045,7 @@ def maybe_llm_augment(state: Dict[str, Any], *, family: str) -> Optional[Dict[st
     Devuelve la augmentación (o None). No altera la decisión simbólica: solo añade
     evidencia advisoria del razonador externo cuando hay conflicto/ambigüedad real.
     """
-    if not llm_enabled():
+    if state.get("_shadow_forbid_external_reasoner") is True or not llm_enabled():
         return None
 
     cached = state.get(_AUG_KEY, _SENTINEL)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import os
 from datetime import datetime, timezone
 from importlib import import_module
@@ -113,6 +114,47 @@ class MetaScheduler:
                 snapshot[str(key)] = value_snapshot
         return snapshot
 
+    def run_shadow(
+        self,
+        context: Dict[str, Any] | None = None,
+        *,
+        family_profile: str | None = None,
+    ) -> Dict[str, Any]:
+        """Run an isolated reasoning branch that cannot persist or call the LLM.
+
+        The branch deliberately reuses the canonical policy implementation so a
+        comparison measures only its supplied counterfactual context.  A deep copy
+        prevents family state deltas from aliasing the canonical context, the clone
+        has no trace store, and ``run`` replaces external families with a typed skip.
+        """
+
+        shadow_context = deepcopy(dict(context or {}))
+        shadow_context.pop("_external_reasoner_client", None)
+        shadow_context["run_id"] = None
+        shadow_context["_shadow_execution"] = True
+        shadow_context["_shadow_forbid_external_reasoner"] = True
+        shadow_context["allow_external_reasoner"] = False
+        shadow_context["external_reasoner_enabled"] = False
+        if family_profile is not None:
+            shadow_context["family_profile"] = family_profile
+        clone = MetaScheduler(
+            sequence=list(self.sequence) if self._sequence_override else None,
+            trace_store=None,
+            mode=self.mode,
+            max_steps=self.max_steps,
+            family_profile=family_profile or self.family_profile,
+            regime_hint=self.regime_hint,
+        )
+        result = clone.run(shadow_context)
+        result["shadow_execution"] = {
+            "schema_version": "rnfe-shadow-reasoning-v1",
+            "trace_persisted": False,
+            "external_reasoner_allowed": False,
+            "authority_effect": "none",
+            "writes_performed": False,
+        }
+        return result
+
     def run(self, context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         state: Dict[str, Any] = dict(context or {})
         run_id = state.get("run_id")
@@ -201,7 +243,6 @@ class MetaScheduler:
             if validated_lower != list(selected):
                 selected = validated_lower
         for step_index, family in enumerate(selected):
-            module = import_module(f"runtime.reasoning.families.{family}")
             state["_meta"] = {
                 "mode": active_mode,
                 "features": features,
@@ -219,12 +260,34 @@ class MetaScheduler:
                 "sequence_validation": sequence_validation,
                 "effective_max_steps": effective_max_steps,
             }
-            if family == "eml_sr":
-                state["eml_mode"] = "shadow" if is_eml_experimental_enabled() else "disabled"
-            result = normalize_family_result(
-                module.execute(state),
-                family_hint=family.upper(),
+            shadow_external_blocked = bool(
+                state.get("_shadow_execution")
+                and state.get("_shadow_forbid_external_reasoner")
+                and family == "ext_open_thinker"
             )
+            if shadow_external_blocked:
+                result = normalize_family_result(
+                    {
+                        "family": family.upper(),
+                        "status": "skip",
+                        "state_delta": {
+                            "external_reasoner_used": False,
+                            "shadow_skip_reason": "external_family_forbidden",
+                        },
+                        "confidence": 0.0,
+                        "cost": 0.0,
+                        "failure_mode": "shadow_external_family_forbidden",
+                    },
+                    family_hint=family.upper(),
+                )
+            else:
+                module = import_module(f"runtime.reasoning.families.{family}")
+                if family == "eml_sr":
+                    state["eml_mode"] = "shadow" if is_eml_experimental_enabled() else "disabled"
+                result = normalize_family_result(
+                    module.execute(state),
+                    family_hint=family.upper(),
+                )
             state.update(result.get("state_delta", {}))
             executed_sequence.append(family.upper())
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -31,6 +32,11 @@ from runtime.life import LifeKernel, LifeKernelConfig
 from runtime.control.msrc.host_sampler import HostResourceSampler, build_resource_snapshot
 from runtime.control.msrc.vram_sampler import NvidiaVRAMSampler
 from runtime.neural import ImpactObservation, OrganismImpactVector, build_impact_report
+from runtime.neural.p1_metrics import (
+    P1_REPORT_SCHEMA_VERSION,
+    bootstrap_mean_ci95,
+    summarize_p1_rows,
+)
 from runtime.neural.campaign import (
     CampaignError,
     CampaignState,
@@ -66,6 +72,7 @@ from runtime.storage.migrations import migrate_sqlite_ledger_to_postgres
 from scripts.benchmark_n1_counterfactual import run_n1_counterfactual_campaign
 from scripts.benchmark_teacher_advanced import run_campaign as run_teacher_campaign
 from scripts.stage_neural_lab_artifacts import stage_lab_artifacts
+from scripts.train_n4_preaction_v2 import train_to_directory as train_n4_preaction_v2
 
 
 DEFAULT_ENV_FILE = Path("/home/wis/Desarrollo/RNE_v16/.env")
@@ -113,6 +120,12 @@ ABLATION_SCHEMA_VERSION = "rnfe-neural-ablation-matrix-v2"
 ABLATION_RESOURCE_SNAPSHOT_SCHEMA_VERSION = "rnfe-ablation-resource-snapshot-v1"
 ABLATION_ORGANS = ("N1", "N2", "N3", "N4", "N5", "N6")
 ABLATION_SEEDS = (811001, 811101, 811201)
+P1_SEEDS = tuple(911001 + (index * 101) for index in range(12))
+
+
+def _p1_external_input(seed: int, step_index: int) -> float:
+    digest = hashlib.sha256(f"rnfe-p1:{seed}:{step_index}".encode()).digest()
+    return 0.04 + int.from_bytes(digest[:2], "big") / 65535.0 * 0.10
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +166,70 @@ class AblationProfile:
             "promotion_eligible": False,
             "promotion_authorized": False,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class P1Profile:
+    profile_id: str
+    neural_mode: str
+    enabled_organs: tuple[str, ...]
+    enabled_loops: tuple[str, ...]
+    n3_reference_only: bool = False
+
+    @property
+    def disabled_organs(self) -> tuple[str, ...]:
+        return tuple(organ for organ in ABLATION_ORGANS if organ not in self.enabled_organs)
+
+    @property
+    def disabled_loops(self) -> tuple[str, ...]:
+        return tuple(organ for organ in ("N2", "N3", "N4") if organ not in self.enabled_loops)
+
+    def environment(self) -> dict[str, str]:
+        enabled = bool(self.enabled_loops)
+        values = {
+            "RNFE_P1_COGNITIVE_LOOPS": "1" if enabled else "0",
+            "RNFE_P1_DISABLED_LOOPS": ",".join(self.disabled_loops),
+            "RNFE_N3_SHADOW_COUNTERFACTUAL": (
+                "1" if "N3" in self.enabled_loops else "0"
+            ),
+            "RNFE_EXTERNAL_REASONER_RUNTIME": "0",
+            "RNFE_ALLOW_EXTERNAL_REASONER": "0",
+            "RNFE_CORE_FAMILIES_LLM": "0",
+            "RNFE_TEACHER": "0",
+        }
+        if self.n3_reference_only:
+            values["RNFE_NEURAL_N3_MANIFEST"] = ""
+        return values
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "profile_id": self.profile_id,
+            "neural_mode": self.neural_mode,
+            "enabled_organs": list(self.enabled_organs),
+            "disabled_organs": list(self.disabled_organs),
+            "enabled_loops": list(self.enabled_loops),
+            "disabled_loops": list(self.disabled_loops),
+            "n3_reference_only": self.n3_reference_only,
+            "authority_ceiling": "shadow",
+            "training_authorized": False,
+            "promotion_eligible": False,
+            "promotion_authorized": False,
+        }
+
+
+def _p1_profiles() -> tuple[P1Profile, ...]:
+    return (
+        P1Profile("off", "off", (), ()),
+        P1Profile("shadow-none", "shadow", (), ()),
+        P1Profile("only-n2", "shadow", ("N2",), ("N2",)),
+        P1Profile("only-n3-reference", "shadow", ("N3",), ("N3",), True),
+        P1Profile("only-n3-trained", "shadow", ("N3",), ("N3",)),
+        P1Profile("only-n4-v2", "shadow", ("N4",), ("N4",)),
+        P1Profile("p1-all", "shadow", ("N2", "N3", "N4"), ("N2", "N3", "N4")),
+        P1Profile("p1-without-n2", "shadow", ("N3", "N4"), ("N3", "N4")),
+        P1Profile("p1-without-n3", "shadow", ("N2", "N4"), ("N2", "N4")),
+        P1Profile("p1-without-n4", "shadow", ("N2", "N3"), ("N2", "N3")),
+    )
 
 
 def _ablation_profiles() -> tuple[AblationProfile, ...]:
@@ -1341,6 +1418,7 @@ def _run_life_lane(
     disabled_organs: Sequence[str] = (),
     resource_snapshot_override: Mapping[str, Any] | None = None,
     resource_snapshot_provenance: Mapping[str, Any] | None = None,
+    extra_environment: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     resolved_mode = neural_mode or ("off" if lane == "off" else "shadow")
     if resolved_mode not in {"off", "shadow"}:
@@ -1400,14 +1478,20 @@ def _run_life_lane(
         "RNFE_ALLOW_EXTERNAL_REASONER": "1" if tier3 else "0",
         "RNFE_MAX_COMPUTE_TIER": "tier_3_external" if tier3 else "tier_2_specialized",
     }
+    if extra_environment:
+        values.update({str(key): str(value) for key, value in extra_environment.items()})
     started = time.monotonic()
     storage = ctx.ensure_storage()
     with temporary_environ(values):
+        scenario_order = SCENARIOS
+        if phase == "p1":
+            shift = seed % len(SCENARIOS)
+            scenario_order = SCENARIOS[shift:] + SCENARIOS[:shift]
         kernel = LifeKernel(
             config=LifeKernelConfig(
                 run_id=run_id,
                 organism_id=f"organism-{phase}-{lane}-{seed}",
-                scenarios=SCENARIOS,
+                scenarios=scenario_order,
                 block_size=max(1, steps // len(SCENARIOS)),
                 restore=False,
                 checkpoint_interval=1,
@@ -1418,10 +1502,13 @@ def _run_life_lane(
             ),
             storage=storage,
         )
-        rows = [
-            kernel.step(external_input=0.04 + ((seed + index * 7) % 11) / 100.0).to_dict()
+        external_inputs = [
+            _p1_external_input(seed, index)
+            if phase == "p1"
+            else 0.04 + ((seed + index * 7) % 11) / 100.0
             for index in range(steps)
         ]
+        rows = [kernel.step(external_input=value).to_dict() for value in external_inputs]
     elapsed = time.monotonic() - started
     closure_evidence = _collect_episode_closure_evidence(
         storage,
@@ -1455,6 +1542,10 @@ def _run_life_lane(
         "backend_provenance": backend_provenance,
         "elapsed_s": elapsed,
         "authority_effect": "none",
+        "scenario_order": list(scenario_order),
+        "external_input_schedule_sha256": hashlib.sha256(
+            json.dumps(external_inputs, separators=(",", ":")).encode()
+        ).hexdigest(),
     }
     if resource_snapshot_reference is not None:
         lane_report["resource_snapshot_override"] = resource_snapshot_reference
@@ -1471,6 +1562,10 @@ def _run_life_lane(
         "disabled_organs": list(normalized_disabled),
         "closure_evidence": closure_evidence,
         "backend_provenance": backend_provenance,
+        "scenario_order": list(scenario_order),
+        "external_input_schedule_sha256": lane_report[
+            "external_input_schedule_sha256"
+        ],
         **(
             {"resource_snapshot_override": resource_snapshot_reference}
             if resource_snapshot_reference is not None
@@ -1910,6 +2005,261 @@ def _run_ablation_matrix(
     )
     if not worktree_stable:
         raise CampaignError("ablation_worktree_changed_during_run")
+    return report
+
+
+def _nested_numeric(payload: Mapping[str, Any], *path: str) -> float | None:
+    current: Any = payload
+    for key in path:
+        if not isinstance(current, Mapping):
+            return None
+        current = current.get(key)
+    if isinstance(current, bool) or not isinstance(current, (int, float)):
+        return None
+    value = float(current)
+    return value if math.isfinite(value) else None
+
+
+def _p1_profile_summary(
+    profile: P1Profile,
+    runs: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    lanes = []
+    for run in runs:
+        summary = summarize_p1_rows(run.get("rows") or (), warmup_visits_per_scenario=2)
+        lanes.append({"seed": int(run["seed"]), "summary": summary})
+
+    metric_paths = {
+        "n3_ndcg_delta": ("n3", "mean_ndcg_delta"),
+        "n3_mrr_delta": ("n3", "mean_mrr_delta"),
+        "n3_risk_brier": ("n3", "mean_risk_brier"),
+        "n3_balanced_accuracy": ("n3", "balanced_accuracy"),
+        "n4_coverage": ("n4", "mean_coverage"),
+        "n4_top1_accuracy": ("n4", "top1_accuracy"),
+        "n4_regret_delta_vs_canonical": ("n4", "mean_regret_delta_vs_canonical"),
+        "n4_regret_delta_vs_prior": ("n4", "mean_regret_delta_vs_prior"),
+        "n4_trained_v2_rate": ("n4", "trained_v2_rate"),
+    }
+    metrics: dict[str, Any] = {}
+    for metric, path in metric_paths.items():
+        values = [
+            value
+            for lane in lanes
+            if (value := _nested_numeric(lane["summary"], *path)) is not None
+        ]
+        metrics[metric] = {
+            "mean": fmean(values) if values else None,
+            "ci95": list(bootstrap_mean_ci95(values, seed=17) or ()),
+            "seed_count": len(values),
+        }
+
+    n2 = [lane["summary"]["n2"] for lane in lanes]
+    impact_vectors = [
+        vector.to_dict() if isinstance(vector := run.get("vector"), OrganismImpactVector)
+        else dict(vector or {})
+        for run in runs
+    ]
+    return {
+        **profile.to_dict(),
+        "seed_count": len(lanes),
+        "lanes": lanes,
+        "metrics": metrics,
+        "n2_totals": {
+            key: sum(int(item.get(key, 0) or 0) for item in n2)
+            for key in (
+                "attempts",
+                "accepted_retries",
+                "initial_false_rejections",
+                "valid_corrections",
+                "retry_false_accepts",
+                "final_false_rejections",
+                "scored",
+            )
+        },
+        "canonical_integrity": {
+            "closure_rate": fmean(float(vector["closure_rate"]) for vector in impact_vectors),
+            "certification_rate": fmean(
+                float(vector["certification_rate"]) for vector in impact_vectors
+            ),
+            "safety_violations": sum(
+                int(vector.get("safety_violations", 0)) for vector in impact_vectors
+            ),
+        },
+        "n4_integrity": {
+            "candidate_hash_preserved": all(
+                lane["summary"]["n4"].get("candidate_hash_preserved") is True
+                for lane in lanes
+                if lane["summary"]["n4"].get("evaluated", 0) > 0
+            ),
+        },
+        "organ_execution_classes": {
+            organ: sorted(
+                {
+                    str(
+                        ((run.get("backend_provenance") or {}).get(organ) or {}).get(
+                            "execution_class", "unknown"
+                        )
+                    )
+                    for run in runs
+                }
+            )
+            for organ in ("N2", "N3", "N4")
+        },
+    }
+
+
+def _positive_ci(metric: Mapping[str, Any]) -> bool:
+    ci = metric.get("ci95")
+    return bool(isinstance(ci, list) and len(ci) == 2 and float(ci[0]) > 0.0)
+
+
+def _run_p1_matrix(
+    ctx: RuntimeContext,
+    *,
+    steps: int,
+    seeds: Sequence[int] = P1_SEEDS,
+) -> dict[str, Any]:
+    normalized_seeds = tuple(int(seed) for seed in seeds)
+    expected_seed_count = 3 if steps == 8 else 12 if steps == 32 else None
+    if expected_seed_count is None:
+        raise CampaignError("p1_steps_must_be_rehearsal_8_or_final_32")
+    if len(normalized_seeds) != expected_seed_count:
+        raise CampaignError(
+            f"p1_seed_count_invalid:expected_{expected_seed_count}:got_{len(normalized_seeds)}"
+        )
+    if not normalized_seeds or len(set(normalized_seeds)) != len(normalized_seeds):
+        raise CampaignError("p1_seeds_must_be_unique")
+    output_path = ctx.state.root / "p1" / "matrix.json"
+    if output_path.exists():
+        raise CampaignError("p1_matrix_already_exists_use_new_campaign_id")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    resource_snapshot_capture = _capture_ablation_resource_snapshot(ctx)
+    n4_training = train_n4_preaction_v2(ctx.state.root / "p1" / "models")
+    provenance = _materialize_worktree_provenance(ctx)
+    profiles = _p1_profiles()
+    runs_by_profile: dict[str, list[dict[str, Any]]] = {
+        profile.profile_id: [] for profile in profiles
+    }
+    execution_order: list[dict[str, Any]] = []
+    for seed_index, seed in enumerate(normalized_seeds):
+        shift = seed_index % len(profiles)
+        ordered = profiles[shift:] + profiles[:shift]
+        execution_order.append(
+            {"seed": seed, "profiles": [profile.profile_id for profile in ordered]}
+        )
+        for profile in ordered:
+            profile_environment = profile.environment()
+            profile_environment["RNFE_NEURAL_N4_PREACTION_MANIFEST"] = str(
+                n4_training["manifest_path"]
+            )
+            lane = _run_life_lane(
+                ctx,
+                phase="p1",
+                lane=profile.profile_id,
+                seed=seed,
+                steps=steps,
+                neural_mode=profile.neural_mode,
+                disabled_organs=profile.disabled_organs,
+                resource_snapshot_override=resource_snapshot_capture["snapshot"],
+                resource_snapshot_provenance=resource_snapshot_capture,
+                extra_environment=profile_environment,
+            )
+            runs_by_profile[profile.profile_id].append(lane)
+
+    profile_reports = [
+        _p1_profile_summary(profile, runs_by_profile[profile.profile_id])
+        for profile in profiles
+    ]
+    by_id = {profile["profile_id"]: profile for profile in profile_reports}
+    all_on = by_id["p1-all"]
+    n2 = all_on["n2_totals"]
+    n3_metrics = all_on["metrics"]
+    n4_metrics = all_on["metrics"]
+    n2_gate = bool(
+        n2["retry_false_accepts"] == 0
+        and n2["valid_corrections"] > 0
+        and n2["final_false_rejections"] < n2["initial_false_rejections"]
+    )
+    n3_reference_brier = by_id["only-n3-reference"]["metrics"]["n3_risk_brier"]["mean"]
+    n3_trained_brier = by_id["only-n3-trained"]["metrics"]["n3_risk_brier"]["mean"]
+    n3_brier_not_worse = bool(
+        n3_trained_brier is not None
+        and n3_reference_brier is not None
+        and float(n3_trained_brier) <= float(n3_reference_brier) + 1e-12
+    )
+    n3_backend_valid = bool(
+        by_id["only-n3-reference"]["organ_execution_classes"]["N3"] == ["reference"]
+        and by_id["only-n3-trained"]["organ_execution_classes"]["N3"] == ["model_bound"]
+    )
+    n3_gate = (
+        _positive_ci(n3_metrics["n3_ndcg_delta"])
+        and n3_brier_not_worse
+        and n3_backend_valid
+    )
+    n4_gate = bool(
+        (n4_metrics["n4_coverage"]["mean"] or 0.0) >= 0.80
+        and _positive_ci(n4_metrics["n4_regret_delta_vs_canonical"])
+        and _positive_ci(n4_metrics["n4_regret_delta_vs_prior"])
+        and (n4_metrics["n4_trained_v2_rate"]["mean"] or 0.0) == 1.0
+        and all_on["n4_integrity"]["candidate_hash_preserved"] is True
+    )
+    canonical_integrity = all(
+        float(profile["canonical_integrity"]["closure_rate"]) == 1.0
+        and float(profile["canonical_integrity"]["certification_rate"]) == 1.0
+        and int(profile["canonical_integrity"]["safety_violations"]) == 0
+        for profile in profile_reports
+    )
+    n2_gate = n2_gate and canonical_integrity
+    n3_gate = n3_gate and canonical_integrity
+    n4_gate = n4_gate and canonical_integrity
+    _, final_provenance = _worktree_snapshot()
+    stable = (
+        final_provenance["worktree_snapshot_sha256"]
+        == provenance["worktree_snapshot_sha256"]
+    )
+    report = {
+        "schema_version": P1_REPORT_SCHEMA_VERSION,
+        "campaign_id": ctx.state.campaign_id,
+        "commit": ctx.state.manifest["commit"],
+        "steps_per_lane": steps,
+        "warmup_visits_per_scenario": 2,
+        "seed_order": list(normalized_seeds),
+        "execution_order": execution_order,
+        "resource_snapshot_capture": resource_snapshot_capture,
+        "n4_preaction_training": n4_training,
+        "profiles": profile_reports,
+        "gates": {
+            "n2": n2_gate,
+            "n3": n3_gate,
+            "n4": n4_gate,
+            "any_cognitive_contribution": n2_gate or n3_gate or n4_gate,
+            "canonical_integrity": canonical_integrity,
+            "n3_brier_not_worse": n3_brier_not_worse,
+            "n3_backend_valid": n3_backend_valid,
+        },
+        "conclusion": (
+            "cognitive_contribution_detected_in_shadow"
+            if n2_gate or n3_gate or n4_gate
+            else "no_aporta_cognicion_demostrable"
+        ),
+        "authority_ceiling": "shadow",
+        "training_authorized": False,
+        "staging_authorized": False,
+        "promotion_authorized": False,
+        "teacher_contract_frozen": True,
+        "external_reasoner_enabled": False,
+        "provenance": {
+            **provenance,
+            "stable_during_run": stable,
+            "final_worktree_snapshot_sha256": final_provenance[
+                "worktree_snapshot_sha256"
+            ],
+        },
+    }
+    atomic_write_json(output_path, report)
+    _register_report(ctx, output_path, kind="p1_cognitive_loop_matrix", run_id=ctx.state.campaign_id)
+    if not stable:
+        raise CampaignError("p1_worktree_changed_during_run")
     return report
 
 
@@ -2465,6 +2815,24 @@ def command_ablate(args: argparse.Namespace) -> int:
         ctx.close()
 
 
+def command_p1_ablate(args: argparse.Namespace) -> int:
+    ctx = _load_context(args)
+    try:
+        _run_preflight(ctx)
+        report = _run_p1_matrix(
+            ctx,
+            steps=args.life_steps,
+            seeds=tuple(
+                args.seeds
+                or (P1_SEEDS[:3] if args.life_steps == 8 else P1_SEEDS)
+            ),
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+    finally:
+        ctx.close()
+
+
 def command_stage(args: argparse.Namespace) -> int:
     ctx = _load_context(args)
     try:
@@ -2531,6 +2899,9 @@ def build_parser() -> argparse.ArgumentParser:
     ablate = commands.add_parser("ablate")
     ablate.add_argument("--life-steps", type=int, default=3)
     ablate.add_argument("--seed", dest="seeds", action="append", type=int)
+    p1_ablate = commands.add_parser("p1-ablate")
+    p1_ablate.add_argument("--life-steps", type=int, default=32)
+    p1_ablate.add_argument("--seed", dest="seeds", action="append", type=int)
     commands.add_parser("report")
     stage = commands.add_parser("stage")
     stage.add_argument("--target-root", type=Path, default=None)
@@ -2554,6 +2925,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return command_resume(args)
         if args.command == "ablate":
             return command_ablate(args)
+        if args.command == "p1-ablate":
+            return command_p1_ablate(args)
         if args.command == "report":
             return command_report(args)
         if args.command == "stage":

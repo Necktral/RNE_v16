@@ -924,12 +924,12 @@ class GridThermalScenario(CognitiveScenario):
         # (Necesitamos guardar el grid actual temporalmente)
         original_grid = self._grid
         self._grid = simulated_grid
-
-        # Usar _build_aggregate_state para incluir todas las métricas espaciales
-        state = self._build_aggregate_state()
-
-        # Restaurar grid original
-        self._grid = original_grid
+        try:
+            # Usar _build_aggregate_state para incluir todas las métricas espaciales
+            state = self._build_aggregate_state()
+        finally:
+            # Una excepción de serialización/observación tampoco puede mutar el mundo.
+            self._grid = original_grid
 
         # Derivar nivel discreto
         world_level_discrete = self._derive_world_level(simulated_grid.global_temp_mean)
