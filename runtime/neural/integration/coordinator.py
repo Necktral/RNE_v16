@@ -33,8 +33,10 @@ from runtime.neural.connectome import ConnectomeRuntime
 from runtime.neural.contracts import (
     AdmissionDecision,
     CausalContextView,
+    DecisionInfluence,
     InferenceScope,
     NeuralInferenceRequest,
+    NeuralInferenceResult,
     NeuralMode,
     ResourceSnapshot,
 )
@@ -127,6 +129,18 @@ class SymbioticNeuralCoordinator:
     ) -> dict[str, Any]:
         raw_resources = dict(resources or {})
         resource_snapshot = ResourceSnapshot.from_mapping(resources)
+        resource_state = asdict(resource_snapshot)
+        # Señales MSRC que no forman parte del contrato mínimo de admisión N0
+        # se preservan solo cuando fueron medidas. Así el trace controlado puede
+        # demostrar que N0 y MSRC vieron la misma captura sin cambiar el payload
+        # nominal cuando no existe telemetría GPU.
+        for name in (
+            "vram_headroom",
+            "vram_fragmentation_risk",
+            "vram_opportunity_score",
+        ):
+            if name in raw_resources and raw_resources[name] is not None:
+                resource_state[name] = raw_resources[name]
         inputs = {
             "observation": dict(observation),
             "formula": formula,
@@ -152,7 +166,7 @@ class SymbioticNeuralCoordinator:
                     for item in memory_hits
                     if item.get("episode_id") or item.get("id")
                 ),
-                resource_state=asdict(resource_snapshot),
+                resource_state=resource_state,
                 measurement_status=_resource_measurement_status(raw_resources),
                 unmeasured_fields=("actual_ram_mb", "actual_vram_mb"),
                 not_applicable_fields=("trained_model_metrics",),
@@ -166,18 +180,22 @@ class SymbioticNeuralCoordinator:
             organ="N5",
             context={"identity": identity, "inputs": inputs},
         )
-        session.entries["N5"].consumer_verdict = (
-            "disabled" if self.config.mode is NeuralMode.OFF else "consumed_by_SMG+MFM"
+        n5_entry = session.entries["N5"]
+        n5_entry.consumer_verdict = (
+            "consumed_by_SMG+MFM"
+            if _organ_trace_is_consumable(n5_entry)
+            else _blocked_consumer_verdict(n5_entry)
         )
         n3 = self._execute(
             session,
             organ="N3",
             context={"identity": identity, "inputs": inputs},
         )
-        session.entries["N3"].consumer_verdict = (
-            "disabled"
-            if self.config.mode is NeuralMode.OFF
-            else "consumed_by_next_reasoning+MFM+continuity"
+        n3_entry = session.entries["N3"]
+        n3_entry.consumer_verdict = (
+            "consumed_by_next_reasoning+MFM+continuity"
+            if _organ_trace_is_consumable(n3_entry)
+            else _blocked_consumer_verdict(n3_entry)
         )
         if self.organ_has_candidate(identity.episode_id, "N3"):
             self.record_consumer_receipt(
@@ -233,11 +251,11 @@ class SymbioticNeuralCoordinator:
         proposed = set((n1.candidate or {}).get("proposed_families") or [])
         overlap = sorted(proposed.intersection(selected))
         n1.consumer_verdict = (
-            "disabled"
-            if n1.effective_mode == NeuralMode.OFF.value
-            else f"compared:overlap={','.join(overlap) or 'none'}"
+            f"compared:overlap={','.join(overlap) or 'none'}"
+            if _organ_trace_is_consumable(n1)
+            else _blocked_consumer_verdict(n1)
         )
-        if n1.candidate_hash is not None:
+        if self.organ_has_candidate(episode_id, "N1"):
             self.record_consumer_receipt(
                 episode_id=episode_id,
                 organ="N1",
@@ -259,8 +277,13 @@ class SymbioticNeuralCoordinator:
                 "lotf_valid": lotf_valid,
             },
         )
-        session.entries["N2"].consumer_verdict = str(n2.get("verdict", "disabled"))
-        if session.entries["N2"].candidate_hash is not None:
+        n2_entry = session.entries["N2"]
+        n2_entry.consumer_verdict = (
+            str(n2.get("verdict", "observed"))
+            if _organ_trace_is_consumable(n2_entry)
+            else _blocked_consumer_verdict(n2_entry)
+        )
+        if self.organ_has_candidate(episode_id, "N2"):
             verification = dict(n2.get("verification") or {})
             for consumer_id, authority in (
                 ("ded_verifier", "DED"),
@@ -357,8 +380,13 @@ class SymbioticNeuralCoordinator:
                 "connectome_activity": connectome_activity,
             },
         )
-        session.entries["N6"].consumer_verdict = str(n6.get("sandbox_verdict", "disabled"))
-        if session.entries["N6"].candidate_hash is not None:
+        n6_entry = session.entries["N6"]
+        n6_entry.consumer_verdict = (
+            str(n6.get("sandbox_verdict", "observed"))
+            if _organ_trace_is_consumable(n6_entry)
+            else _blocked_consumer_verdict(n6_entry)
+        )
+        if self.organ_has_candidate(episode_id, "N6"):
             self.record_consumer_receipt(
                 episode_id=episode_id,
                 organ="N6",
@@ -551,11 +579,12 @@ class SymbioticNeuralCoordinator:
             f"{float(reward_value):.4f}" if _number(reward_value) is not None else "unmeasured"
         )
         certificate_detail = certificate.get("verdict") or "unavailable"
-        n1.consumer_verdict = (
-            f"{n1.consumer_verdict}|reward={reward_detail}"
-            f"|certificate={certificate_detail}"
-        )
-        if n1.candidate_hash is not None:
+        if _organ_trace_is_consumable(n1):
+            n1.consumer_verdict = (
+                f"{n1.consumer_verdict}|reward={reward_detail}"
+                f"|certificate={certificate_detail}"
+            )
+        if self.organ_has_candidate(episode_id, "N1"):
             self.record_consumer_receipt(
                 episode_id=episode_id,
                 organ="N1",
@@ -571,8 +600,9 @@ class SymbioticNeuralCoordinator:
                 evidence_refs=("reward", "certificate"),
             )
         n4 = session.entries["N4"]
-        n4.consumer_verdict = f"{n4.consumer_verdict}|certificate_metadata=consumed"
-        if n4.candidate_hash is not None:
+        if _organ_trace_is_consumable(n4):
+            n4.consumer_verdict = f"{n4.consumer_verdict}|certificate_metadata=consumed"
+        if self.organ_has_candidate(episode_id, "N4"):
             self.record_consumer_receipt(
                 episode_id=episode_id,
                 organ="N4",
@@ -584,8 +614,11 @@ class SymbioticNeuralCoordinator:
                 evidence_refs=("certificate",),
             )
         n6 = session.entries["N6"]
-        n6.consumer_verdict = f"{n6.consumer_verdict}|certificate={certificate.get('verdict')}"
-        if n6.candidate_hash is not None:
+        if _organ_trace_is_consumable(n6):
+            n6.consumer_verdict = (
+                f"{n6.consumer_verdict}|certificate={certificate.get('verdict')}"
+            )
+        if self.organ_has_candidate(episode_id, "N6"):
             for consumer_id in ("certification", "autoevolution_evidence_observer"):
                 self.record_consumer_receipt(
                     episode_id=episode_id,
@@ -672,8 +705,8 @@ class SymbioticNeuralCoordinator:
 
         session = self._session(episode_id)
         entry = session.entries[organ]
-        if entry.candidate_hash is None:
-            raise ValueError("consumer_receipt_requires_candidate_hash")
+        if not _organ_trace_is_consumable(entry):
+            raise ValueError("consumer_receipt_requires_consumable_candidate")
         receipt = ConsumerReceipt(
             receipt_id=f"receipt-{uuid4().hex}",
             identity=session.trace.identity,
@@ -703,9 +736,9 @@ class SymbioticNeuralCoordinator:
         return receipt
 
     def organ_has_candidate(self, episode_id: str, organ: str) -> bool:
-        """Indica si existe un candidato hasheado que pueda recibir recibos."""
+        """Indica si el candidato fue admitido y puede llegar a consumidores."""
 
-        return self._session(episode_id).entries[organ].candidate_hash is not None
+        return _organ_trace_is_consumable(self._session(episode_id).entries[organ])
 
     def connectome_topology(self) -> dict[str, Any]:
         """Expone la topología declarada sin permitir mutarla."""
@@ -765,6 +798,7 @@ class SymbioticNeuralCoordinator:
     ) -> Any:
         adapter = self._adapters[organ]
         identity = session.trace.identity
+        adapter_fallback = adapter.fallback(identity)
         request = NeuralInferenceRequest(
             inference_id=f"sym-{organ.lower()}-{uuid4().hex[:12]}",
             run_id=identity.run_id,
@@ -783,7 +817,7 @@ class SymbioticNeuralCoordinator:
         reference_result = self.runtime.infer_reference(
             request=request,
             producer=lambda inference_request: adapter.infer(inference_request, context),
-            fallback_output=adapter.fallback(identity),
+            fallback_output=adapter_fallback,
             reference_id=adapter.reference_id,
             authority_ceiling=adapter.authority_ceiling,
             admission_gate=adapter.admission_gate,
@@ -801,6 +835,11 @@ class SymbioticNeuralCoordinator:
             except Exception as exc:
                 result = replace(
                     reference_result,
+                    candidate_output=None,
+                    effective_output=adapter_fallback,
+                    fallback_used=True,
+                    fallback_reason=f"model_binding_failed:{_safe_exception_reason(exc)}",
+                    decision_influence=DecisionInfluence.NONE,
                     cost={
                         **dict(reference_result.cost),
                         "model_binding_error": _safe_exception_reason(exc),
@@ -811,6 +850,11 @@ class SymbioticNeuralCoordinator:
                 if not callable(payload_builder):
                     result = replace(
                         reference_result,
+                        candidate_output=None,
+                        effective_output=adapter_fallback,
+                        fallback_used=True,
+                        fallback_reason="adapter_model_payload_missing",
+                        decision_influence=DecisionInfluence.NONE,
                         cost={
                             **dict(reference_result.cost),
                             "model_binding_error": "adapter_model_payload_missing",
@@ -829,17 +873,21 @@ class SymbioticNeuralCoordinator:
                     result = self.runtime.infer(
                         request=model_request,
                         manifest=binding.manifest,
-                        fallback_output=fallback_candidate,
+                        fallback_output=adapter_fallback,
                         admission_gate=_shadow_only_model_admission,
                     )
                     postprocess = getattr(adapter, "postprocess_model_candidate", None)
-                    if result.candidate_output is not None and callable(postprocess):
+                    if _inference_result_is_consumable(result) and callable(postprocess):
                         result = replace(
                             result,
                             candidate_output=postprocess(result.candidate_output, context),
                         )
                     request = model_request
-        candidate = result.candidate_output
+        result_is_consumable = _inference_result_is_consumable(result)
+        candidate = result.candidate_output if result_is_consumable else None
+        fallback_reason = result.fallback_reason
+        if result.fallback_used and not fallback_reason:
+            fallback_reason = "unspecified_fallback"
         authority_ceiling = (
             binding.authority_ceiling if binding is not None else adapter.authority_ceiling
         )
@@ -869,16 +917,27 @@ class SymbioticNeuralCoordinator:
             uncertainty=result.uncertainty,
             ram_mb=_number(result.cost.get("ram_mb")),
             vram_mb=_number(result.cost.get("vram_mb")),
-            fallback_reason=result.fallback_reason,
+            fallback_reason=fallback_reason,
             manifest_sha256=result.manifest_sha256,
             artifact_sha256=(binding.manifest.artifact_sha256 if binding is not None else None),
             candidate=candidate,
             abstained=bool(isinstance(candidate, Mapping) and candidate.get("status") == "abstained"),
             cost=result.cost,
         )
+        if not result_is_consumable:
+            entry.consumer_verdict = _blocked_consumer_verdict(entry)
         session.entries[organ] = entry
         session.trace.organs.append(entry)
-        return candidate if candidate is not None else result.effective_output
+        if (
+            organ == "N3"
+            and result_is_consumable
+            and _inference_result_is_consumable(reference_result)
+            and isinstance(reference_result.candidate_output, Mapping)
+        ):
+            if not isinstance(adapter, N3Adapter):
+                raise RuntimeError("canonical_n3_adapter_type_mismatch")
+            adapter.commit_reference_state(reference_result.candidate_output, identity)
+        return candidate if result_is_consumable else adapter_fallback
 
     def _compare_n4(
         self,
@@ -892,6 +951,14 @@ class SymbioticNeuralCoordinator:
         n4_adapter = self._adapters["N4"]
         if not isinstance(n4_adapter, N4Adapter):
             raise RuntimeError("canonical_n4_adapter_type_mismatch")
+        if not _organ_trace_is_consumable(n4_entry):
+            comparison = n4_adapter.compare(None, state)
+            comparison["temporal_binding"] = temporal_binding
+            comparison["committed_intervention"] = session.inputs.get(
+                "committed_intervention"
+            )
+            n4_entry.consumer_verdict = _blocked_consumer_verdict(n4_entry)
+            return comparison
         comparison = n4_adapter.compare(n4_entry.candidate, state)
         comparison["temporal_binding"] = temporal_binding
         comparison["committed_intervention"] = session.inputs.get("committed_intervention")
@@ -899,7 +966,9 @@ class SymbioticNeuralCoordinator:
         if isinstance(n4_entry.candidate, dict):
             n4_entry.candidate["canonical_comparison"] = comparison
             n4_entry.candidate_hash = canonical_sha256(n4_entry.candidate)
-        if record_receipt and n4_entry.candidate_hash is not None:
+        if record_receipt and self.organ_has_candidate(
+            session.trace.identity.episode_id, "N4"
+        ):
             self.record_consumer_receipt(
                 episode_id=session.trace.identity.episode_id,
                 organ="N4",
@@ -936,6 +1005,35 @@ def _number(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _inference_result_is_consumable(result: NeuralInferenceResult) -> bool:
+    """Fail closed unless N0 produced an admitted live evidence candidate."""
+
+    return (
+        result.candidate_output is not None
+        and not result.fallback_used
+        and result.fallback_reason is None
+        and result.effective_mode in {NeuralMode.SHADOW, NeuralMode.PROVISIONAL}
+    )
+
+
+def _organ_trace_is_consumable(entry: OrganTrace) -> bool:
+    return (
+        entry.candidate_hash is not None
+        and entry.candidate is not None
+        and entry.fallback_reason is None
+        and entry.effective_mode
+        in {NeuralMode.SHADOW.value, NeuralMode.PROVISIONAL.value}
+    )
+
+
+def _blocked_consumer_verdict(entry: OrganTrace) -> str:
+    if entry.effective_mode == NeuralMode.OFF.value:
+        return "disabled"
+    if entry.fallback_reason:
+        return f"not_consumed:fallback:{entry.fallback_reason}"
+    return "not_consumed:no_admitted_candidate"
+
+
 def _resource_measurement_status(raw: Mapping[str, Any]) -> dict[str, str]:
     fields = (
         "cpu_pressure",
@@ -952,6 +1050,13 @@ def _resource_measurement_status(raw: Mapping[str, Any]) -> dict[str, str]:
         field: "measured" if field in raw and raw.get(field) is not None else "defaulted"
         for field in fields
     }
+    for field in (
+        "vram_headroom",
+        "vram_fragmentation_risk",
+        "vram_opportunity_score",
+    ):
+        if field in raw and raw.get(field) is not None:
+            statuses[field] = "measured"
     if raw.get("gpu_available") is False:
         for field in ("vram_used_gb", "vram_total_gb", "gpu_temperature_c"):
             if field not in raw or raw.get(field) is None:

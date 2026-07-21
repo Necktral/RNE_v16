@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from ..interfaces import StorageBackend
 
@@ -134,6 +134,34 @@ class HybridStorageBackend(StorageBackend):
             event_types=event_types,
             run_id=run_id,
         )
+
+    def event_exists(
+        self,
+        *,
+        event_type: str,
+        run_id: str | None = None,
+        payload_contains: Mapping[str, Any] | None = None,
+    ) -> bool:
+        """Busca en ambos stores para tolerar una replica incompleta."""
+        first = self.primary if self.prefer_primary_reads else self.fallback
+        second = self.fallback if self.prefer_primary_reads else self.primary
+        first_label = "primary" if self.prefer_primary_reads else "fallback"
+        kwargs = {
+            "event_type": event_type,
+            "run_id": run_id,
+            "payload_contains": payload_contains,
+        }
+        try:
+            if first.event_exists(**kwargs):
+                return True
+        except Exception as exc:  # pragma: no cover - cubierto en integracion
+            logger.warning(
+                "read event_exists: el store %s fallo; se recurre al store "
+                "secundario. Error descartado: %r",
+                first_label,
+                exc,
+            )
+        return bool(second.event_exists(**kwargs))
 
     def write_telemetry_snapshot(
         self, snapshot: TelemetrySnapshotRecord

@@ -4,7 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from runtime.neural.config import NeuralRuntimeConfig
+from runtime.neural.contracts import AdmissionDecision, NeuralMode
 from runtime.neural.integration import (
+    ConsumerVerdictClass,
     SymbiosisIdentity,
     SymbiosisTrace,
     SymbioticNeuralCoordinator,
@@ -73,7 +76,16 @@ def test_multiple_live_episodes_share_trace_and_close_all_consumption_loops(
     assert first_trace["persistence_degraded"] is False
     assert second_trace["schema_version"] == "neural-symbiosis-trace-v2"
     receipt_organs = {receipt["organ"] for receipt in second_trace["consumer_receipts"]}
-    assert receipt_organs == {"N1", "N2", "N3", "N4", "N5", "N6"}
+    admitted_organs = {
+        entry["organ"]
+        for entry in second_trace["organs"]
+        if entry["candidate_hash"] is not None
+    }
+    assert receipt_organs == admitted_organs
+    rejected_n4 = _organ(second_trace, "N4")
+    if rejected_n4["fallback_reason"]:
+        assert rejected_n4["candidate_hash"] is None
+        assert rejected_n4["consumer_verdict"].startswith("not_consumed:fallback:")
     candidate_hashes = {entry["organ"]: entry["candidate_hash"] for entry in second_trace["organs"]}
     assert all(
         receipt["candidate_hash"] == candidate_hashes[receipt["organ"]]
@@ -129,9 +141,13 @@ def test_multiple_live_episodes_share_trace_and_close_all_consumption_loops(
 
     n4 = _organ(second_trace, "N4")
     assert n4["effective_mode"] == "shadow"
-    assert n4["candidate"]["authority"]["may_choose_intervention"] is False
-    assert n4["candidate"]["canonical_comparison"]["decision_influence"] == "none"
-    assert "certificate_metadata=consumed" in n4["consumer_verdict"]
+    if n4["fallback_reason"]:
+        assert n4["candidate"] is None
+        assert "certificate_metadata=consumed" not in n4["consumer_verdict"]
+    else:
+        assert n4["candidate"]["authority"]["may_choose_intervention"] is False
+        assert n4["candidate"]["canonical_comparison"]["decision_influence"] == "none"
+        assert "certificate_metadata=consumed" in n4["consumer_verdict"]
 
     n6 = _organ(second_trace, "N6")
     assert n6["candidate"]["applied"] is False
@@ -164,6 +180,8 @@ def test_off_ablation_preserves_world_but_removes_downstream_neural_evidence(
     assert off["episode"]["result"]["updated_world"] == shadow["episode"]["result"]["updated_world"]
     assert off["episode"]["context"]["intervention"] == shadow["episode"]["context"]["intervention"]
     assert all(entry["effective_mode"] == "off" for entry in off["neural_symbiosis_trace"]["organs"])
+    assert _organ(off["neural_symbiosis_trace"], "N3")["consumer_verdict"] == "disabled"
+    assert _organ(off["neural_symbiosis_trace"], "N5")["consumer_verdict"] == "disabled"
     assert not off["episode"]["context"]["neural_ingestion"]["smg_sign_ids"]
     assert _organ(shadow["neural_symbiosis_trace"], "N5")["candidate"]["chunks"]
     assert off_storage.list_episode_certificates(run_id="run-off", limit=1)[0].metadata[
@@ -233,6 +251,8 @@ def test_each_organ_ablation_changes_downstream_evidence(
     assert entry["candidate"] is None
     assert entry["fallback_reason"] == "organ_disabled_by_profile"
     assert entry["consumer_verdict"]
+    if disabled in {"N3", "N5"}:
+        assert entry["consumer_verdict"] == "disabled"
     if disabled == "N5":
         assert result["episode"]["context"]["neural_ingestion"]["smg_sign_ids"] == []
     elif disabled == "N4":
@@ -241,6 +261,101 @@ def test_each_organ_ablation_changes_downstream_evidence(
     elif disabled == "N2":
         verification = result["episode"]["result"]["neural_comparisons"]["n2_verification"]
         assert verification["status"] == "disabled"
+    storage.close()
+
+
+def test_rejected_n3_admission_does_not_advance_temporal_state_or_emit_receipts(
+    tmp_path: Path,
+) -> None:
+    storage = _storage(tmp_path, "n3-rejected")
+    coordinator = SymbioticNeuralCoordinator(
+        storage=storage,
+        config=NeuralRuntimeConfig(mode=NeuralMode.PROVISIONAL),
+    )
+    n3_adapter = coordinator._adapters["N3"]
+    n3_adapter.admission_gate = lambda candidate, request: AdmissionDecision(
+        False, reason="test_temporal_policy_rejected"
+    )
+    identity = SymbiosisIdentity(
+        trace_group_id="trace-n3-rejected",
+        organism_id="organism-n3-rejected",
+        lineage_id="lineage-n3-rejected",
+        run_id="run-n3-rejected",
+        episode_id="episode-n3-rejected",
+        scenario_id="thermal_homeostasis@1.0",
+        decision_id="decision-n3-rejected",
+    )
+
+    signals = coordinator.begin_episode(
+        identity=identity,
+        observation={"temperature": 0.8},
+        formula="temperature > 0.5",
+        proposition="temperature high",
+        memory_hits=[],
+        scenario_metadata={"main_variable": "temperature"},
+        causal_attestation={
+            "main_variable": "temperature",
+            "factual_delta": -0.2,
+            "counterfactual_delta": 0.1,
+        },
+        resources={"gpu_available": False},
+    )
+
+    entry = coordinator._session(identity.episode_id).entries["N3"]
+    assert signals["n3_temporal"]["status"] == "disabled"
+    assert entry.fallback_reason == "test_temporal_policy_rejected"
+    assert entry.candidate is None
+    assert entry.candidate_hash is None
+    assert entry.consumer_verdict.startswith("not_consumed:fallback:")
+    assert coordinator.export_temporal_state()["entries"] == []
+    assert not any(
+        receipt.organ == "N3"
+        for receipt in coordinator._session(identity.episode_id).trace.consumer_receipts
+    )
+    with pytest.raises(ValueError, match="requires_consumable_candidate"):
+        coordinator.record_consumer_receipt(
+            episode_id=identity.episode_id,
+            organ="N3",
+            consumer_id="next_episode_state",
+            consumer_input={},
+            consumer_output={},
+            verdict_class=ConsumerVerdictClass.OBSERVED,
+            verdict_detail="must_not_be_recorded",
+            evidence_refs=("test",),
+        )
+    storage.close()
+
+
+def test_rejected_n5_admission_cannot_mutate_smg(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("RNFE_NEURAL_MODE", "provisional")
+    storage = _storage(tmp_path, "n5-rejected")
+    runner = ScenarioEpisodeRunner(
+        storage=storage,
+        run_id="run-n5-rejected",
+        scenario="thermal_homeostasis",
+    )
+    runner._neural._adapters["N5"].admission_gate = (
+        lambda candidate, request: AdmissionDecision(
+            False, reason="test_ingestion_policy_rejected"
+        )
+    )
+
+    result = runner.run_episode(external_input=0.04)
+    trace = result["neural_symbiosis_trace"]
+    entry = _organ(trace, "N5")
+    n5_signs = [
+        sign
+        for sign in result["smg_snapshot"]["signs"]
+        if (sign.get("metadata") or {}).get("origin") == "N5"
+    ]
+
+    assert entry["fallback_reason"] == "test_ingestion_policy_rejected"
+    assert entry["candidate"] is None
+    assert entry["candidate_hash"] is None
+    assert entry["consumer_verdict"].startswith("not_consumed:fallback:")
+    assert result["episode"]["context"]["neural_ingestion"]["smg_sign_ids"] == []
+    assert n5_signs == []
+    assert not any(receipt["organ"] == "N5" for receipt in trace["consumer_receipts"])
     storage.close()
 
 

@@ -13,6 +13,7 @@ del submódulo. Ver ``docs/analysis/LEGACY_QUARANTINE.md``.
 
 from .msrc import (
     CrossScaleMemoryGuard,
+    FixedVRAMSampler,
     MSRCController,
     NvidiaVRAMSampler,
     NullVRAMSampler,
@@ -38,6 +39,7 @@ __all__ = [
     "ScaleTransitionManager",
     "CrossScaleMemoryGuard",
     "ScaleAuditLogger",
+    "FixedVRAMSampler",
     "NvidiaVRAMSampler",
     "NullVRAMSampler",
 ]

@@ -20,7 +20,11 @@ class _StorageRecorder:
 
 
 class _InvalidSemanticClient:
+    def __init__(self) -> None:
+        self.last_prompt = ""
+
     def generate(self, *args, **kwargs):
+        self.last_prompt = str(args[0])
         return {
             "ok": True,
             "output_text": '{"avoid":"free prose","prefer":"also prose","lesson":"LessoN"}',
@@ -77,7 +81,15 @@ def test_codex_lesson_enters_as_unproven_teacher_evidence() -> None:
     )
 
     assert lesson["teacher_source"] == "codex_frontier"
+    assert lesson["pedagogical_role"] == "external_teacher_curriculum_candidate"
+    assert lesson["autonomous_teacher"] is False
+    assert lesson["verification_authority"] == "domain_verifiers_and_paired_outcome"
+    assert lesson["curriculum_promotion_authorized"] is False
     assert experience.records[0].verdict == "teacher_evidence"
+    assert experience.records[0].metadata["pedagogical_role"] == (
+        "external_teacher_curriculum_candidate"
+    )
+    assert experience.records[0].metadata["autonomous_teacher"] is False
     assert all(record.action != "teacher_prefer" for record in experience.records)
     assert storage.events[0]["payload"]["teacher_source"] == "codex_frontier"
 
@@ -106,6 +118,11 @@ def test_local_7b_semantic_failure_is_measured_and_bounded() -> None:
     assert lesson["prefer"] == "activate_cooling"
     assert lesson["teacher_raw_semantic_valid"] is False
     assert lesson["teacher_latency_s"] == 6.54
+    assert lesson["pedagogical_role"] == "supervised_student_reflection_proposer"
+    assert lesson["autonomous_teacher"] is False
+    assert lesson["verification_authority"] == "domain_verifiers_and_paired_outcome"
+    assert "not an autonomous teacher" in teacher._client.last_prompt
+    assert "Codex is the external teacher and curriculum source" in teacher._client.last_prompt
     assert set(lesson["teacher_repairs"]) == {
         "avoid_rebound_to_observed_wound",
         "prefer_rebound_to_valid_alternative",

@@ -234,7 +234,23 @@ def build_resource_snapshot(
             snapshot["vram_pressure"] = _clamp01(vram.get("vram_pressure"))
             snapshot["vram_headroom"] = _clamp01(vram.get("vram_headroom"))
             snapshot["gpu_load"] = _clamp01(vram.get("vram_pressure"))
-            snapshot["gpu_opportunity_score"] = _clamp01(vram.get("vram_opportunity_score"))
+            snapshot["vram_fragmentation_risk"] = _clamp01(
+                vram.get("vram_fragmentation_risk")
+            )
+            snapshot["vram_opportunity_score"] = _clamp01(
+                vram.get("vram_opportunity_score")
+            )
+            # Mantener el alias histórico usado por vitals y los nombres
+            # canónicos del sampler/MSRC. La telemetría absoluta también es
+            # necesaria para que N0 pueda presupuestar CUDA sin inventar datos.
+            snapshot["gpu_opportunity_score"] = snapshot["vram_opportunity_score"]
+            for key in ("used_gb", "total_gb", "temperature_c"):
+                snapshot[key] = vram.get(key)
+            snapshot["vram_used_gb"] = snapshot["used_gb"]
+            snapshot["vram_total_gb"] = snapshot["total_gb"]
+            snapshot["gpu_temperature_c"] = snapshot["temperature_c"]
+            snapshot["gpu_source"] = vram.get("source")
+            snapshot["gpu_sample_ts"] = vram.get("sample_ts")
 
     hardware_pressure = max(
         snapshot["cpu_pressure"],

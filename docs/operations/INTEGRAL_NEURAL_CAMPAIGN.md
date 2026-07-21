@@ -3,10 +3,24 @@
 ## Propósito y frontera de autoridad
 
 `scripts/run_integral_neural_campaign.py` califica el conectoma, N0–N6, los cinco
-agentes centrales, las once extensiones, el maestro local 7B y el impacto global.
+agentes centrales, las once extensiones, el alumno local 7B y el impacto global.
 Toda salida es evidencia experimental. La campaña puede preparar un artefacto en
 SHADOW, pero nunca concede promoción operativa, entrenamiento automático ni
 mutación del conectoma.
+
+### Contrato docente
+
+- **Codex es el docente externo y autor de currículo candidato.** Sus lecciones son
+  evidencia con procedencia, no verdad autoritativa ni permiso de entrenamiento.
+- **OpenThinker3-7B es el alumno supervisado y proponente acotado.** No se lo trata
+  como maestro autónomo aunque produzca una lección formalmente válida.
+- **La autoridad epistémica permanece en los verificadores y en el outcome.** DED,
+  LOT-F, NESY, CAU, CTF y C-GWM verifican las afirmaciones que les corresponden; la
+  comparación post-outcome determina si una lección mejoró conducta y resultado.
+  Certificación y política conservan toda autoridad de admisión.
+- Ni Codex ni el 7B pueden promocionar currículo, entrenar, activar un órgano o
+  reemplazar un veredicto. Un ejemplo Codex sólo puede entrar al currículo después
+  de ganar el gate held-out estratificado y de no regresión.
 
 Mamba 2 se trata como alternativa temporal experimental de N3. No es un canal de
 comunicación rápida ni reemplaza la comunicación latente medida y deliberada.
@@ -82,6 +96,72 @@ PYTHONPATH=. /home/wis/Desarrollo/RNE_v16/.venv/bin/python \
   --campaign-id neural-20260715 resume --checkpoint <hash>
 ```
 
+La ablación diagnóstica se ejecuta con un `campaign_id` nuevo. Produce, en orden
+canónico, OFF, `shadow-none` (runtime SHADOW con N1–N6 deshabilitados), cada N1–N6
+aislado, all-on y cada leave-one-out. Todas las variantes usan los mismos estados
+iniciales, semillas y pasos, y escriben resultados pareados en
+`ablation/matrix.json`:
+
+```bash
+PYTHONPATH=. /home/wis/Desarrollo/RNE_v16/.venv/bin/python \
+  scripts/run_integral_neural_campaign.py \
+  --campaign-id neural-ablation-20260717 ablate --life-steps 3 \
+  --seed 811001 --seed 811101 --seed 811201
+```
+
+`ablate` fija explícitamente `RNFE_NEURAL_MODE` y
+`RNFE_NEURAL_DISABLED_ORGANS` para cada lane, ignora perfiles heredados del shell y
+rechaza sobrescribir una matriz existente. El reporte mantiene
+`training_authorized=false`, `staging_authorized=false` y
+`promotion_authorized=false`; no alimenta el comando `stage`.
+
+Los dos contrastes interpretables por órgano se persisten tanto por semilla como en
+promedio:
+
+- `all-on_minus_without`: all-on menos `without-Nx`; mide la contribución marginal
+  de Nx dentro del conjunto completo.
+- `only_minus_shadow_none`: `only-Nx` menos `shadow-none`; mide capacidad aislada
+  por encima del costo y ciclo de vida del runtime SHADOW vacío.
+
+Los deltas `paired_vs_off` se conservan como diagnóstico global, pero OFF y SHADOW
+no atraviesan el mismo runtime y por eso ese delta no atribuye efecto a un órgano.
+`closure_rate` tampoco replica certificación: cuenta pasos cuyo `episode_id` tiene un
+evento durable `episode.closed` en PostgreSQL; `certification_rate` sigue contando
+el estado certificado de los vitales.
+
+La preparación copia N1 configurado sólo si su manifiesto es válido y el hash del
+artefacto coincide. Un candidato N1 recalibrado dentro de la campaña siempre tiene
+precedencia. Cada perfil registra por semilla la procedencia observada de cada
+backend (`model_bound`, `reference` o `disabled`); si N5 no tiene manifiesto, queda
+declarado explícitamente como reference y no como modelo entrenado.
+
+Al iniciar la ablación se realiza una sola lectura real de recursos host/GPU. El
+snapshot y su hash canónico quedan sellados en
+`ablation/resource-snapshot.json`; cada lane y cada paso reutilizan exactamente ese
+valor mediante `LifeKernelConfig.resource_snapshot_override`. Así la carga cambiante
+del propio orden secuencial no contamina los pares. Las campañas normales no reciben
+el override y continúan usando `RNFE_HOST_SENSING` real en cada ciclo.
+
+Un árbol Git sucio no se presenta como el commit base. Antes de ejecutar, `ablate`
+materializa `ablation/worktree.diff` con `git diff --binary --full-index HEAD`,
+registra su SHA-256, el estado dirty y los hashes de archivos no trackeados en
+`worktree-status.json`. Al finalizar vuelve a calcular el snapshot; si el árbol
+cambió durante la matriz, escribe `stable_during_run=false` y falla cerrado.
+
+### Límites de interpretación de la ablación
+
+- Tres semillas son evidencia diagnóstica, no potencia estadística suficiente para
+  promoción ni causalidad general.
+- Las lanes corren en secuencia: el snapshot fijo elimina la variación de recursos
+  que entra a los vitales, pero no elimina warm-up, cachés ni sesgo de orden en la
+  latencia medida.
+- Al reutilizar un snapshot fijo, CPU/RAM/VRAM/temperatura describen la condición
+  sellada de control; no miden el consumo incremental real de cada órgano.
+- SHADOW observa candidatos y consumo de evidencia sin aplicar autoridad. El
+  experimento no mide el efecto de una política neural autorizada sobre acciones.
+- `all-on_minus_without` puede contener interacciones con otros órganos y
+  `only_minus_shadow_none` puede omitirlas; ambos deben leerse juntos.
+
 `report` reconstruye el veredicto desde evidencia ya persistida. `stage` exige una
 nocturna cerrada, checkpoint válido y todos los gates en verde:
 
@@ -147,7 +227,8 @@ los secretos continúan leyéndose solo desde el `.env` raíz.
 4. Tres pares LifeKernel OFF/SHADOW con sensado real, MSRC y checkpoints.
 5. Cinco agentes centrales y once extensiones observados desde el cierre real del
    episodio; toda autoridad debe ser `none` o `evidence_only`.
-6. Maestro 7B post-experiencia y LifeKernel Tier-3 acotado.
+6. Alumno 7B post-experiencia y LifeKernel Tier-3 acotado; Codex conserva el rol
+   de docente externo/curriculum bajo verificación y outcome.
 7. Contingencia SQLite, reconciliación y dump.
 8. Apertura única del holdout sellado, nocturna, A-M0 y veredicto.
 

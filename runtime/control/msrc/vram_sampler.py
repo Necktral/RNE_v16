@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 import time
 from collections import deque
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Deque, Dict, Mapping, Optional
 
 
 class NvidiaVRAMSampler:
@@ -155,3 +155,46 @@ class NullVRAMSampler:
             "vram_opportunity_score": 0.0,
             "sample_ts": time.time(),
         }
+
+
+class FixedVRAMSampler:
+    """Adapta un snapshot unificado sellado al contrato de VRAM de MSRC.
+
+    Las campañas controladas inyectan el mismo
+    ``LifeKernelConfig.resource_snapshot_override`` tanto al runtime neuronal
+    como a MSRC. El sampler conserva una copia inmutable de la proyección GPU:
+    ``sample()`` nunca vuelve a consultar el host ni cambia el timestamp.
+
+    ``available`` del snapshot unificado representa disponibilidad del *host*;
+    por eso la disponibilidad GPU se deriva exclusivamente de
+    ``gpu_available``. Esto evita declarar una GPU inexistente cuando solo hay
+    telemetría CPU/RAM.
+    """
+
+    def __init__(self, snapshot: Mapping[str, Any]):
+        raw = dict(snapshot)
+        self._snapshot: Dict[str, Any] = {
+            "available": bool(raw.get("gpu_available", False)),
+            "source": str(
+                raw.get("gpu_source")
+                or raw.get("vram_source")
+                or raw.get("source")
+                or "resource-snapshot-override"
+            ),
+            "used_gb": raw.get("used_gb", raw.get("vram_used_gb", 0.0)),
+            "total_gb": raw.get("total_gb", raw.get("vram_total_gb", 0.0)),
+            "temperature_c": raw.get(
+                "temperature_c", raw.get("gpu_temperature_c", 0.0)
+            ),
+            "vram_headroom": raw.get("vram_headroom", 0.0),
+            "vram_pressure": raw.get("vram_pressure", 1.0),
+            "vram_fragmentation_risk": raw.get("vram_fragmentation_risk", 1.0),
+            "vram_opportunity_score": raw.get(
+                "vram_opportunity_score",
+                raw.get("gpu_opportunity_score", 0.0),
+            ),
+            "sample_ts": raw.get("gpu_sample_ts", raw.get("sample_ts")),
+        }
+
+    def sample(self) -> Dict[str, Any]:
+        return dict(self._snapshot)

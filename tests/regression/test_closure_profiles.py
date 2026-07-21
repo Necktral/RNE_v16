@@ -11,6 +11,7 @@ from runtime.reality.evaluator import (
     ClosureProfile,
     evaluate_episode_closure,
     validate_sequence_with_profile,
+    _has_episode_closed_event,
     _validate_partial_order,
     _validate_required_families,
     _validate_prob_closes,
@@ -166,6 +167,92 @@ class TestValidateSequenceWithProfile:
 
 class TestEvaluateEpisodeClosureWithProfile:
     """Tests de integración para evaluate_episode_closure con perfiles."""
+
+    def test_episode_closed_lookup_ignores_more_than_500_unrelated_events(
+        self, tmp_path: Path
+    ):
+        """El volumen de instrumentación no puede ocultar ``episode.closed``."""
+        storage = _storage(tmp_path)
+        run_id = "run-closure-after-noise"
+
+        for index in range(501):
+            storage.append_event(
+                event_type="instrumentation.noise",
+                payload={"index": index},
+                run_id=run_id,
+            )
+
+        runner = MinimalCognitiveEpisodeRunner(
+            storage=storage,
+            run_id=run_id,
+            closure_profile="baseline_fixed",
+        )
+        result = runner.run_episode(external_heat=0.05)
+
+        closure = evaluate_episode_closure(
+            storage=storage,
+            run_id=run_id,
+            result=result,
+            closure_profile="baseline_fixed",
+        )
+
+        assert closure["checks"]["episode_closed_event_present"] is True
+        assert closure["trace_integrity"] is True
+        assert closure["closure_passed"] is True
+        storage.close()
+
+    def test_episode_closed_lookup_is_exact_with_more_than_500_closures(
+        self, tmp_path: Path
+    ):
+        """Otros cierres del mismo run no pueden ocultar el episodio buscado."""
+        storage = _storage(tmp_path)
+        run_id = "run-many-closures"
+        runner = MinimalCognitiveEpisodeRunner(
+            storage=storage,
+            run_id=run_id,
+            closure_profile="baseline_fixed",
+        )
+        result = runner.run_episode(external_heat=0.05)
+        target_episode_id = result["episode"]["episode_id"]
+
+        # SQLite lista los cierres mas recientes. El target, escrito primero,
+        # quedaria fuera de cualquier ventana de 500 tras estos eventos.
+        for index in range(501):
+            storage.append_event(
+                event_type="episode.closed",
+                run_id=run_id,
+                payload={
+                    "episode_id": f"other-{index}",
+                    "timestamp": f"2026-07-17T00:00:{index % 60:02d}+00:00",
+                    "closure_profile": "baseline_fixed",
+                    "context": {"observation": {}},
+                    "result": {"updated_world": {}},
+                    "trace": [],
+                },
+            )
+
+        closure = evaluate_episode_closure(
+            storage=storage,
+            run_id=run_id,
+            result=result,
+            closure_profile="baseline_fixed",
+        )
+
+        assert closure["checks"]["episode_closed_event_present"] is True
+        assert closure["trace_integrity"] is True
+        storage.close()
+
+    def test_episode_closed_lookup_fails_closed_on_storage_error(self):
+        class BrokenStorage:
+            def event_exists(self, **_kwargs):
+                raise RuntimeError("ledger unavailable")
+
+        assert (
+            _has_episode_closed_event(
+                BrokenStorage(), run_id="run-broken", episode_id="ep-broken"
+            )
+            is False
+        )
 
     def test_baseline_fixed_episode_passes(self, tmp_path: Path):
         """Episodio con secuencia baseline fija pasa."""

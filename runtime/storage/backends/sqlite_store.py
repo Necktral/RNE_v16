@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from runtime.core.event_log_sqlite import (
     EventLogSQLite,
@@ -383,6 +383,31 @@ class SQLiteStorageBackend(StorageBackend):
                 continue
             events.append(item)
         return events[-limit:]
+
+    def event_exists(
+        self,
+        *,
+        event_type: str,
+        run_id: str | None = None,
+        payload_contains: Mapping[str, Any] | None = None,
+    ) -> bool:
+        """Consulta exacta en el ledger SQLite, sin ``LIMIT`` ni orden implicito."""
+        clauses = [f"{self._ledger._event_column} = ?"]
+        params: list[object] = [event_type]
+        if run_id is not None:
+            clauses.append(
+                "COALESCE(json_extract(payload, '$.run_id'), "
+                "json_extract(payload, '$._run_id')) = ?"
+            )
+            params.append(run_id)
+        for key, value in dict(payload_contains or {}).items():
+            # La ruta viaja como parametro; no interpolamos claves del payload en SQL.
+            json_path = "$." + json.dumps(str(key))
+            clauses.append("json_extract(payload, ?) IS json_extract(?, '$')")
+            params.extend((json_path, json.dumps(value)))
+        query = "SELECT 1 FROM events WHERE " + " AND ".join(clauses) + " LIMIT 1"
+        with self._connect() as conn:
+            return conn.execute(query, params).fetchone() is not None
 
     def write_telemetry_snapshot(
         self, snapshot: TelemetrySnapshotRecord

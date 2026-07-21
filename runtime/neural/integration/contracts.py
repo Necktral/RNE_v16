@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Mapping
 
+from runtime.neural.contracts import NeuralMode
+
 
 SYMBIOSIS_TRACE_SCHEMA_VERSION_V1 = "neural-symbiosis-trace-v1"
 SYMBIOSIS_TRACE_SCHEMA_VERSION = "neural-symbiosis-trace-v2"
@@ -297,6 +299,13 @@ def validate_consumer_receipt(
         raise ValueError("consumer_receipt_identity_mismatch")
     if receipt.organ != organ_trace.organ:
         raise ValueError("consumer_receipt_organ_mismatch")
+    if organ_trace.fallback_reason:
+        raise ValueError("consumer_receipt_fallback_candidate_forbidden")
+    if organ_trace.effective_mode not in {
+        NeuralMode.SHADOW.value,
+        NeuralMode.PROVISIONAL.value,
+    }:
+        raise ValueError("consumer_receipt_effective_mode_not_consumable")
     if not organ_trace.candidate_hash or receipt.candidate_hash != organ_trace.candidate_hash:
         raise ValueError("consumer_receipt_candidate_hash_mismatch")
     ceiling = CONSUMER_AUTHORITY_CEILINGS.get((receipt.organ, receipt.consumer_id))

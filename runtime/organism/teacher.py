@@ -1,13 +1,14 @@
-"""El maestro — la propia IA del organismo (7B) lo hace reflexionar sobre sus golpes.
+"""Reflexión pedagógica supervisada sobre los golpes del organismo.
 
-*"Tiene su propia IA que es su maestra también."* Tras una herida, el 7B reflexiona:
-dada esta situación y esta decisión que dolió, ¿cuál es la lección? Produce una lección
-estructurada (qué evitar / qué preferir). La herida observada se refuerza; la
-preferencia permanece como propuesta hasta que un outcome la contraste. El sesgo E3
-puede evitar el daño previo sin fabricar que la alternativa ya fue exitosa.
+``Teacher`` y ``RNFE_TEACHER`` conservan sus nombres por compatibilidad. El contrato
+vigente distingue los roles: Codex es el docente externo y fuente de currículo
+candidato; el 7B local es el alumno de reflexión supervisada y sólo propone una
+lección estructurada. Verificadores y outcomes pareados determinan su validez y valor.
 
-La reflexión es parte de su vida (se invoca proporcional al daño, off-hot-path). El 7B
-corre en la GPU (RTX 2070 vía llama.cpp). Gated por ``RNFE_TEACHER`` (off ⇒ sin maestro).
+Tras una herida, el 7B propone qué evitar y qué alternativa probar. La herida
+observada se refuerza; la preferencia permanece como hipótesis hasta que un outcome la
+contraste. La reflexión ocurre off-hot-path y el flag legado ``RNFE_TEACHER`` sólo
+habilita este puerto supervisado, nunca un maestro autónomo.
 """
 
 from __future__ import annotations
@@ -25,10 +26,17 @@ from runtime.organism.experience import (
 )
 
 _TRUE = {"1", "true", "yes", "on"}
+PEDAGOGICAL_CONTRACT_VERSION = "rnfe-pedagogical-roles-v1"
+VERIFICATION_AUTHORITY = "domain_verifiers_and_paired_outcome"
+_SOURCE_ROLES = {
+    "codex_frontier": "external_teacher_curriculum_candidate",
+    "local_7b": "supervised_student_reflection_proposer",
+    "human_mentor": "external_human_curriculum_candidate",
+}
 
 
 def teacher_enabled() -> bool:
-    """True si el maestro (7B) reflexiona sobre los golpes del organismo."""
+    """Flag legado: habilita reflexión supervisada del alumno 7B."""
     return os.environ.get("RNFE_TEACHER", "").strip().lower() in _TRUE
 
 
@@ -55,12 +63,12 @@ def _extract_json(text: str) -> Optional[Dict[str, Any]]:
 
 
 class Teacher:
-    """Invoca el 7B para reflexionar sobre una herida y destilar una lección."""
+    """Puerto compatible para currículo externo y reflexión supervisada del 7B."""
 
     def __init__(self, *, storage: StorageFacade, experience: ExperienceStore):
         self.storage = storage
         self.experience = experience
-        self._client = None  # lazy: el 7B es caro de construir
+        self._client = None  # lazy: el alumno 7B es caro de construir
 
     def _get_client(self):
         if self._client is None:
@@ -69,9 +77,8 @@ class Teacher:
             from runtime.reasoning.external_models.config import ExternalReasonerConfig
             from runtime.reasoning.external_models.llama_cpp_client import LlamaCppClient
 
-            # El maestro reflexiona en formato propio {avoid,prefer,lesson}. Se le fija su
-            # PROPIO schema (no el decision-shaped del razonador) para forzar JSON directo
-            # — el 7B es un modelo de razonamiento que si no, "piensa en voz alta" sin cerrar.
+            # El alumno 7B propone {avoid,prefer,lesson} bajo un schema específico.
+            # No usa el schema decision-shaped ni recibe autoridad por producir JSON.
             import os as _os
 
             cfg = ExternalReasonerConfig.from_env()
@@ -95,10 +102,11 @@ class Teacher:
         valid_interventions: List[str],
         max_reflections: int = 1,
     ) -> List[Dict[str, Any]]:
-        """Reflexiona sobre las peores heridas recientes → lecciones grabadas.
+        """Pide al alumno 7B reflexión sobre heridas recientes.
 
         Devuelve las lecciones producidas. Refuerza la herida observada y persiste
-        la alternativa recomendada como propuesta no certificada.
+        la alternativa recomendada como propuesta no certificada. El nombre del
+        método es compatible; no implica docencia autónoma del modelo local.
         """
         if not teacher_enabled():
             return []
@@ -115,7 +123,7 @@ class Teacher:
         ]
         if not wounds:
             return []
-        # Las heridas más profundas primero (∝ daño): el maestro atiende lo que más dolió.
+        # Las heridas más profundas primero: el alumno reflexiona sobre el mayor daño.
         wounds.sort(key=lambda e: float(e.get("severity", 0.0)), reverse=True)
         lessons: List[Dict[str, Any]] = []
         for wound in wounds[: max(1, int(max_reflections))]:
@@ -134,9 +142,9 @@ class Teacher:
     ) -> Dict[str, Any]:
         """Registra una lección externa como hipótesis, nunca como éxito.
 
-        Este es el puerto explícito para que Codex u otro docente produzca el mismo
-        contrato que el 7B. Exige vínculo a una herida observada; la eficacia se
-        decide después mediante ensayos curriculares pareados.
+        Codex es el docente externo y fuente de currículo candidato. El 7B conserva
+        un rol distinto de alumno/proponente. Ambos usan el mismo formato de lección,
+        pero la eficacia la deciden verificadores y ensayos post-outcome pareados.
         """
         required = (
             "organism_id",
@@ -158,6 +166,11 @@ class Teacher:
         candidate = dict(lesson)
         candidate["teacher_source"] = source
         candidate.setdefault("teacher_model", source)
+        candidate["pedagogical_contract_version"] = PEDAGOGICAL_CONTRACT_VERSION
+        candidate["pedagogical_role"] = _SOURCE_ROLES[source]
+        candidate["autonomous_teacher"] = False
+        candidate["verification_authority"] = VERIFICATION_AUTHORITY
+        candidate["curriculum_promotion_authorized"] = False
         candidate["lesson"] = str(candidate["lesson"])[:280]
         candidate["lesson_id"] = hashlib.sha256(
             json.dumps(candidate, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -175,8 +188,10 @@ class Teacher:
         severity = float(wound.get("severity", 0.0))
         alternatives = [iv for iv in valid_interventions if iv != hurt_iv]
         prompt = (
-            "You are the inner teacher of a self-preserving cognitive organism. "
-            "It just got hurt. Reflect briefly and give ONE lesson so it does not repeat the mistake.\n"
+            "You are the local 7B supervised reflection student of a self-preserving "
+            "cognitive organism, not an autonomous teacher. Codex is the external "
+            "teacher and curriculum source. Propose ONE lesson after this wound; "
+            "domain verifiers and paired outcomes will judge it.\n"
             f"Situation: scenario='{scenario}', regime='{regime}'.\n"
             f"It chose intervention '{hurt_iv}' and suffered a wound (severity {severity:.2f}, "
             f"viability_margin {float(wound.get('viability_margin',0)):.2f}, ioc {float(wound.get('ioc',0)):.2f}, "
@@ -229,6 +244,11 @@ class Teacher:
             "source_wound_episode_id": wound.get("episode_id"),
             "teacher_source": "local_7b",
             "teacher_model": "open-thoughts/OpenThinker3-7B",
+            "pedagogical_contract_version": PEDAGOGICAL_CONTRACT_VERSION,
+            "pedagogical_role": _SOURCE_ROLES["local_7b"],
+            "autonomous_teacher": False,
+            "verification_authority": VERIFICATION_AUTHORITY,
+            "curriculum_promotion_authorized": False,
             "teacher_latency_s": res.get("latency_s"),
             "teacher_prompt_tps": res.get("prompt_tps"),
             "teacher_generation_tps": res.get("generation_tps"),
@@ -244,13 +264,13 @@ class Teacher:
     def _persist_lesson(self, lesson: Dict[str, Any]) -> None:
         """Refuerza la herida observada y persiste la preferencia sólo como propuesta.
 
-        La recomendación del 7B no se escribe como éxito certificado: todavía no fue
-        ejecutada ni contrastada contra un outcome.
+        La recomendación del alumno 7B o del docente externo no se escribe como
+        éxito certificado: todavía no fue ejecutada ni contrastada contra outcome.
         """
         situation = lesson["situation_key"]
         scenario = lesson["scenario"]
         regime = lesson["regime"]
-        # La cicatriz enseñada es fuerte (el maestro certifica el golpe): severidad alta.
+        # La cicatriz refleja el golpe observado; ninguna fuente certifica la alternativa.
         avoid_scar = min(1.0, 0.5 + 0.5 * float(lesson.get("from_severity", 0.6)))
         try:
             self.experience.record(ExperienceRecord(
@@ -264,6 +284,15 @@ class Teacher:
                     "lesson_id": lesson.get("lesson_id"),
                     "prefer_proposal": lesson.get("prefer"),
                     "origin": "teacher",
+                    "pedagogical_contract_version": lesson.get(
+                        "pedagogical_contract_version"
+                    ),
+                    "pedagogical_role": lesson.get("pedagogical_role"),
+                    "autonomous_teacher": lesson.get("autonomous_teacher", False),
+                    "verification_authority": lesson.get("verification_authority"),
+                    "curriculum_promotion_authorized": lesson.get(
+                        "curriculum_promotion_authorized", False
+                    ),
                 },
             ))
         except Exception:

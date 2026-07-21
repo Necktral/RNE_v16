@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
 from .records import (
     ArtifactRecord,
@@ -37,6 +37,16 @@ class LedgerStore(Protocol):
         event_types: Sequence[str] | None = None,
         run_id: str | None = None,
     ) -> list[StoredEvent]:
+        ...
+
+    def event_exists(
+        self,
+        *,
+        event_type: str,
+        run_id: str | None = None,
+        payload_contains: Mapping[str, Any] | None = None,
+    ) -> bool:
+        """Return whether an exact ledger event exists, without row limits."""
         ...
 
 

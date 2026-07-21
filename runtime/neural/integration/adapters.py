@@ -261,12 +261,15 @@ class N3Adapter:
             "version": "reference-temporal-v1",
             "summary": summary,
         }
-        self._states[key] = state
         return BackendOutput(
             candidate_output=state,
             confidence=1.0 - state["uncertainty"],
             uncertainty=state["uncertainty"],
-            cost={"state_entries": len(self._states), "ram_mb": 0.1, "vram_mb": 0.0},
+            cost={
+                "state_entries": len(self._states) + (0 if key in self._states else 1),
+                "ram_mb": 0.1,
+                "vram_mb": 0.0,
+            },
         )
 
     def fallback(self, identity: SymbiosisIdentity) -> Mapping[str, Any]:
@@ -312,6 +315,28 @@ class N3Adapter:
                 for key, state in sorted(self._states.items())
             ],
         }
+
+    def commit_reference_state(
+        self,
+        candidate: Mapping[str, Any],
+        identity: SymbiosisIdentity,
+    ) -> None:
+        """Commit the deterministic temporal proposal only after N0 admission.
+
+        ``infer`` deliberately remains a pure proposal builder.  The coordinator
+        calls this hook after the final (reference or trained-model) result is
+        known to be consumable, so a rejected admission or any fallback cannot
+        advance longitudinal state.
+        """
+
+        key = self.state_key(identity)
+        if (
+            list(candidate.get("state_key") or ()) != list(key)
+            or candidate.get("provenance") != identity.episode_id
+            or candidate.get("status") != "ok"
+        ):
+            raise ValueError("n3_reference_state_commit_contract_invalid")
+        self._states[key] = dict(candidate)
 
     def restore_state(self, payload: Mapping[str, Any] | None) -> int:
         data = dict(payload or {})

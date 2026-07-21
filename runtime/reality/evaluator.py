@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Set
 
 from runtime.lotf import LOTFMin
+
+
+logger = logging.getLogger(__name__)
 
 
 # ───────────────────────────  CLOSURE PROFILES  ───────────────────────────────
@@ -82,14 +86,27 @@ REQUIRED_META_SEQUENCE = BASELINE_FIXED_PROFILE.required_sequence
 # ───────────────────────────  VALIDATION HELPERS  ─────────────────────────────
 
 def _has_episode_closed_event(storage, *, run_id: str | None, episode_id: str) -> bool:
-    events = storage.list_events(run_id=run_id, limit=500)
-    for item in events:
-        if item.event_type != "episode.closed":
-            continue
-        payload = item.payload or {}
-        if payload.get("episode_id") == episode_id:
-            return True
-    return False
+    # Una consulta paginada puede omitir el episodio buscado cuando el run supera
+    # el limite, y PostgreSQL/SQLite no comparten el mismo orden de listado. El
+    # backend resuelve la existencia exacta. Ante cualquier fallo de storage,
+    # cerramos de forma conservadora: ausencia no demostrada nunca certifica.
+    try:
+        return bool(
+            storage.event_exists(
+                event_type="episode.closed",
+                run_id=run_id,
+                payload_contains={"episode_id": episode_id},
+            )
+        )
+    except Exception as exc:
+        logger.warning(
+            "No se pudo verificar episode.closed para run_id=%r episode_id=%r; "
+            "el cierre se marca ausente: %r",
+            run_id,
+            episode_id,
+            exc,
+        )
+        return False
 
 
 # Contextos de tipos conocidos por escenario

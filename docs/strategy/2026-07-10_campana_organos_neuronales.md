@@ -79,7 +79,20 @@ codepoint; un límite dentro de un carácter multibyte se rechaza sin redondeo.
 Las trazas N0 usan `neural-events-v1`; si storage falla, un buffer acotado conserva
 eventos y publica `neural.trace.persistence_failed` al recuperarse.
 
-## 5. Coordinación y secuencia
+## 5. Contrato docente
+
+Codex es el docente externo y la fuente de currículo candidato. OpenThinker3-7B
+es el alumno supervisado: genera propuestas y puede aprender únicamente de ejemplos
+Codex que superen evaluación held-out estratificada. Ninguna de las dos fuentes
+tiene autoridad de verdad, certificación, entrenamiento o promoción por identidad.
+
+La autoridad permanece distribuida por contrato: DED, LOT-F, NESY, CAU, CTF y
+C-GWM verifican estructura lógica, neuro-simbólica y causal; el outcome pareado
+determina utilidad realizada; certificación y política deciden admisión. Una
+lección bien formada que no mejora el outcome no entra al currículo. Ausencia de
+medición o empate produce abstención, nunca evidencia favorable.
+
+## 6. Coordinación y secuencia
 
 El orden de integración es N0→N1→N2→N3→N4→N5→N6. Codex mantiene adaptadores y
 ADR en `governance/adr/`; Fable mantiene sustratos y realiza hooks compartidos en

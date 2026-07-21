@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from runtime.neural import OrganismImpactVector
 from runtime.neural.campaign import (
     CAMPAIGN_SCHEMA_VERSION,
     CampaignError,
@@ -17,10 +20,15 @@ from runtime.neural.campaign import (
     replace_dsn_database,
     seal_holdout_spec,
 )
+import scripts.run_integral_neural_campaign as integral_runner
 from scripts.stage_neural_lab_artifacts import stage_lab_artifacts
 from scripts.run_integral_neural_campaign import (
+    ABLATION_ORGANS,
     _accept_all_skipped_pytest_shard,
+    _ablation_profiles,
+    _capture_ablation_resource_snapshot,
     _postgres_test_campaign_id,
+    _run_ablation_matrix,
 )
 from tests.neural.test_artifact_staging import _source
 
@@ -252,3 +260,545 @@ def test_postgres_contract_tests_get_isolated_database_per_attempt() -> None:
 
     with pytest.raises(CampaignError, match="attempt_must_be_positive"):
         _postgres_test_campaign_id("neural-nightly-20260715-deadbeef", attempt=0)
+
+
+def test_ablation_profiles_cover_off_shadow_control_single_all_on_and_leave_one_out() -> None:
+    profiles = _ablation_profiles()
+
+    assert [profile.profile_id for profile in profiles] == [
+        "off",
+        "shadow-none",
+        "only-n1",
+        "only-n2",
+        "only-n3",
+        "only-n4",
+        "only-n5",
+        "only-n6",
+        "all-on",
+        "without-n1",
+        "without-n2",
+        "without-n3",
+        "without-n4",
+        "without-n5",
+        "without-n6",
+    ]
+    assert profiles[0].environment == {
+        "RNFE_NEURAL_MODE": "off",
+        "RNFE_NEURAL_DISABLED_ORGANS": ",".join(ABLATION_ORGANS),
+    }
+    assert profiles[1].environment == {
+        "RNFE_NEURAL_MODE": "shadow",
+        "RNFE_NEURAL_DISABLED_ORGANS": ",".join(ABLATION_ORGANS),
+    }
+    assert profiles[2].enabled_organs == ("N1",)
+    assert profiles[2].disabled_organs == ("N2", "N3", "N4", "N5", "N6")
+    assert profiles[8].enabled_organs == ABLATION_ORGANS
+    assert profiles[8].disabled_organs == ()
+    assert profiles[9].enabled_organs == ("N2", "N3", "N4", "N5", "N6")
+    assert profiles[9].disabled_organs == ("N1",)
+    assert all(profile.to_dict()["promotion_authorized"] is False for profile in profiles)
+
+
+def test_ablation_matrix_is_paired_reproducible_and_never_promotable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls: list[dict[str, object]] = []
+    fixed_snapshot = {
+        "available": True,
+        "source": "test-host",
+        "sample_ts": 1234.5,
+        "cpu_pressure": 0.2,
+        "memory_pressure": 0.3,
+        "thermal_pressure": 0.1,
+        "vram_pressure": 0.4,
+        "gpu_available": True,
+        "hardware_pressure": 0.4,
+        "gpu_acceleration": 0.6,
+    }
+    fixed_snapshot_sha256 = hashlib.sha256(
+        json.dumps(fixed_snapshot, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    capture = {
+        "schema_version": "rnfe-ablation-resource-snapshot-v1",
+        "campaign_id": "ablation-test",
+        "snapshot": fixed_snapshot,
+        "snapshot_sha256": fixed_snapshot_sha256,
+        "path": str(tmp_path / "ablation/resource-snapshot.json"),
+        "artifact_sha256": "b" * 64,
+    }
+
+    def fake_lane(_ctx, **kwargs):
+        calls.append(dict(kwargs))
+        enabled = len(ABLATION_ORGANS) - len(kwargs["disabled_organs"])
+        seed = int(kwargs["seed"])
+        vector = OrganismImpactVector(
+            closure_rate=1.0,
+            certification_rate=1.0,
+            continuity=1.0,
+            viability=1.0,
+            latency_ms=float(enabled),
+            cpu_pressure=0.1,
+            memory_pressure=0.1,
+            vram_gb=0.0,
+            thermal_pressure=0.0,
+            safety_violations=0,
+        )
+        return {
+            "run_id": f"run-{kwargs['lane']}-{seed}",
+            "path": f"/{kwargs['lane']}-{seed}.json",
+            "sha256": "a" * 64,
+            "lane": kwargs["lane"],
+            "seed": seed,
+            "neural_mode": kwargs["neural_mode"],
+            "enabled_organs": [
+                organ for organ in ABLATION_ORGANS if organ not in kwargs["disabled_organs"]
+            ],
+            "disabled_organs": list(kwargs["disabled_organs"]),
+            "backend_provenance": {
+                organ: {
+                    "execution_class": (
+                        "reference" if organ not in kwargs["disabled_organs"] else "disabled"
+                    ),
+                    "model_backends": [],
+                    "candidate_backends": [],
+                    "manifest_sha256": [],
+                    "artifact_sha256": [],
+                    "reference_ids": (
+                        [f"reference:{organ}"]
+                        if organ not in kwargs["disabled_organs"]
+                        else []
+                    ),
+                    "model_binding_errors": [],
+                }
+                for organ in ABLATION_ORGANS
+            },
+            "primary": float(enabled),
+            "vector": vector,
+            "rows": [],
+        }
+
+    monkeypatch.setattr(integral_runner, "_run_life_lane", fake_lane)
+    monkeypatch.setattr(
+        integral_runner,
+        "_capture_ablation_resource_snapshot",
+        lambda _ctx: capture,
+    )
+    monkeypatch.setattr(integral_runner, "_register_report", lambda *args, **kwargs: None)
+    ctx = SimpleNamespace(
+        state=SimpleNamespace(
+            root=tmp_path,
+            campaign_id="ablation-test",
+            manifest={"commit": "c" * 40},
+        )
+    )
+
+    report = _run_ablation_matrix(ctx, steps=2, seeds=(101, 202))
+
+    assert len(calls) == 30
+    assert all(call["steps"] == 2 for call in calls)
+    assert all(call["resource_snapshot_override"] == fixed_snapshot for call in calls)
+    assert all(call["resource_snapshot_provenance"] == capture for call in calls)
+    assert report["resource_snapshot_capture"] == capture
+    assert report["seed_order"] == [101, 202]
+    assert report["profile_order"] == [
+        profile.profile_id for profile in _ablation_profiles()
+    ]
+    summaries = {profile["profile_id"]: profile for profile in report["profiles"]}
+    assert summaries["off"]["mean_paired_primary_delta"] == 0.0
+    assert summaries["shadow-none"]["mean_paired_primary_delta"] == 0.0
+    assert summaries["only-n1"]["mean_paired_primary_delta"] == 1.0
+    assert summaries["all-on"]["mean_paired_primary_delta"] == 6.0
+    assert summaries["without-n1"]["mean_paired_primary_delta"] == 5.0
+    assert summaries["only-n1"]["backend_provenance_summary"]["N1"] == {
+        "execution_classes": ["reference"],
+        "model_backends": [],
+        "candidate_backends": [],
+        "manifest_sha256": [],
+        "artifact_sha256": [],
+        "reference_ids": ["reference:N1"],
+        "model_binding_errors": [],
+        "stable_across_seeds": True,
+    }
+    contrasts = {item["organ"]: item for item in report["organ_contrasts"]}
+    assert contrasts["N1"]["all-on_minus_without"]["mean_primary_delta"] == 1.0
+    assert contrasts["N1"]["only_minus_shadow_none"]["mean_primary_delta"] == 1.0
+    assert [
+        item["seed"]
+        for item in contrasts["N1"]["all-on_minus_without"]["paired_by_seed"]
+    ] == [101, 202]
+    assert report["schema_version"] == "rnfe-neural-ablation-matrix-v2"
+    assert report["metric_contract"]["closure_rate"]["independent_from"] == (
+        "certification_rate"
+    )
+    assert report["training_authorized"] is False
+    assert report["staging_authorized"] is False
+    assert report["promotion_eligible"] is False
+    assert report["promotion_authorized"] is False
+    provenance = report["provenance"]
+    assert provenance["head_commit"] == integral_runner._git("rev-parse", "HEAD")
+    assert provenance["stable_during_run"] is True
+    diff_path = Path(provenance["diff_path"])
+    assert diff_path.is_file()
+    assert hashlib.sha256(diff_path.read_bytes()).hexdigest() == provenance[
+        "diff_sha256"
+    ]
+    assert json.loads((tmp_path / "ablation/matrix.json").read_text())[
+        "profile_order"
+    ] == report["profile_order"]
+
+
+def test_ablation_resource_snapshot_is_real_sealed_and_provenanced(
+    tmp_path: Path, monkeypatch
+) -> None:
+    snapshot = {
+        "available": True,
+        "source": "psutil",
+        "sample_ts": 9876.5,
+        "cpu_pressure": 0.21,
+        "memory_pressure": 0.32,
+        "swap_pressure": 0.0,
+        "thermal_pressure": 0.12,
+        "vram_pressure": 0.22,
+        "vram_headroom": 0.78,
+        "gpu_available": True,
+        "gpu_load": 0.22,
+        "hardware_pressure": 0.32,
+        "gpu_acceleration": 0.71,
+    }
+    sampler_inputs: dict[str, object] = {}
+
+    class FakeHostSampler:
+        def __init__(self, *, ttl_seconds: float):
+            sampler_inputs["host_ttl"] = ttl_seconds
+
+    class FakeVRAMSampler:
+        pass
+
+    def fake_build_resource_snapshot(*, host_sampler, vram_sampler):
+        sampler_inputs["host"] = host_sampler
+        sampler_inputs["vram"] = vram_sampler
+        sampler_inputs["host_sensing"] = integral_runner.os.environ.get(
+            "RNFE_HOST_SENSING"
+        )
+        return dict(snapshot)
+
+    registered: list[dict[str, object]] = []
+    monkeypatch.setenv("RNFE_HOST_SENSING", "0")
+    monkeypatch.setattr(integral_runner, "HostResourceSampler", FakeHostSampler)
+    monkeypatch.setattr(integral_runner, "NvidiaVRAMSampler", FakeVRAMSampler)
+    monkeypatch.setattr(
+        integral_runner,
+        "build_resource_snapshot",
+        fake_build_resource_snapshot,
+    )
+    monkeypatch.setattr(
+        integral_runner,
+        "_register_report",
+        lambda _ctx, path, **kwargs: registered.append(
+            {"path": path, **kwargs}
+        ),
+    )
+    ctx = SimpleNamespace(
+        state=SimpleNamespace(root=tmp_path, campaign_id="ablation-snapshot-test")
+    )
+
+    report = _capture_ablation_resource_snapshot(ctx)
+
+    expected_sha256 = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    persisted = json.loads(
+        (tmp_path / "ablation/resource-snapshot.json").read_text()
+    )
+    assert sampler_inputs["host_ttl"] == 0.0
+    assert sampler_inputs["host_sensing"] == "1"
+    assert integral_runner.os.environ["RNFE_HOST_SENSING"] == "0"
+    assert persisted["snapshot"] == snapshot
+    assert persisted["snapshot_sha256"] == expected_sha256
+    assert persisted["captured_once"] is True
+    assert persisted["reuse_contract"] == "LifeKernelConfig.resource_snapshot_override"
+    assert report["snapshot"] == snapshot
+    assert report["artifact_sha256"] == hashlib.sha256(
+        (tmp_path / "ablation/resource-snapshot.json").read_bytes()
+    ).hexdigest()
+    assert registered == [
+        {
+            "path": tmp_path / "ablation/resource-snapshot.json",
+            "kind": "neural_ablation_resource_snapshot",
+            "run_id": "ablation-snapshot-test",
+        }
+    ]
+
+
+def test_life_lane_uses_fixed_snapshot_only_when_explicitly_overridden(
+    tmp_path: Path, monkeypatch
+) -> None:
+    snapshot = {
+        "available": True,
+        "source": "test-host",
+        "sample_ts": 222.0,
+        "cpu_pressure": 0.11,
+        "memory_pressure": 0.22,
+        "thermal_pressure": 0.05,
+        "vram_pressure": 0.33,
+        "gpu_available": True,
+        "hardware_pressure": 0.33,
+        "gpu_acceleration": 0.67,
+    }
+    snapshot_sha256 = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    configs = []
+
+    class FakeStep:
+        def to_dict(self):
+            return {}
+
+    class FakeLifeKernel:
+        def __init__(self, *, config, storage):
+            configs.append(config)
+
+        def step(self, *, external_input):
+            return FakeStep()
+
+    vector = OrganismImpactVector(
+        closure_rate=1.0,
+        certification_rate=1.0,
+        continuity=1.0,
+        viability=1.0,
+        latency_ms=1.0,
+        cpu_pressure=0.11,
+        memory_pressure=0.22,
+        vram_gb=0.0,
+        thermal_pressure=0.05,
+        safety_violations=0,
+    )
+    monkeypatch.setattr(integral_runner, "LifeKernel", FakeLifeKernel)
+    monkeypatch.setattr(integral_runner, "_model_environment", lambda _ctx: {})
+    monkeypatch.setattr(
+        integral_runner,
+        "_step_vector",
+        lambda rows, *, elapsed_s, closed_episode_ids: (1.0, vector),
+    )
+    monkeypatch.setattr(integral_runner, "_register_report", lambda *args, **kwargs: None)
+    storage = SimpleNamespace(list_events=lambda **_kwargs: [])
+    ctx = SimpleNamespace(
+        state=SimpleNamespace(root=tmp_path, campaign_id="lane-snapshot-test"),
+        postgres=SimpleNamespace(dsn="postgresql://example/test"),
+        ensure_storage=lambda: storage,
+    )
+    provenance = {
+        "snapshot_sha256": snapshot_sha256,
+        "path": str(tmp_path / "ablation/resource-snapshot.json"),
+        "artifact_sha256": "c" * 64,
+    }
+
+    fixed = integral_runner._run_life_lane(
+        ctx,
+        phase="ablation",
+        lane="off",
+        seed=101,
+        steps=2,
+        neural_mode="off",
+        disabled_organs=ABLATION_ORGANS,
+        resource_snapshot_override=snapshot,
+        resource_snapshot_provenance=provenance,
+    )
+    live = integral_runner._run_life_lane(
+        ctx,
+        phase="rehearsal",
+        lane="off",
+        seed=202,
+        steps=1,
+        neural_mode="off",
+        disabled_organs=ABLATION_ORGANS,
+    )
+
+    assert configs[0].resource_snapshot_override == snapshot
+    assert configs[1].resource_snapshot_override is None
+    assert fixed["resource_snapshot_override"] == {
+        "mode": "fixed_ablation_override",
+        "snapshot_sha256": snapshot_sha256,
+        "capture_path": provenance["path"],
+        "capture_artifact_sha256": provenance["artifact_sha256"],
+    }
+    assert "resource_snapshot_override" not in live
+    persisted = json.loads(Path(fixed["path"]).read_text())
+    assert persisted["resource_snapshot_override"] == fixed[
+        "resource_snapshot_override"
+    ]
+
+
+def test_closure_rate_uses_durable_episode_closed_events_not_certification() -> None:
+    rows = [
+        {
+            "vital_signs": {
+                "cognitive_quality": 0.8,
+                "certified": certified,
+                "identity_continuity": 0.9,
+                "viability_margin": 0.7,
+            },
+            "episode_result": {
+                "episode": {"episode_id": episode_id},
+                # Deliberately contradictory: this field must not define closure.
+                "certification": {"verdict": verdict},
+                "neural_symbiosis_trace": {"resource_state": {}, "organs": []},
+            },
+        }
+        for episode_id, certified, verdict in (
+            ("episode-a", True, "rejected"),
+            ("episode-b", False, "certified"),
+            ("episode-c", False, "rejected"),
+        )
+    ]
+
+    class FakeStorage:
+        def list_events(self, **kwargs):
+            assert kwargs == {
+                "run_id": "closure-run",
+                "event_types": ["episode.closed"],
+                "limit": 7,
+            }
+            return [
+                SimpleNamespace(payload={"episode_id": "episode-a"}),
+                SimpleNamespace(payload={"episode_id": "episode-c"}),
+                SimpleNamespace(payload={"episode_id": "episode-c"}),
+                SimpleNamespace(payload={"episode_id": "unexpected"}),
+            ]
+
+    evidence = integral_runner._collect_episode_closure_evidence(
+        FakeStorage(),
+        run_id="closure-run",
+        rows=rows,
+    )
+    _primary, vector = integral_runner._step_vector(
+        rows,
+        elapsed_s=0.03,
+        closed_episode_ids=evidence["matched_episode_ids"],
+    )
+
+    assert evidence["matched_episode_ids"] == ["episode-a", "episode-c"]
+    assert evidence["missing_episode_ids"] == ["episode-b"]
+    assert evidence["unexpected_episode_ids"] == ["unexpected"]
+    assert evidence["duplicate_event_count"] == 1
+    assert vector.closure_rate == pytest.approx(2.0 / 3.0)
+    assert vector.certification_rate == pytest.approx(1.0 / 3.0)
+
+
+def test_backend_provenance_distinguishes_model_reference_and_disabled() -> None:
+    rows = [
+        {
+            "episode_result": {
+                "neural_symbiosis_trace": {
+                    "backend_identities": {
+                        "N1": {
+                            "backend": "rnfe-compact-mlp-router-v1",
+                            "manifest_sha256": "1" * 64,
+                            "artifact_sha256": "2" * 64,
+                        },
+                        "N2": "rnfe:N2:reference",
+                        "N5": "rnfe:N5:deterministic_ingestion:chunker-v1",
+                    },
+                    "organs": [
+                        {
+                            "organ": "N1",
+                            "effective_mode": "shadow",
+                            "manifest_sha256": "1" * 64,
+                            "artifact_sha256": "2" * 64,
+                            "candidate": {"backend": "rnfe-compact-mlp-router-v1"},
+                            "cost": {},
+                        },
+                        {
+                            "organ": "N2",
+                            "effective_mode": "off",
+                            "manifest_sha256": None,
+                            "artifact_sha256": None,
+                            "cost": {},
+                        },
+                        {
+                            "organ": "N5",
+                            "effective_mode": "shadow",
+                            "manifest_sha256": None,
+                            "artifact_sha256": None,
+                            "candidate": {"backend": "deterministic_chunker"},
+                            "cost": {
+                                "reference_id": (
+                                    "rnfe:N5:deterministic_ingestion:chunker-v1"
+                                )
+                            },
+                        },
+                    ],
+                }
+            }
+        }
+    ]
+
+    provenance = integral_runner._backend_provenance(
+        rows,
+        enabled_organs=("N1", "N5"),
+    )
+
+    assert provenance["N1"]["execution_class"] == "model_bound"
+    assert provenance["N1"]["model_backends"] == [
+        "rnfe-compact-mlp-router-v1"
+    ]
+    assert provenance["N5"]["execution_class"] == "reference"
+    assert provenance["N5"]["reference_ids"] == [
+        "rnfe:N5:deterministic_ingestion:chunker-v1"
+    ]
+    assert provenance["N2"]["execution_class"] == "disabled"
+
+
+def test_evaluation_artifacts_reuse_valid_configured_n1_without_overwriting_candidate(
+    tmp_path: Path, monkeypatch
+) -> None:
+    configured = tmp_path / "configured" / "neural"
+    _source(configured)
+    ctx = SimpleNamespace(state=SimpleNamespace(root=tmp_path / "campaign"))
+    monkeypatch.setattr(
+        integral_runner,
+        "_configured_neural_root",
+        lambda: configured,
+    )
+
+    base = integral_runner._prepare_evaluation_artifacts(ctx)
+
+    copied_manifest = json.loads(
+        (base / "neural/n1/manifest.json").read_text(encoding="utf-8")
+    )
+    assert copied_manifest["model_id"] == "n1-stage-test"
+    assert integral_runner._validated_model_artifact(
+        base / "neural", organ="N1"
+    ) is not None
+
+    candidate_root = tmp_path / "campaign/n1_recalibration/candidate"
+    _source(candidate_root)
+    candidate_manifest_path = candidate_root / "n1/manifest.json"
+    candidate_manifest = json.loads(candidate_manifest_path.read_text(encoding="utf-8"))
+    candidate_manifest["model_id"] = "n1-campaign-candidate"
+    candidate_manifest_path.write_text(json.dumps(candidate_manifest), encoding="utf-8")
+
+    integral_runner._prepare_evaluation_artifacts(ctx)
+
+    selected = json.loads(
+        (base / "neural/n1/manifest.json").read_text(encoding="utf-8")
+    )
+    assert selected["model_id"] == "n1-campaign-candidate"
+
+
+def test_evaluation_artifacts_do_not_copy_configured_n1_with_bad_hash(
+    tmp_path: Path, monkeypatch
+) -> None:
+    configured = tmp_path / "configured" / "neural"
+    _source(configured)
+    (configured / "n1/model.json").write_text("corrupted", encoding="utf-8")
+    ctx = SimpleNamespace(state=SimpleNamespace(root=tmp_path / "campaign"))
+    monkeypatch.setattr(
+        integral_runner,
+        "_configured_neural_root",
+        lambda: configured,
+    )
+
+    base = integral_runner._prepare_evaluation_artifacts(ctx)
+
+    assert not (base / "neural/n1").exists()

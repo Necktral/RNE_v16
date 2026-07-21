@@ -436,8 +436,8 @@ def test_modes_hash_resources_and_trace_failure_preserve_authority(tmp_path: Pat
     assert provisional.effective_output == {"authority": "CAU"}
     assert provisional.candidate_output["relations"]
     assert provisional.decision_influence is DecisionInfluence.NONE
-    assert provisional.fallback_used is True
-    assert provisional.fallback_reason == "admission_authority_ceiling:shadow"
+    assert provisional.fallback_used is False
+    assert provisional.fallback_reason is None
 
     bad_hash_runtime, _, bad_manifest = _runtime(
         tmp_path / "bad-hash", NeuralMode.SHADOW, digest_override="0" * 64
@@ -471,7 +471,8 @@ def test_modes_hash_resources_and_trace_failure_preserve_authority(tmp_path: Pat
     assert traced.effective_output == {"authority": "CAU"}
     assert traced.effective_mode is NeuralMode.SHADOW
     assert traced.decision_influence is DecisionInfluence.NONE
-    assert traced.fallback_reason == "admission_authority_ceiling:shadow"
+    assert traced.fallback_used is False
+    assert traced.fallback_reason is None
     assert traced_runtime.trace_health.degraded is True
     assert traced_runtime.trace_health.persistence_failures == 4
     assert traced_runtime.trace_health.pending_events == 4

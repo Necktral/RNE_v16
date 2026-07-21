@@ -107,7 +107,7 @@ def _request(identity: SymbiosisIdentity, organ: str, capability: str) -> Neural
     )
 
 
-def test_n4_live_path_executes_canonical_admission_and_preserves_rejected_candidate(
+def test_n4_live_path_executes_canonical_admission_and_blocks_rejected_candidate(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("RNFE_NEURAL_MODE", "shadow")
@@ -140,10 +140,11 @@ def test_n4_live_path_executes_canonical_admission_and_preserves_rejected_candid
     )
     n4 = coordinator._session(identity.episode_id).entries["N4"]
     assert admission_calls == ["N4"]
-    assert n4.candidate["causal_effect"]["signed_effect"] == 0.0
-    assert n4.candidate["causal_effect"]["episodic_edge_id"] is None
-    assert n4.candidate["relations"] == []
+    assert n4.candidate is None
+    assert n4.candidate_hash is None
     assert n4.fallback_reason == "n4_insufficient_evidence_fallback"
+    assert n4.consumer_verdict.startswith("not_consumed:fallback:")
+    assert not coordinator.organ_has_candidate(identity.episode_id, "N4")
     assert n4.effective_mode == "shadow"
     assert coordinator._session(identity.episode_id).trace.measurement_status[
         "cpu_pressure"
@@ -231,6 +232,7 @@ def test_n3_absence_does_not_become_zero_or_increment_measurements() -> None:
     assert measured["value"] == 0.0
     assert measured["measurement_status"] == "measured"
     assert measured["measurement_count"] == 1
+    adapter.commit_reference_state(measured, identity)
 
     absent_identity = _identity("n3-absent")
     absent = adapter.infer(

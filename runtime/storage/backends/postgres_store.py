@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
 import psycopg
@@ -157,6 +157,32 @@ class PostgresStorageBackend(StorageBackend):
             )
             for row in rows
         ]
+
+    def event_exists(
+        self,
+        *,
+        event_type: str,
+        run_id: str | None = None,
+        payload_contains: Mapping[str, Any] | None = None,
+    ) -> bool:
+        """Consulta exacta de existencia; no depende del orden ni de paginacion."""
+        clauses = ["event_type = %s"]
+        params: list[Any] = [event_type]
+        if run_id is not None:
+            clauses.append("run_id = %s")
+            params.append(run_id)
+        if payload_contains:
+            clauses.append("payload_jsonb @> %s")
+            params.append(Jsonb(dict(payload_contains)))
+        query = (
+            "SELECT EXISTS (SELECT 1 FROM ledger_events WHERE "
+            + " AND ".join(clauses)
+            + ") AS event_exists"
+        )
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            row = cur.fetchone()
+        return bool(row and row["event_exists"])
 
     def write_telemetry_snapshot(
         self, snapshot: TelemetrySnapshotRecord

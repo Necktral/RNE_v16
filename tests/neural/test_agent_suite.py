@@ -224,7 +224,9 @@ def test_coordinator_exposes_agent_cycle_in_certification(tmp_path: Path, monkey
     storage.close()
 
 
-def test_n4_trace_is_bound_to_committed_intervention(tmp_path: Path, monkeypatch) -> None:
+def test_rejected_n4_trace_is_not_bound_to_committed_intervention(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("RNFE_NEURAL_MODE", "shadow")
     storage = _storage(tmp_path, "n4-committed")
     result = ScenarioEpisodeRunner(
@@ -238,14 +240,20 @@ def test_n4_trace_is_bound_to_committed_intervention(tmp_path: Path, monkeypatch
         entry for entry in result["neural_symbiosis_trace"]["organs"]
         if entry["organ"] == "N4"
     )
-    comparison = n4["candidate"]["canonical_comparison"]
-    receipt = next(
-        entry for entry in result["neural_symbiosis_trace"]["consumer_receipts"]
-        if entry["organ"] == "N4" and entry["consumer_id"] == "canonical_causal_comparator"
-    )
+    comparison = result["episode"]["result"]["neural_comparisons"]["n4_comparison"]
+    receipts = [
+        entry
+        for entry in result["neural_symbiosis_trace"]["consumer_receipts"]
+        if entry["organ"] == "N4"
+    ]
+    assert n4["fallback_reason"] == "n4_insufficient_evidence_fallback"
+    assert n4["candidate"] is None
+    assert n4["candidate_hash"] is None
+    assert n4["consumer_verdict"].startswith("not_consumed:fallback:")
+    assert receipts == []
+    assert comparison["verdict"] == "disabled_or_no_candidate"
     assert comparison["temporal_binding"] == "committed_action"
     assert comparison["committed_intervention"] == committed
-    assert "committed_action" in receipt["evidence_refs"]
     extensions = result["neural_symbiosis"]["neural_agent_extensions"]
     assert extensions["schema_version"] == "rnfe-neural-agent-extensions-v1"
     extension_by_role = {item["role"]: item for item in extensions["reports"]}

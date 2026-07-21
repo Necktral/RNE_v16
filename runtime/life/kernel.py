@@ -1085,10 +1085,20 @@ class LifeKernel:
             self._scale_state = ScalePolicyState(current_scale_id="1x1")
         if self._msrc_controller is None:
             # Con sensado activo y GPU real disponible, MSRC recibe la VRAM real;
-            # de lo contrario mantiene el NullVRAMSampler (byte-idéntico).
-            vram_sampler = NullVRAMSampler()
-            if self._vram_sampler is not None and self._resource_snapshot.get("gpu_available"):
+            # de lo contrario mantiene el NullVRAMSampler (byte-idéntico). Una
+            # campaña con override usa SIEMPRE la proyección fija del mismo
+            # snapshot que vio N0, aun si esa captura dice que no hay GPU.
+            if self.config.resource_snapshot_override is not None:
+                from runtime.control.msrc.vram_sampler import FixedVRAMSampler
+
+                vram_sampler = FixedVRAMSampler(self._resource_snapshot)
+            elif (
+                self._vram_sampler is not None
+                and self._resource_snapshot.get("gpu_available")
+            ):
                 vram_sampler = self._vram_sampler
+            else:
+                vram_sampler = NullVRAMSampler()
             self._msrc_controller = MSRCController(
                 storage=self.storage,
                 vram_sampler=vram_sampler,
@@ -1155,6 +1165,11 @@ class LifeKernel:
             "selected_scale_id": out["selected_scale_id"],
             "action": out["action"].to_dict(),
             "estimate": out["estimate"].to_dict(),
+            **(
+                {"vram_snapshot": dict(out["vram_snapshot"])}
+                if self.config.resource_snapshot_override is not None
+                else {}
+            ),
             "state": self._scale_state.to_dict(),
             "transition": transition.to_dict(),
             "atomic": (

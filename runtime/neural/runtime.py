@@ -187,11 +187,15 @@ class NeuralRuntime:
 
         effective_output = fallback_output
         influence = DecisionInfluence.NONE
-        fallback_used = True
+        # Reaching this point means the backend produced a usable candidate.  A
+        # SHADOW candidate deliberately preserves the authoritative output, but
+        # that is an observation policy, not a backend fallback.
+        fallback_used = False
         fallback_reason: str | None = None
         if effective_mode is NeuralMode.PROVISIONAL:
             if admission_gate is None:
                 effective_mode = NeuralMode.SHADOW
+                fallback_used = True
                 fallback_reason = "missing_admission_gate"
             else:
                 try:
@@ -199,20 +203,23 @@ class NeuralRuntime:
                 except Exception as exc:
                     decision = None
                     effective_mode = NeuralMode.SHADOW
+                    fallback_used = True
                     fallback_reason = f"admission_gate_failed:{_exception_reason(exc)}"
                 if decision is not None and not isinstance(decision, AdmissionDecision):
                     effective_mode = NeuralMode.SHADOW
+                    fallback_used = True
                     fallback_reason = "admission_contract_invalid"
                 elif decision is not None and decision.accepted:
                     ceiling = decision.effective_mode_ceiling
                     if ceiling is NeuralMode.SHADOW:
                         effective_mode = NeuralMode.SHADOW
-                        fallback_reason = "admission_authority_ceiling:shadow"
                     elif ceiling is not None and not isinstance(ceiling, NeuralMode):
                         effective_mode = NeuralMode.SHADOW
+                        fallback_used = True
                         fallback_reason = "admission_authority_ceiling_invalid:type"
                     elif ceiling not in {None, NeuralMode.PROVISIONAL}:
                         effective_mode = NeuralMode.SHADOW
+                        fallback_used = True
                         fallback_reason = f"admission_authority_ceiling_invalid:{ceiling.value}"
                     else:
                         effective_output = (
@@ -221,16 +228,11 @@ class NeuralRuntime:
                             else output.candidate_output
                         )
                         influence = DecisionInfluence.BOUNDED_PROPOSAL
-                        fallback_used = False
                 elif decision is not None:
+                    fallback_used = True
                     fallback_reason = decision.reason or "admission_rejected"
-        elif effective_mode is NeuralMode.SHADOW:
-            fallback_reason = (
-                "causal_context_unlinked"
-                if requested_mode is NeuralMode.PROVISIONAL
-                else "shadow_preserves_authoritative_output"
-            )
-        else:
+        elif effective_mode is NeuralMode.EXPERIMENTAL:
+            fallback_used = True
             fallback_reason = "experimental_candidate_only"
 
         result = NeuralInferenceResult(
@@ -265,6 +267,7 @@ class NeuralRuntime:
                     "candidate_present": result.candidate_output is not None,
                     "authoritative_output_preserved": result.decision_influence
                     is DecisionInfluence.NONE,
+                    "observation_status": "observed_shadow",
                     "fallback_reason": result.fallback_reason,
                 },
                 run_id=result.run_id,
@@ -443,8 +446,8 @@ class NeuralRuntime:
         if admission is not None and admission.accepted and effective_mode is NeuralMode.PROVISIONAL:
             effective_output = admitted_output
             influence = DecisionInfluence.BOUNDED_PROPOSAL
-        elif effective_mode is NeuralMode.SHADOW and fallback_reason is None:
-            fallback_reason = "reference_authority_ceiling:shadow"
+        # A successful SHADOW reference execution is observed evidence.  It is
+        # not a fallback merely because its candidate cannot replace authority.
 
         result = NeuralInferenceResult(
             inference_id=request.inference_id,

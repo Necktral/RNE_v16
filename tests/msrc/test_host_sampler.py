@@ -7,6 +7,7 @@ from runtime.control.msrc.host_sampler import (
     build_resource_snapshot,
     host_sensing_enabled,
 )
+from runtime.control.msrc.vram_sampler import FixedVRAMSampler
 
 
 def test_host_sensing_disabled_by_default(monkeypatch):
@@ -42,11 +43,28 @@ def test_ttl_cache_returns_same_snapshot():
 
 
 class _FakeVram:
-    def __init__(self, *, available, vram_pressure=0.0, vram_headroom=1.0, opp=1.0):
+    def __init__(
+        self,
+        *,
+        available,
+        vram_pressure=0.0,
+        vram_headroom=1.0,
+        opp=1.0,
+        fragmentation=0.1,
+        used_gb=1.0,
+        total_gb=8.0,
+        temperature_c=65.0,
+    ):
         self._d = {
             "available": available,
+            "source": "fixture-gpu",
+            "sample_ts": 123.0,
+            "used_gb": used_gb,
+            "total_gb": total_gb,
+            "temperature_c": temperature_c,
             "vram_pressure": vram_pressure,
             "vram_headroom": vram_headroom,
+            "vram_fragmentation_risk": fragmentation,
             "vram_opportunity_score": opp,
         }
 
@@ -63,6 +81,59 @@ def test_build_snapshot_merges_gpu_when_available():
     assert snap["vram_pressure"] == 0.1
     assert snap["gpu_acceleration"] > 0.0
     assert "hardware_pressure" in snap
+
+
+def test_build_snapshot_preserves_full_gpu_state_for_neural_and_msrc():
+    snap = build_resource_snapshot(
+        host_sampler=HostResourceSampler(ttl_seconds=0.0),
+        vram_sampler=_FakeVram(
+            available=True,
+            vram_pressure=0.25,
+            vram_headroom=0.75,
+            opp=0.82,
+            fragmentation=0.13,
+            used_gb=2.0,
+            total_gb=8.0,
+            temperature_c=66.0,
+        ),
+    )
+
+    assert snap["used_gb"] == snap["vram_used_gb"] == 2.0
+    assert snap["total_gb"] == snap["vram_total_gb"] == 8.0
+    assert snap["temperature_c"] == snap["gpu_temperature_c"] == 66.0
+    assert snap["vram_fragmentation_risk"] == 0.13
+    assert snap["vram_opportunity_score"] == snap["gpu_opportunity_score"] == 0.82
+    assert snap["gpu_source"] == "fixture-gpu"
+    assert snap["gpu_sample_ts"] == 123.0
+
+    fixed = FixedVRAMSampler(snap)
+    assert fixed.sample() == fixed.sample()
+    assert fixed.sample() == {
+        "available": True,
+        "source": "fixture-gpu",
+        "used_gb": 2.0,
+        "total_gb": 8.0,
+        "temperature_c": 66.0,
+        "vram_headroom": 0.75,
+        "vram_pressure": 0.25,
+        "vram_fragmentation_risk": 0.13,
+        "vram_opportunity_score": 0.82,
+        "sample_ts": 123.0,
+    }
+
+
+def test_fixed_vram_sampler_does_not_confuse_host_with_gpu_availability():
+    fixed = FixedVRAMSampler(
+        {
+            "available": True,
+            "source": "psutil",
+            "gpu_available": False,
+            "sample_ts": 456.0,
+            "vram_pressure": 0.0,
+        }
+    )
+
+    assert fixed.sample()["available"] is False
 
 
 def test_build_snapshot_ignores_gpu_when_unavailable():

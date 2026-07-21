@@ -355,11 +355,18 @@ class ConnectomeRuntime:
             for organ in sorted(candidates):
                 edge_id = f"N0->{organ}:resource_gating"
                 organ_trace = organ_map[organ]
+                signal_state = (
+                    "fallback"
+                    if organ_trace.fallback_reason
+                    else "observed_shadow"
+                    if organ_trace.effective_mode == "shadow"
+                    else "gated"
+                )
                 connections.append(
                     ActiveConnection(
                         edge_id,
-                        "fallback" if organ_trace.fallback_reason else "gated",
-                        (organ_trace.fallback_reason or organ,),
+                        signal_state,
+                        (organ_trace.fallback_reason or f"{organ}:{signal_state}",),
                         (),
                         AuthorityEffect.NONE,
                     )

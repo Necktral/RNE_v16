@@ -284,6 +284,11 @@ def test_coordinator_exposes_real_connectome_activity(tmp_path: Path, monkeypatc
     active = {item["edge_id"]: item for item in activity["active_connections"]}
     assert active["MSRC->N0:resources"]["signal_state"] == "available"
     assert active["StorageFacade->N0:persistence"]["signal_state"] == "durable"
+    assert block["fallbacks"] == []
+    assert active["N0->N1:resource_gating"]["signal_state"] == "observed_shadow"
+    assert active["N0->N3:resource_gating"]["signal_state"] == "observed_shadow"
+    assert active["N0->N4:resource_gating"]["signal_state"] == "observed_shadow"
+    assert active["N0->N5:resource_gating"]["signal_state"] == "observed_shadow"
     assert active["life-chain->N3:feedback"]["receipt_ids"]
     assert any(
         item["edge_id"] == "N3->life-chain:consumption"

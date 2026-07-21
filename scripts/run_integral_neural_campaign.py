@@ -9,6 +9,7 @@ branches. All neural outputs remain experimental proposals with a SHADOW ceiling
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from runtime.life import LifeKernel, LifeKernelConfig
+from runtime.control.msrc.host_sampler import HostResourceSampler, build_resource_snapshot
+from runtime.control.msrc.vram_sampler import NvidiaVRAMSampler
 from runtime.neural import ImpactObservation, OrganismImpactVector, build_impact_report
 from runtime.neural.campaign import (
     CampaignError,
@@ -106,6 +109,99 @@ OVERNIGHT_BLOCKS = (
     "dump_overnight",
 )
 ALL_BLOCKS = PREFLIGHT_BLOCKS + REHEARSAL_BLOCKS + OVERNIGHT_BLOCKS
+ABLATION_SCHEMA_VERSION = "rnfe-neural-ablation-matrix-v2"
+ABLATION_RESOURCE_SNAPSHOT_SCHEMA_VERSION = "rnfe-ablation-resource-snapshot-v1"
+ABLATION_ORGANS = ("N1", "N2", "N3", "N4", "N5", "N6")
+ABLATION_SEEDS = (811001, 811101, 811201)
+
+
+@dataclass(frozen=True, slots=True)
+class AblationProfile:
+    profile_id: str
+    kind: str
+    neural_mode: str
+    enabled_organs: tuple[str, ...]
+    disabled_organs: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        enabled = set(self.enabled_organs)
+        disabled = set(self.disabled_organs)
+        official = set(ABLATION_ORGANS)
+        if self.neural_mode not in {"off", "shadow"}:
+            raise ValueError("ablation_profile_mode_invalid")
+        if enabled & disabled or enabled | disabled != official:
+            raise ValueError("ablation_profile_must_partition_organs")
+        if self.neural_mode == "off" and enabled:
+            raise ValueError("ablation_off_profile_cannot_enable_organs")
+
+    @property
+    def environment(self) -> dict[str, str]:
+        return {
+            "RNFE_NEURAL_MODE": self.neural_mode,
+            "RNFE_NEURAL_DISABLED_ORGANS": ",".join(self.disabled_organs),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "profile_id": self.profile_id,
+            "kind": self.kind,
+            "neural_mode": self.neural_mode,
+            "enabled_organs": list(self.enabled_organs),
+            "disabled_organs": list(self.disabled_organs),
+            "authority_ceiling": "shadow",
+            "training_authorized": False,
+            "promotion_eligible": False,
+            "promotion_authorized": False,
+        }
+
+
+def _ablation_profiles() -> tuple[AblationProfile, ...]:
+    profiles = [
+        AblationProfile(
+            profile_id="off",
+            kind="baseline",
+            neural_mode="off",
+            enabled_organs=(),
+            disabled_organs=ABLATION_ORGANS,
+        ),
+        AblationProfile(
+            profile_id="shadow-none",
+            kind="shadow_runtime_control",
+            neural_mode="shadow",
+            enabled_organs=(),
+            disabled_organs=ABLATION_ORGANS,
+        ),
+    ]
+    profiles.extend(
+        AblationProfile(
+            profile_id=f"only-{organ.lower()}",
+            kind="single_organ",
+            neural_mode="shadow",
+            enabled_organs=(organ,),
+            disabled_organs=tuple(item for item in ABLATION_ORGANS if item != organ),
+        )
+        for organ in ABLATION_ORGANS
+    )
+    profiles.append(
+        AblationProfile(
+            profile_id="all-on",
+            kind="all_organs",
+            neural_mode="shadow",
+            enabled_organs=ABLATION_ORGANS,
+            disabled_organs=(),
+        )
+    )
+    profiles.extend(
+        AblationProfile(
+            profile_id=f"without-{organ.lower()}",
+            kind="leave_one_out",
+            neural_mode="shadow",
+            enabled_organs=tuple(item for item in ABLATION_ORGANS if item != organ),
+            disabled_organs=(organ,),
+        )
+        for organ in ABLATION_ORGANS
+    )
+    return tuple(profiles)
 
 
 @dataclass(slots=True)
@@ -732,6 +828,39 @@ def _qualify_n0(ctx: RuntimeContext) -> dict[str, Any]:
     )
 
 
+def _validated_model_artifact(
+    neural_root: Path,
+    *,
+    organ: str,
+) -> tuple[NeuralModelManifest, Path] | None:
+    """Return a binding only when both manifest and artifact are self-consistent."""
+    manifest_path = neural_root / organ.lower() / "manifest.json"
+    if not manifest_path.is_file():
+        return None
+    try:
+        manifest = NeuralModelManifest.from_dict(
+            json.loads(manifest_path.read_text(encoding="utf-8"))
+        )
+        if manifest.organ != organ.upper():
+            return None
+        if organ.upper() == "N1" and (
+            manifest.capability != "family_routing_proposal"
+            or manifest.backend != "rnfe-compact-mlp-router-v1"
+        ):
+            return None
+        artifact = (neural_root / manifest.artifact_path).resolve()
+        relative_artifact = artifact.relative_to(neural_root.resolve())
+        if not relative_artifact.parts or relative_artifact.parts[0] != organ.lower():
+            # The caller copies the organ directory as one sealed unit. Reject a
+            # manifest whose payload would be left behind outside that unit.
+            return None
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not artifact.is_file() or file_sha256(artifact) != manifest.artifact_sha256:
+        return None
+    return manifest, artifact
+
+
 def _prepare_evaluation_artifacts(ctx: RuntimeContext) -> Path:
     target_base = ctx.state.root / "evaluation_artifacts"
     target = target_base / "neural"
@@ -743,8 +872,18 @@ def _prepare_evaluation_artifacts(ctx: RuntimeContext) -> Path:
             shutil.copytree(source_dir, target / organ)
     n1_source = ctx.state.root / "n1_recalibration/candidate/n1"
     if n1_source.is_dir():
+        # A campaign-local recalibration is the most specific N1 evidence and wins
+        # over the configured lab artifact, regardless of call order.
         shutil.rmtree(target / "n1", ignore_errors=True)
         shutil.copytree(n1_source, target / "n1")
+    elif not (target / "n1").exists() and _validated_model_artifact(
+        source, organ="N1"
+    ) is not None:
+        # Ablation campaigns do not run the N1 recalibration block. Reuse the
+        # configured N1 only when its manifest points to a present, hash-valid
+        # artifact; otherwise leave the binding absent and the runtime will expose
+        # its explicit reference backend in provenance.
+        shutil.copytree(source / "n1", target / "n1")
     return target_base
 
 
@@ -972,14 +1111,191 @@ def _model_environment(ctx: RuntimeContext) -> dict[str, str | None]:
     return values
 
 
-def _step_vector(rows: Sequence[Mapping[str, Any]], *, elapsed_s: float) -> tuple[float, OrganismImpactVector]:
+def _collect_episode_closure_evidence(
+    storage: Any,
+    *,
+    run_id: str,
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Measure closure from the durable ``episode.closed`` ledger contract."""
+    expected_episode_ids = [
+        str(episode_id)
+        for row in rows
+        if (
+            episode_id := (dict(row.get("episode_result") or {}).get("episode") or {}).get(
+                "episode_id"
+            )
+        )
+    ]
+    events = storage.list_events(
+        run_id=run_id,
+        event_types=["episode.closed"],
+        # One close is expected per life step. The extra capacity lets the report
+        # expose duplicate/unexpected closes instead of silently truncating them.
+        limit=max(1, len(rows) * 2 + 1),
+    )
+    observed_episode_ids = [
+        str(episode_id)
+        for event in events
+        if (episode_id := (event.payload or {}).get("episode_id"))
+    ]
+    expected = set(expected_episode_ids)
+    observed = set(observed_episode_ids)
+    matched = expected & observed
+    return {
+        "source": "postgres_ledger_event",
+        "event_type": "episode.closed",
+        "run_id": run_id,
+        "denominator": "life_steps",
+        "step_count": len(rows),
+        "episode_result_count": len(expected_episode_ids),
+        "event_count": len(events),
+        "matched_count": len(matched),
+        "matched_episode_ids": sorted(matched),
+        "missing_episode_ids": sorted(expected - observed),
+        "unexpected_episode_ids": sorted(observed - expected),
+        "duplicate_event_count": max(0, len(observed_episode_ids) - len(observed)),
+    }
+
+
+def _backend_provenance(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    enabled_organs: Sequence[str],
+) -> dict[str, Any]:
+    """Summarize the backend that actually executed for every organ in a lane."""
+    enabled = {organ.upper() for organ in enabled_organs}
+    entries_by_organ: dict[str, list[dict[str, Any]]] = {
+        organ: [] for organ in ABLATION_ORGANS
+    }
+    identities_by_organ: dict[str, list[Any]] = {
+        organ: [] for organ in ABLATION_ORGANS
+    }
+    for row in rows:
+        episode = dict(row.get("episode_result") or {})
+        trace = dict(episode.get("neural_symbiosis_trace") or {})
+        identities = dict(trace.get("backend_identities") or {})
+        for organ in ABLATION_ORGANS:
+            if organ in identities:
+                identities_by_organ[organ].append(identities[organ])
+        for raw_entry in trace.get("organs") or ():
+            if not isinstance(raw_entry, Mapping):
+                continue
+            organ = str(raw_entry.get("organ") or "").upper()
+            if organ in entries_by_organ:
+                entries_by_organ[organ].append(dict(raw_entry))
+
+    provenance: dict[str, Any] = {}
+    for organ in ABLATION_ORGANS:
+        entries = entries_by_organ[organ]
+        active = [
+            entry
+            for entry in entries
+            if str(entry.get("effective_mode") or "off").lower() != "off"
+        ]
+        manifest_hashes = sorted(
+            {
+                str(entry["manifest_sha256"])
+                for entry in active
+                if entry.get("manifest_sha256")
+            }
+        )
+        artifact_hashes = sorted(
+            {
+                str(entry["artifact_sha256"])
+                for entry in active
+                if entry.get("artifact_sha256")
+            }
+        )
+        reference_ids = sorted(
+            {
+                str((entry.get("cost") or {})["reference_id"])
+                for entry in active
+                if (entry.get("cost") or {}).get("reference_id")
+            }
+        )
+        candidate_backends = sorted(
+            {
+                str((entry.get("candidate") or {})["backend"])
+                for entry in active
+                if isinstance(entry.get("candidate"), Mapping)
+                and (entry.get("candidate") or {}).get("backend")
+            }
+        )
+        model_backends = sorted(
+            {
+                str(identity["backend"])
+                for identity in identities_by_organ[organ]
+                if isinstance(identity, Mapping) and identity.get("backend")
+            }
+        )
+        declared_reference_ids = sorted(
+            {
+                str(identity)
+                for identity in identities_by_organ[organ]
+                if isinstance(identity, str) and identity
+            }
+        )
+        fallback_reasons = sorted(
+            {
+                str(entry["fallback_reason"])
+                for entry in active
+                if entry.get("fallback_reason")
+            }
+        )
+        binding_errors = sorted(
+            {
+                str((entry.get("cost") or {})["model_binding_error"])
+                for entry in active
+                if (entry.get("cost") or {}).get("model_binding_error")
+            }
+        )
+        expected_enabled = organ in enabled
+        if not expected_enabled:
+            execution_class = "disabled"
+        elif manifest_hashes:
+            execution_class = "model_bound"
+        elif active:
+            execution_class = "reference"
+        else:
+            execution_class = "enabled_unobserved"
+        provenance[organ] = {
+            "expected_enabled": expected_enabled,
+            "execution_class": execution_class,
+            "observations": len(entries),
+            "active_observations": len(active),
+            "effective_modes": sorted(
+                {str(entry.get("effective_mode") or "unknown") for entry in entries}
+            ),
+            "model_backends": model_backends,
+            "candidate_backends": candidate_backends,
+            "manifest_sha256": manifest_hashes,
+            "artifact_sha256": artifact_hashes,
+            "reference_ids": reference_ids,
+            "declared_reference_ids": declared_reference_ids,
+            "fallback_reasons": fallback_reasons,
+            "model_binding_errors": binding_errors,
+        }
+    return provenance
+
+
+def _step_vector(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    elapsed_s: float,
+    closed_episode_ids: Sequence[str],
+) -> tuple[float, OrganismImpactVector]:
     vitals = [dict(row["vital_signs"]) for row in rows]
     episodes = [dict(row.get("episode_result") or {}) for row in rows]
     primary = fmean(float(item.get("cognitive_quality", 0.0)) for item in vitals)
     certified = [bool(item.get("certified", False)) for item in vitals]
+    durable_closures = {str(episode_id) for episode_id in closed_episode_ids}
     closure = [
-        str(episode.get("certification", {}).get("verdict", "")).lower()
-        in {"certified", "pass", "passed"}
+        bool(
+            (episode.get("episode") or {}).get("episode_id")
+            and str((episode.get("episode") or {}).get("episode_id"))
+            in durable_closures
+        )
         for episode in episodes
     ]
     resource_states = [
@@ -1021,17 +1337,71 @@ def _run_life_lane(
     seed: int,
     steps: int,
     tier3: bool = False,
+    neural_mode: str | None = None,
+    disabled_organs: Sequence[str] = (),
+    resource_snapshot_override: Mapping[str, Any] | None = None,
+    resource_snapshot_provenance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    resolved_mode = neural_mode or ("off" if lane == "off" else "shadow")
+    if resolved_mode not in {"off", "shadow"}:
+        raise CampaignError("campaign_lane_neural_mode_invalid")
+    normalized_disabled = tuple(
+        organ for organ in ABLATION_ORGANS if organ in {item.upper() for item in disabled_organs}
+    )
+    unknown_disabled = {item.upper() for item in disabled_organs} - set(ABLATION_ORGANS)
+    if unknown_disabled:
+        raise CampaignError("campaign_lane_disabled_organ_invalid")
+    if resolved_mode == "off":
+        normalized_disabled = ABLATION_ORGANS
+    enabled_organs = tuple(
+        organ for organ in ABLATION_ORGANS if organ not in normalized_disabled
+    )
+    fixed_resource_snapshot = (
+        dict(resource_snapshot_override)
+        if resource_snapshot_override is not None
+        else None
+    )
+    resource_snapshot_reference = None
+    if fixed_resource_snapshot is not None:
+        snapshot_sha256 = hashlib.sha256(
+            json.dumps(
+                fixed_resource_snapshot,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        if resource_snapshot_provenance is not None:
+            expected_sha256 = resource_snapshot_provenance.get("snapshot_sha256")
+            if expected_sha256 != snapshot_sha256:
+                raise CampaignError("ablation_resource_snapshot_provenance_mismatch")
+        resource_snapshot_reference = {
+            "mode": "fixed_ablation_override",
+            "snapshot_sha256": snapshot_sha256,
+            "capture_path": (
+                resource_snapshot_provenance.get("path")
+                if resource_snapshot_provenance is not None
+                else None
+            ),
+            "capture_artifact_sha256": (
+                resource_snapshot_provenance.get("artifact_sha256")
+                if resource_snapshot_provenance is not None
+                else None
+            ),
+        }
     run_id = f"{ctx.state.campaign_id}-{phase}-{lane}-seed-{seed}"
     values = {
         **_model_environment(ctx),
-        "RNFE_NEURAL_MODE": "shadow" if lane != "off" else "off",
+        "RNFE_NEURAL_MODE": resolved_mode,
+        # Always override any caller value so the lane is reproducible even when
+        # the parent shell has an exploratory profile configured.
+        "RNFE_NEURAL_DISABLED_ORGANS": ",".join(normalized_disabled),
         "RNFE_STORAGE_MODE": "postgres",
         "RNFE_POSTGRES_DSN": ctx.postgres.dsn,
         "RNFE_ALLOW_EXTERNAL_REASONER": "1" if tier3 else "0",
         "RNFE_MAX_COMPUTE_TIER": "tier_3_external" if tier3 else "tier_2_specialized",
     }
     started = time.monotonic()
+    storage = ctx.ensure_storage()
     with temporary_environ(values):
         kernel = LifeKernel(
             config=LifeKernelConfig(
@@ -1044,41 +1414,503 @@ def _run_life_lane(
                 allow_external_reasoner=tier3,
                 max_compute_tier="tier_3_external" if tier3 else "tier_2_specialized",
                 enable_msrc=True,
+                resource_snapshot_override=fixed_resource_snapshot,
             ),
-            storage=ctx.ensure_storage(),
+            storage=storage,
         )
         rows = [
             kernel.step(external_input=0.04 + ((seed + index * 7) % 11) / 100.0).to_dict()
             for index in range(steps)
         ]
     elapsed = time.monotonic() - started
-    primary, vector = _step_vector(rows, elapsed_s=elapsed)
-    path = ctx.state.root / "life_kernel" / phase / f"{lane}-seed-{seed}.json"
-    atomic_write_json(
-        path,
-        {
-            "schema_version": "rnfe-integral-life-lane-v1",
-            "campaign_id": ctx.state.campaign_id,
-            "phase": phase,
-            "lane": lane,
-            "seed": seed,
-            "tier3": tier3,
-            "steps": rows,
-            "primary_metric": primary,
-            "impact_vector": vector.to_dict(),
-            "elapsed_s": elapsed,
-            "authority_effect": "none",
-        },
+    closure_evidence = _collect_episode_closure_evidence(
+        storage,
+        run_id=run_id,
+        rows=rows,
     )
+    backend_provenance = _backend_provenance(
+        rows,
+        enabled_organs=enabled_organs,
+    )
+    primary, vector = _step_vector(
+        rows,
+        elapsed_s=elapsed,
+        closed_episode_ids=closure_evidence["matched_episode_ids"],
+    )
+    path = ctx.state.root / "life_kernel" / phase / f"{lane}-seed-{seed}.json"
+    lane_report = {
+        "schema_version": "rnfe-integral-life-lane-v1",
+        "campaign_id": ctx.state.campaign_id,
+        "phase": phase,
+        "lane": lane,
+        "seed": seed,
+        "tier3": tier3,
+        "neural_mode": resolved_mode,
+        "enabled_organs": list(enabled_organs),
+        "disabled_organs": list(normalized_disabled),
+        "steps": rows,
+        "primary_metric": primary,
+        "impact_vector": vector.to_dict(),
+        "closure_evidence": closure_evidence,
+        "backend_provenance": backend_provenance,
+        "elapsed_s": elapsed,
+        "authority_effect": "none",
+    }
+    if resource_snapshot_reference is not None:
+        lane_report["resource_snapshot_override"] = resource_snapshot_reference
+    atomic_write_json(path, lane_report)
     _register_report(ctx, path, kind="neural_life_lane", run_id=run_id)
     return {
         "run_id": run_id,
         "path": str(path),
         "sha256": file_sha256(path),
+        "lane": lane,
+        "seed": seed,
+        "neural_mode": resolved_mode,
+        "enabled_organs": list(enabled_organs),
+        "disabled_organs": list(normalized_disabled),
+        "closure_evidence": closure_evidence,
+        "backend_provenance": backend_provenance,
+        **(
+            {"resource_snapshot_override": resource_snapshot_reference}
+            if resource_snapshot_reference is not None
+            else {}
+        ),
         "primary": primary,
         "vector": vector,
         "rows": rows,
     }
+
+
+def _mean_numeric_mappings(rows: Sequence[Mapping[str, Any]]) -> dict[str, float]:
+    keys = tuple(rows[0]) if rows else ()
+    return {
+        key: fmean(float(row[key]) for row in rows)
+        for key in keys
+    }
+
+
+def _worktree_snapshot() -> tuple[bytes, dict[str, Any]]:
+    diff = subprocess.check_output(
+        ["git", "diff", "--binary", "--full-index", "HEAD", "--"],
+        cwd=REPO_ROOT,
+    )
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        cwd=REPO_ROOT,
+    )
+    untracked_raw = subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=REPO_ROOT,
+    )
+    untracked = []
+    for raw_path in untracked_raw.split(b"\0"):
+        if not raw_path:
+            continue
+        relative_path = raw_path.decode("utf-8", errors="surrogateescape")
+        path = REPO_ROOT / relative_path
+        untracked.append(
+            {
+                "path": relative_path,
+                "size_bytes": path.stat().st_size,
+                "sha256": file_sha256(path),
+            }
+        )
+    untracked.sort(key=lambda item: item["path"])
+    untracked_bytes = json.dumps(
+        untracked, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    snapshot_hash = hashlib.sha256(
+        diff + b"\0status\0" + status + b"\0untracked\0" + untracked_bytes
+    ).hexdigest()
+    return diff, {
+        "head_commit": _git("rev-parse", "HEAD"),
+        "git_dirty": bool(status),
+        "tracked_diff_sha256": hashlib.sha256(diff).hexdigest(),
+        "status_sha256": hashlib.sha256(status).hexdigest(),
+        "untracked_files": untracked,
+        "worktree_snapshot_sha256": snapshot_hash,
+    }
+
+
+def _materialize_worktree_provenance(ctx: RuntimeContext) -> dict[str, Any]:
+    diff, provenance = _worktree_snapshot()
+    diff_path = ctx.state.root / "ablation" / "worktree.diff"
+    diff_path.parent.mkdir(parents=True, exist_ok=True)
+    diff_path.write_bytes(diff)
+    status_path = ctx.state.root / "ablation" / "worktree-status.json"
+    payload = {
+        **provenance,
+        "diff_path": str(diff_path),
+        "diff_sha256": file_sha256(diff_path),
+    }
+    atomic_write_json(status_path, payload)
+    _register_report(
+        ctx,
+        diff_path,
+        kind="neural_ablation_worktree_diff",
+        run_id=ctx.state.campaign_id,
+    )
+    _register_report(
+        ctx,
+        status_path,
+        kind="neural_ablation_worktree_status",
+        run_id=ctx.state.campaign_id,
+    )
+    return {**payload, "status_path": str(status_path)}
+
+
+def _capture_ablation_resource_snapshot(ctx: RuntimeContext) -> dict[str, Any]:
+    """Captura y sella una sola lectura real de host/GPU para toda la matriz."""
+    path = ctx.state.root / "ablation" / "resource-snapshot.json"
+    if path.exists():
+        raise CampaignError("ablation_resource_snapshot_already_exists_use_new_campaign_id")
+
+    with temporary_environ({"RNFE_HOST_SENSING": "1"}):
+        snapshot = build_resource_snapshot(
+            host_sampler=HostResourceSampler(ttl_seconds=0.0),
+            vram_sampler=NvidiaVRAMSampler(),
+        )
+    snapshot_sha256 = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    payload = {
+        "schema_version": ABLATION_RESOURCE_SNAPSHOT_SCHEMA_VERSION,
+        "campaign_id": ctx.state.campaign_id,
+        "capture_mode": "single_real_host_gpu_snapshot",
+        "captured_once": True,
+        "host_sensing_enabled_for_capture": True,
+        "reuse_contract": "LifeKernelConfig.resource_snapshot_override",
+        "snapshot_sha256": snapshot_sha256,
+        "snapshot": snapshot,
+        "source": {
+            "host_sampler": "HostResourceSampler",
+            "host_source": snapshot.get("source"),
+            "vram_sampler": "NvidiaVRAMSampler",
+            "gpu_available": bool(snapshot.get("gpu_available", False)),
+        },
+        "authority_effect": "none",
+    }
+    atomic_write_json(path, payload)
+    _register_report(
+        ctx,
+        path,
+        kind="neural_ablation_resource_snapshot",
+        run_id=ctx.state.campaign_id,
+    )
+    return {
+        **payload,
+        "path": str(path),
+        "artifact_sha256": file_sha256(path),
+    }
+
+
+def _ablation_profile_summary(
+    profile: AblationProfile,
+    runs: Sequence[Mapping[str, Any]],
+    baselines: Mapping[int, Mapping[str, Any]],
+) -> dict[str, Any]:
+    paired = []
+    for run in runs:
+        seed = int(run["seed"])
+        baseline = baselines[seed]
+        candidate_vector = run["vector"].to_dict()
+        baseline_vector = baseline["vector"].to_dict()
+        paired.append(
+            {
+                "seed": seed,
+                "primary_delta": float(run["primary"]) - float(baseline["primary"]),
+                "impact_delta": {
+                    key: float(candidate_vector[key]) - float(baseline_vector[key])
+                    for key in baseline_vector
+                },
+            }
+        )
+    vectors = [run["vector"].to_dict() for run in runs]
+    backend_by_seed = [
+        {
+            "seed": int(run["seed"]),
+            "organs": dict(run.get("backend_provenance") or {}),
+        }
+        for run in runs
+    ]
+    backend_summary: dict[str, Any] = {}
+    for organ in ABLATION_ORGANS:
+        records = [
+            dict(item["organs"].get(organ) or {})
+            for item in backend_by_seed
+        ]
+        backend_summary[organ] = {
+            "execution_classes": sorted(
+                {
+                    str(record.get("execution_class") or "unreported")
+                    for record in records
+                }
+            ),
+            "model_backends": sorted(
+                {
+                    str(value)
+                    for record in records
+                    for value in record.get("model_backends") or ()
+                }
+            ),
+            "candidate_backends": sorted(
+                {
+                    str(value)
+                    for record in records
+                    for value in record.get("candidate_backends") or ()
+                }
+            ),
+            "manifest_sha256": sorted(
+                {
+                    str(value)
+                    for record in records
+                    for value in record.get("manifest_sha256") or ()
+                }
+            ),
+            "artifact_sha256": sorted(
+                {
+                    str(value)
+                    for record in records
+                    for value in record.get("artifact_sha256") or ()
+                }
+            ),
+            "reference_ids": sorted(
+                {
+                    str(value)
+                    for record in records
+                    for value in record.get("reference_ids") or ()
+                }
+            ),
+            "model_binding_errors": sorted(
+                {
+                    str(value)
+                    for record in records
+                    for value in record.get("model_binding_errors") or ()
+                }
+            ),
+            "stable_across_seeds": len(
+                {
+                    json.dumps(record, sort_keys=True, separators=(",", ":"))
+                    for record in records
+                }
+            )
+            <= 1,
+        }
+    return {
+        **profile.to_dict(),
+        "execution_complete": len(runs) == len(baselines),
+        "seed_count": len(runs),
+        "mean_primary": fmean(float(run["primary"]) for run in runs),
+        "mean_impact_vector": _mean_numeric_mappings(vectors),
+        "paired_vs_off": paired,
+        "mean_paired_primary_delta": fmean(
+            float(item["primary_delta"]) for item in paired
+        ),
+        "mean_paired_impact_delta": _mean_numeric_mappings(
+            [item["impact_delta"] for item in paired]
+        ),
+        "backend_provenance_by_seed": backend_by_seed,
+        "backend_provenance_summary": backend_summary,
+        "lane_reports": [
+            {
+                key: value
+                for key, value in run.items()
+                if key not in {"rows", "vector"}
+            }
+            for run in runs
+        ],
+    }
+
+
+def _paired_ablation_contrast(
+    *,
+    contrast_id: str,
+    candidate_profile: str,
+    reference_profile: str,
+    candidate_runs: Sequence[Mapping[str, Any]],
+    reference_runs: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    candidates = {int(run["seed"]): run for run in candidate_runs}
+    references = {int(run["seed"]): run for run in reference_runs}
+    if len(candidates) != len(candidate_runs) or len(references) != len(reference_runs):
+        raise CampaignError(f"ablation_contrast_duplicate_seed:{contrast_id}")
+    if set(candidates) != set(references):
+        raise CampaignError(f"ablation_contrast_seed_mismatch:{contrast_id}")
+    paired_by_seed = []
+    for seed in sorted(candidates):
+        candidate = candidates[seed]
+        reference = references[seed]
+        candidate_vector = candidate["vector"].to_dict()
+        reference_vector = reference["vector"].to_dict()
+        if set(candidate_vector) != set(reference_vector):
+            raise CampaignError(f"ablation_contrast_vector_mismatch:{contrast_id}")
+        paired_by_seed.append(
+            {
+                "seed": seed,
+                "primary_delta": float(candidate["primary"])
+                - float(reference["primary"]),
+                "impact_delta": {
+                    key: float(candidate_vector[key]) - float(reference_vector[key])
+                    for key in reference_vector
+                },
+            }
+        )
+    return {
+        "contrast_id": contrast_id,
+        "direction": f"{candidate_profile} - {reference_profile}",
+        "candidate_profile": candidate_profile,
+        "reference_profile": reference_profile,
+        "seed_count": len(paired_by_seed),
+        "paired_by_seed": paired_by_seed,
+        "mean_primary_delta": fmean(
+            float(item["primary_delta"]) for item in paired_by_seed
+        ),
+        "mean_impact_delta": _mean_numeric_mappings(
+            [item["impact_delta"] for item in paired_by_seed]
+        ),
+    }
+
+
+def _organ_ablation_contrasts(
+    runs_by_profile: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> list[dict[str, Any]]:
+    contrasts = []
+    for organ in ABLATION_ORGANS:
+        suffix = organ.lower()
+        contrasts.append(
+            {
+                "organ": organ,
+                "all-on_minus_without": _paired_ablation_contrast(
+                    contrast_id=f"{organ}:all-on_minus_without",
+                    candidate_profile="all-on",
+                    reference_profile=f"without-{suffix}",
+                    candidate_runs=runs_by_profile["all-on"],
+                    reference_runs=runs_by_profile[f"without-{suffix}"],
+                ),
+                "only_minus_shadow_none": _paired_ablation_contrast(
+                    contrast_id=f"{organ}:only_minus_shadow_none",
+                    candidate_profile=f"only-{suffix}",
+                    reference_profile="shadow-none",
+                    candidate_runs=runs_by_profile[f"only-{suffix}"],
+                    reference_runs=runs_by_profile["shadow-none"],
+                ),
+            }
+        )
+    return contrasts
+
+
+def _run_ablation_matrix(
+    ctx: RuntimeContext,
+    *,
+    steps: int,
+    seeds: Sequence[int] = ABLATION_SEEDS,
+) -> dict[str, Any]:
+    normalized_seeds = tuple(int(seed) for seed in seeds)
+    if steps <= 0:
+        raise CampaignError("ablation_steps_must_be_positive")
+    if not normalized_seeds or len(set(normalized_seeds)) != len(normalized_seeds):
+        raise CampaignError("ablation_seeds_must_be_unique")
+    output_path = ctx.state.root / "ablation" / "matrix.json"
+    if output_path.exists():
+        raise CampaignError("ablation_matrix_already_exists_use_new_campaign_id")
+    resource_snapshot_capture = _capture_ablation_resource_snapshot(ctx)
+    provenance = _materialize_worktree_provenance(ctx)
+
+    profiles = _ablation_profiles()
+    runs_by_profile: dict[str, list[dict[str, Any]]] = {}
+    for profile in profiles:
+        profile_runs = []
+        for seed in normalized_seeds:
+            profile_runs.append(
+                _run_life_lane(
+                    ctx,
+                    phase="ablation",
+                    lane=profile.profile_id,
+                    seed=seed,
+                    steps=steps,
+                    neural_mode=profile.neural_mode,
+                    disabled_organs=profile.disabled_organs,
+                    resource_snapshot_override=resource_snapshot_capture["snapshot"],
+                    resource_snapshot_provenance=resource_snapshot_capture,
+                )
+            )
+        runs_by_profile[profile.profile_id] = profile_runs
+
+    baselines = {
+        int(run["seed"]): run for run in runs_by_profile["off"]
+    }
+    _, final_provenance = _worktree_snapshot()
+    worktree_stable = (
+        final_provenance["worktree_snapshot_sha256"]
+        == provenance["worktree_snapshot_sha256"]
+    )
+    report = {
+        "schema_version": ABLATION_SCHEMA_VERSION,
+        "campaign_id": ctx.state.campaign_id,
+        "commit": ctx.state.manifest["commit"],
+        "profile_order": [profile.profile_id for profile in profiles],
+        "organ_order": list(ABLATION_ORGANS),
+        "seed_order": list(normalized_seeds),
+        "steps_per_lane": steps,
+        "resource_snapshot_capture": resource_snapshot_capture,
+        "metric_contract": {
+            "closure_rate": {
+                "numerator": "life steps whose episode_id has a durable episode.closed event",
+                "denominator": "life steps",
+                "evidence": "PostgreSQL ledger filtered by run_id and event_type",
+                "independent_from": "certification_rate",
+            },
+            "certification_rate": {
+                "numerator": "life vital snapshots with certified=true",
+                "denominator": "life steps",
+            },
+            "primary": "mean vital_signs.cognitive_quality",
+        },
+        "contrast_contract": {
+            "all-on_minus_without": (
+                "marginal organ contribution in the all-organ SHADOW context"
+            ),
+            "only_minus_shadow_none": (
+                "isolated organ capacity above the empty SHADOW runtime control"
+            ),
+            "paired_vs_off": (
+                "descriptive total difference only; OFF is not an organ-specific control"
+            ),
+        },
+        "provenance": {
+            **provenance,
+            "stable_during_run": worktree_stable,
+            "final_worktree_snapshot_sha256": final_provenance[
+                "worktree_snapshot_sha256"
+            ],
+        },
+        "profiles": [
+            _ablation_profile_summary(
+                profile,
+                runs_by_profile[profile.profile_id],
+                baselines,
+            )
+            for profile in profiles
+        ],
+        "organ_contrasts": _organ_ablation_contrasts(runs_by_profile),
+        "execution_complete": True,
+        "authority_ceiling": "shadow",
+        "training_authorized": False,
+        "staging_authorized": False,
+        "promotion_eligible": False,
+        "promotion_authorized": False,
+    }
+    atomic_write_json(output_path, report)
+    _register_report(
+        ctx,
+        output_path,
+        kind="neural_ablation_matrix",
+        run_id=ctx.state.campaign_id,
+    )
+    if not worktree_stable:
+        raise CampaignError("ablation_worktree_changed_during_run")
+    return report
 
 
 def _organ_runtime_summary(rows: Iterable[Mapping[str, Any]], organ: str) -> dict[str, Any]:
@@ -1618,6 +2450,21 @@ def command_report(args: argparse.Namespace) -> int:
         ctx.close()
 
 
+def command_ablate(args: argparse.Namespace) -> int:
+    ctx = _load_context(args)
+    try:
+        _run_preflight(ctx)
+        report = _run_ablation_matrix(
+            ctx,
+            steps=args.life_steps,
+            seeds=tuple(args.seeds or ABLATION_SEEDS),
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+    finally:
+        ctx.close()
+
+
 def command_stage(args: argparse.Namespace) -> int:
     ctx = _load_context(args)
     try:
@@ -1681,6 +2528,9 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--holdout-contexts", type=int, default=20)
     resume.add_argument("--teacher-timeout", type=float, default=120.0)
     resume.add_argument("--skip-regression", action="store_true")
+    ablate = commands.add_parser("ablate")
+    ablate.add_argument("--life-steps", type=int, default=3)
+    ablate.add_argument("--seed", dest="seeds", action="append", type=int)
     commands.add_parser("report")
     stage = commands.add_parser("stage")
     stage.add_argument("--target-root", type=Path, default=None)
@@ -1702,6 +2552,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return command_run(args)
         if args.command == "resume":
             return command_resume(args)
+        if args.command == "ablate":
+            return command_ablate(args)
         if args.command == "report":
             return command_report(args)
         if args.command == "stage":

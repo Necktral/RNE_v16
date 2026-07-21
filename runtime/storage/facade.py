@@ -76,6 +76,20 @@ class StorageFacade:
     ) -> list[StoredEvent]:
         return self.backend.list_events(limit=limit, event_types=event_types, run_id=run_id)
 
+    def event_exists(
+        self,
+        *,
+        event_type: str,
+        run_id: str | None = None,
+        payload_contains: Mapping[str, Any] | None = None,
+    ) -> bool:
+        """Consulta de existencia exacta, sin depender de paginacion u orden."""
+        return self.backend.event_exists(
+            event_type=event_type,
+            run_id=run_id,
+            payload_contains=payload_contains,
+        )
+
     def write_telemetry_snapshot(
         self,
         *,

@@ -151,14 +151,15 @@ def test_off_never_loads_backend_or_emits_event(tmp_path: Path) -> None:
     storage.close()
 
 
-def test_shadow_persists_candidate_but_preserves_fallback(tmp_path: Path) -> None:
+def test_shadow_candidate_is_observed_without_counting_as_fallback(tmp_path: Path) -> None:
     counters: dict[str, int] = {}
     runtime, registry, manifest = _runtime(tmp_path, NeuralMode.SHADOW, counters)
     result = runtime.infer(request=_request(), manifest=manifest, fallback_output={"families": ["DED"]})
     assert result.candidate_output == {"families": ["IND"], "seed": 11}
     assert result.effective_output == {"families": ["DED"]}
     assert result.decision_influence is DecisionInfluence.NONE
-    assert result.fallback_reason == "shadow_preserves_authoritative_output"
+    assert result.fallback_used is False
+    assert result.fallback_reason is None
     assert counters == {"load": 1, "infer": 1}
     assert registry.loaded_count == 1
 
@@ -174,7 +175,8 @@ def test_provisional_without_causal_context_downgrades_to_shadow(tmp_path: Path)
     )
     assert result.effective_mode is NeuralMode.SHADOW
     assert result.effective_output == {"families": ["DED"]}
-    assert result.fallback_reason == "causal_context_unlinked"
+    assert result.fallback_used is False
+    assert result.fallback_reason is None
 
 
 def test_linked_provisional_only_exposes_admitted_bounded_proposal(tmp_path: Path) -> None:
@@ -213,8 +215,8 @@ def test_linked_provisional_honors_typed_shadow_authority_ceiling(tmp_path: Path
     assert result.decision_influence is DecisionInfluence.NONE
     assert result.effective_output == fallback
     assert result.candidate_output == {"families": ["IND"], "seed": 11}
-    assert result.fallback_used is True
-    assert result.fallback_reason == "admission_authority_ceiling:shadow"
+    assert result.fallback_used is False
+    assert result.fallback_reason is None
 
 
 def test_rejected_or_invalid_admission_contract_fails_closed(tmp_path: Path) -> None:
@@ -231,6 +233,7 @@ def test_rejected_or_invalid_admission_contract_fails_closed(tmp_path: Path) -> 
     )
     assert rejected.effective_output == fallback
     assert rejected.decision_influence is DecisionInfluence.NONE
+    assert rejected.fallback_used is True
     assert rejected.fallback_reason == "policy_rejected"
 
     def invalid_ceiling(candidate, request):

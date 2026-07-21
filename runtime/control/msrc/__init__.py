@@ -19,7 +19,7 @@ from .scale_estimator import ScaleEstimator
 from .scale_policy_engine import ScalePolicyEngine
 from .regime_classifier import RegimeClassification, RegimeClassifier
 from .scale_transition_manager import ScaleTransitionManager
-from .vram_sampler import NvidiaVRAMSampler, NullVRAMSampler
+from .vram_sampler import FixedVRAMSampler, NvidiaVRAMSampler, NullVRAMSampler
 
 __all__ = [
     "CrossScaleMemoryReport",
@@ -40,6 +40,7 @@ __all__ = [
     "RegimeClassification",
     "RegimeClassifier",
     "ScaleTransitionManager",
+    "FixedVRAMSampler",
     "NvidiaVRAMSampler",
     "NullVRAMSampler",
 ]

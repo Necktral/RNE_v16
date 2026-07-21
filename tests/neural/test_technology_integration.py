@@ -161,11 +161,14 @@ def test_trained_mamba2_ssd_is_shadow_and_connectomic(tmp_path: Path, monkeypatc
     assert n3["authority_ceiling"] == "shadow"
     assert n3["manifest_sha256"] == manifest.manifest_sha256
     assert n3["artifact_sha256"] == manifest.artifact_sha256
+    assert not any(item["organ"] == "N3" for item in block["fallbacks"])
     assert block["connectome_activity"]["authority_effect"] == "none"
     storage.close()
 
 
-def test_corrupt_model_hash_falls_back_to_reference(tmp_path: Path, monkeypatch) -> None:
+def test_corrupt_model_hash_fails_closed_without_consuming_reference(
+    tmp_path: Path, monkeypatch
+) -> None:
     artifact_root = tmp_path / "artifacts" / "neural"
     _write_mamba_artifact(artifact_root, corrupt_hash=True)
     monkeypatch.setenv("RNFE_ARTIFACT_ROOT", str(tmp_path / "artifacts"))
@@ -176,10 +179,21 @@ def test_corrupt_model_hash_falls_back_to_reference(tmp_path: Path, monkeypatch)
     )
     identity = _identity("corrupt")
     signals = _begin(coordinator, identity)
-    assert signals["n3_temporal"]["backend"] == "reference_temporal_filter"
+    assert signals["n3_temporal"] == {
+        "status": "disabled",
+        "state_key": ["organism-technology", "thermal@1", "lineage-technology"],
+    }
     n3 = coordinator._session(identity.episode_id).entries["N3"]
     assert n3.candidate is None
+    assert n3.candidate_hash is None
+    assert n3.consumer_verdict.startswith("not_consumed:fallback:")
     assert "artifact_sha256_mismatch" in (n3.fallback_reason or "")
+    assert coordinator.export_temporal_state()["entries"] == []
+    block = coordinator.certification_block(identity.episode_id)
+    assert any(
+        item["organ"] == "N3" and "artifact_sha256_mismatch" in item["reason"]
+        for item in block["fallbacks"]
+    )
     assert coordinator.runtime.registry.loaded_count == 0
     storage.close()
 
