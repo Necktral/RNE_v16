@@ -8,7 +8,7 @@ from statistics import fmean
 from typing import Any, Iterable, Mapping, Sequence
 
 
-P1_REPORT_SCHEMA_VERSION = "rnfe-p1-cognitive-loop-matrix-v1"
+P1_REPORT_SCHEMA_VERSION = "rnfe-p1-cognitive-loop-matrix-v2"
 
 
 def summarize_p1_rows(

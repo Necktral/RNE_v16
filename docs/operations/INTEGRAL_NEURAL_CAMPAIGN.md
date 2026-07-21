@@ -125,9 +125,16 @@ promedio:
 
 Los deltas `paired_vs_off` se conservan como diagnóstico global, pero OFF y SHADOW
 no atraviesan el mismo runtime y por eso ese delta no atribuye efecto a un órgano.
-`closure_rate` tampoco replica certificación: cuenta pasos cuyo `episode_id` tiene un
-evento durable `episode.closed` en PostgreSQL; `certification_rate` sigue contando
-el estado certificado de los vitales.
+`closure_rate` tampoco replica certificación: cuenta episodios emitidos cuyo
+`episode_id` tiene un evento durable `episode.closed` en PostgreSQL. Los pasos de
+`quarantine`/`sleep`, que no emiten episodio, se informan por separado mediante
+`episode_emission_rate`; `certification_rate` sigue contando el estado certificado
+de los vitales.
+
+La matriz P1 también sella un hash de conducta canónica por lane. La proyección
+incluye decisión, intervención, mundo actualizado, secuencia de razonamiento,
+certificación y vitales, pero excluye IDs y evidencia SHADOW. Cada perfil debe
+coincidir con `off` para la misma semilla o falla `canonical_integrity`.
 
 La preparación copia N1 configurado sólo si su manifiesto es válido y el hash del
 artefacto coincide. Un candidato N1 recalibrado dentro de la campaña siempre tiene

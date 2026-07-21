@@ -1207,8 +1207,8 @@ def _collect_episode_closure_evidence(
     events = storage.list_events(
         run_id=run_id,
         event_types=["episode.closed"],
-        # One close is expected per life step. The extra capacity lets the report
-        # expose duplicate/unexpected closes instead of silently truncating them.
+        # At most one close is expected per life step. The extra capacity lets the
+        # report expose duplicate/unexpected closes instead of silently truncating.
         limit=max(1, len(rows) * 2 + 1),
     )
     observed_episode_ids = [
@@ -1223,9 +1223,13 @@ def _collect_episode_closure_evidence(
         "source": "postgres_ledger_event",
         "event_type": "episode.closed",
         "run_id": run_id,
-        "denominator": "life_steps",
+        "denominator": "emitted_episode_results",
         "step_count": len(rows),
         "episode_result_count": len(expected_episode_ids),
+        "non_episode_step_count": len(rows) - len(expected_episode_ids),
+        "episode_emission_rate": (
+            len(expected_episode_ids) / len(rows) if rows else 0.0
+        ),
         "event_count": len(events),
         "matched_count": len(matched),
         "matched_episode_ids": sorted(matched),
@@ -1367,14 +1371,12 @@ def _step_vector(
     primary = fmean(float(item.get("cognitive_quality", 0.0)) for item in vitals)
     certified = [bool(item.get("certified", False)) for item in vitals]
     durable_closures = {str(episode_id) for episode_id in closed_episode_ids}
-    closure = [
-        bool(
-            (episode.get("episode") or {}).get("episode_id")
-            and str((episode.get("episode") or {}).get("episode_id"))
-            in durable_closures
-        )
+    emitted_episode_ids = [
+        str(episode_id)
         for episode in episodes
+        if (episode_id := (episode.get("episode") or {}).get("episode_id"))
     ]
+    closure = [episode_id in durable_closures for episode_id in emitted_episode_ids]
     resource_states = [
         dict(episode.get("neural_symbiosis_trace", {}).get("resource_state") or {})
         for episode in episodes
@@ -1393,7 +1395,10 @@ def _step_vector(
             if isinstance(candidate, Mapping) and bool(candidate.get("applied")):
                 violations += 1
     return primary, OrganismImpactVector(
-        closure_rate=fmean(float(value) for value in closure),
+        # Quarantine/sleep steps do not emit episodes and therefore cannot owe an
+        # episode.closed event. Keep their frequency in episode_emission_rate,
+        # while closure_rate measures integrity of the episodes actually emitted.
+        closure_rate=fmean(float(value) for value in closure) if closure else 1.0,
         certification_rate=fmean(float(value) for value in certified),
         continuity=fmean(float(item.get("identity_continuity", 0.0)) for item in vitals),
         viability=fmean(float(item.get("viability_margin", 0.0)) for item in vitals),
@@ -1404,6 +1409,74 @@ def _step_vector(
         thermal_pressure=mean_resource("thermal_pressure"),
         safety_violations=violations,
     )
+
+
+def _canonical_behavior_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Hash only authority-bearing behavior, excluding SHADOW evidence and IDs."""
+    projection: list[dict[str, Any]] = []
+    for row in rows:
+        decision = dict(row.get("decision") or {})
+        episode_result = dict(row.get("episode_result") or {})
+        episode = dict(episode_result.get("episode") or {})
+        context = dict(episode.get("context") or {})
+        result = dict(episode.get("result") or {})
+        certification = dict(episode_result.get("certification") or {})
+        vitals = dict(row.get("vital_signs") or {})
+        projection.append(
+            {
+                "decision": {
+                    key: decision.get(key)
+                    for key in (
+                        "action",
+                        "external_input",
+                        "mode",
+                        "priority",
+                        "reason",
+                        "scenario",
+                    )
+                },
+                "episode_present": bool(episode_result),
+                "scenario": episode.get("scenario"),
+                "intervention": context.get("intervention"),
+                "observation": context.get("observation"),
+                "canonical_result": {
+                    key: result.get(key)
+                    for key in (
+                        "alarm_transition",
+                        "counterfactual_delta",
+                        "factual_delta",
+                        "intervention_effect",
+                        "reasoning_sequence",
+                        "relation_kind",
+                        "updated_world",
+                    )
+                },
+                "certification": {
+                    key: certification.get(key)
+                    for key in ("decision_verdict", "promotion_candidate", "verdict")
+                },
+                "vital_signs": {
+                    key: vitals.get(key)
+                    for key in (
+                        "certified",
+                        "cognitive_quality",
+                        "episode_count",
+                        "identity_continuity",
+                        "mode",
+                        "resource_pressure",
+                        "risk_score",
+                        "viability_margin",
+                    )
+                },
+            }
+        )
+    canonical = json.dumps(
+        projection,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _run_life_lane(
@@ -1524,6 +1597,7 @@ def _run_life_lane(
         elapsed_s=elapsed,
         closed_episode_ids=closure_evidence["matched_episode_ids"],
     )
+    canonical_behavior_sha256 = _canonical_behavior_sha256(rows)
     path = ctx.state.root / "life_kernel" / phase / f"{lane}-seed-{seed}.json"
     lane_report = {
         "schema_version": "rnfe-integral-life-lane-v1",
@@ -1539,6 +1613,7 @@ def _run_life_lane(
         "primary_metric": primary,
         "impact_vector": vector.to_dict(),
         "closure_evidence": closure_evidence,
+        "canonical_behavior_sha256": canonical_behavior_sha256,
         "backend_provenance": backend_provenance,
         "elapsed_s": elapsed,
         "authority_effect": "none",
@@ -1561,6 +1636,7 @@ def _run_life_lane(
         "enabled_organs": list(enabled_organs),
         "disabled_organs": list(normalized_disabled),
         "closure_evidence": closure_evidence,
+        "canonical_behavior_sha256": canonical_behavior_sha256,
         "backend_provenance": backend_provenance,
         "scenario_order": list(scenario_order),
         "external_input_schedule_sha256": lane_report[
@@ -1951,10 +2027,15 @@ def _run_ablation_matrix(
         "resource_snapshot_capture": resource_snapshot_capture,
         "metric_contract": {
             "closure_rate": {
-                "numerator": "life steps whose episode_id has a durable episode.closed event",
-                "denominator": "life steps",
+                "numerator": "emitted episode_ids with a durable episode.closed event",
+                "denominator": "emitted episode results",
                 "evidence": "PostgreSQL ledger filtered by run_id and event_type",
                 "independent_from": "certification_rate",
+            },
+            "episode_emission_rate": {
+                "numerator": "life steps that emitted an episode result",
+                "denominator": "life steps",
+                "purpose": "separates quarantine/sleep from missing durable closure",
             },
             "certification_rate": {
                 "numerator": "life vital snapshots with certified=true",
@@ -2027,7 +2108,13 @@ def _p1_profile_summary(
     lanes = []
     for run in runs:
         summary = summarize_p1_rows(run.get("rows") or (), warmup_visits_per_scenario=2)
-        lanes.append({"seed": int(run["seed"]), "summary": summary})
+        lanes.append(
+            {
+                "seed": int(run["seed"]),
+                "canonical_behavior_sha256": run.get("canonical_behavior_sha256"),
+                "summary": summary,
+            }
+        )
 
     metric_paths = {
         "n3_ndcg_delta": ("n3", "mean_ndcg_delta"),
@@ -2078,6 +2165,14 @@ def _p1_profile_summary(
         },
         "canonical_integrity": {
             "closure_rate": fmean(float(vector["closure_rate"]) for vector in impact_vectors),
+            "episode_emission_rate": fmean(
+                float(
+                    (run.get("closure_evidence") or {}).get(
+                        "episode_emission_rate", 0.0
+                    )
+                )
+                for run in runs
+            ),
             "certification_rate": fmean(
                 float(vector["certification_rate"]) for vector in impact_vectors
             ),
@@ -2171,6 +2266,30 @@ def _run_p1_matrix(
         for profile in profiles
     ]
     by_id = {profile["profile_id"]: profile for profile in profile_reports}
+    off_behavior_by_seed = {
+        int(run["seed"]): str(run.get("canonical_behavior_sha256") or "")
+        for run in runs_by_profile["off"]
+    }
+    canonical_behavior_mismatches: list[dict[str, Any]] = []
+    for profile in profile_reports:
+        profile_id = str(profile["profile_id"])
+        profile_matches = True
+        for run in runs_by_profile[profile_id]:
+            seed = int(run["seed"])
+            observed = str(run.get("canonical_behavior_sha256") or "")
+            expected = off_behavior_by_seed.get(seed, "")
+            if not observed or not expected or observed != expected:
+                profile_matches = False
+                canonical_behavior_mismatches.append(
+                    {
+                        "profile_id": profile_id,
+                        "seed": seed,
+                        "off_sha256": expected or None,
+                        "profile_sha256": observed or None,
+                    }
+                )
+        profile["canonical_integrity"]["behavior_identical_to_off"] = profile_matches
+    canonical_behavior_identical = not canonical_behavior_mismatches
     all_on = by_id["p1-all"]
     n2 = all_on["n2_totals"]
     n3_metrics = all_on["metrics"]
@@ -2207,6 +2326,7 @@ def _run_p1_matrix(
         float(profile["canonical_integrity"]["closure_rate"]) == 1.0
         and float(profile["canonical_integrity"]["certification_rate"]) == 1.0
         and int(profile["canonical_integrity"]["safety_violations"]) == 0
+        and profile["canonical_integrity"]["behavior_identical_to_off"] is True
         for profile in profile_reports
     )
     n2_gate = n2_gate and canonical_integrity
@@ -2234,8 +2354,21 @@ def _run_p1_matrix(
             "n4": n4_gate,
             "any_cognitive_contribution": n2_gate or n3_gate or n4_gate,
             "canonical_integrity": canonical_integrity,
+            "canonical_behavior_identical": canonical_behavior_identical,
             "n3_brier_not_worse": n3_brier_not_worse,
             "n3_backend_valid": n3_backend_valid,
+        },
+        "canonical_behavior_parity": {
+            "reference_profile": "off",
+            "projection": (
+                "decision+intervention+world+reasoning+certification+vital_signs"
+            ),
+            "comparison_count": len(normalized_seeds) * (len(profiles) - 1),
+            "step_comparison_count": (
+                len(normalized_seeds) * (len(profiles) - 1) * steps
+            ),
+            "identical": canonical_behavior_identical,
+            "mismatches": canonical_behavior_mismatches,
         },
         "conclusion": (
             "cognitive_contribution_detected_in_shadow"

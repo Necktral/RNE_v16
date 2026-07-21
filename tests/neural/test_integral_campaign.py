@@ -383,6 +383,8 @@ def test_p1_profile_summary_excludes_two_warmup_visits_per_scenario() -> None:
     run = {
         "seed": 7,
         "rows": rows,
+        "canonical_behavior_sha256": "a" * 64,
+        "closure_evidence": {"episode_emission_rate": 1.0},
         "vector": {
             "closure_rate": 1.0,
             "certification_rate": 1.0,
@@ -437,6 +439,10 @@ def test_p1_matrix_trains_n4_before_all_rehearsal_lanes(
         return {
             "seed": kwargs["seed"],
             "rows": [],
+            "canonical_behavior_sha256": hashlib.sha256(
+                f"seed:{kwargs['seed']}".encode()
+            ).hexdigest(),
+            "closure_evidence": {"episode_emission_rate": 0.0},
             "vector": {
                 "closure_rate": 1.0,
                 "certification_rate": 1.0,
@@ -468,6 +474,8 @@ def test_p1_matrix_trains_n4_before_all_rehearsal_lanes(
         for call in calls
     )
     assert report["n4_preaction_training"]["manifest_path"] == str(trained_manifest)
+    assert report["gates"]["canonical_behavior_identical"] is True
+    assert report["canonical_behavior_parity"]["step_comparison_count"] == 216
 
 
 def test_ablation_matrix_is_paired_reproducible_and_never_promotable(
@@ -854,6 +862,104 @@ def test_closure_rate_uses_durable_episode_closed_events_not_certification() -> 
     assert evidence["duplicate_event_count"] == 1
     assert vector.closure_rate == pytest.approx(2.0 / 3.0)
     assert vector.certification_rate == pytest.approx(1.0 / 3.0)
+
+
+def test_non_episode_quarantine_step_is_not_a_missing_closure() -> None:
+    rows = [
+        {
+            "vital_signs": {
+                "cognitive_quality": 0.8,
+                "certified": True,
+                "identity_continuity": 0.9,
+                "viability_margin": 0.7,
+            },
+            "episode_result": {
+                "episode": {"episode_id": "episode-a"},
+                "neural_symbiosis_trace": {"resource_state": {}, "organs": []},
+            },
+        },
+        {
+            "decision": {"action": "quarantine"},
+            "vital_signs": {
+                "cognitive_quality": 0.8,
+                "certified": True,
+                "identity_continuity": 0.9,
+                "viability_margin": 0.7,
+            },
+            "episode_result": None,
+        },
+    ]
+
+    class FakeStorage:
+        def list_events(self, **_kwargs):
+            return [SimpleNamespace(payload={"episode_id": "episode-a"})]
+
+    evidence = integral_runner._collect_episode_closure_evidence(
+        FakeStorage(), run_id="quarantine-run", rows=rows
+    )
+    _primary, vector = integral_runner._step_vector(
+        rows,
+        elapsed_s=0.02,
+        closed_episode_ids=evidence["matched_episode_ids"],
+    )
+
+    assert evidence["denominator"] == "emitted_episode_results"
+    assert evidence["episode_result_count"] == 1
+    assert evidence["non_episode_step_count"] == 1
+    assert evidence["episode_emission_rate"] == 0.5
+    assert vector.closure_rate == 1.0
+
+
+def test_canonical_behavior_hash_excludes_shadow_evidence_but_binds_world() -> None:
+    base = {
+        "decision": {
+            "action": "act",
+            "external_input": 0.1,
+            "mode": "active",
+            "priority": 1,
+            "reason": "scheduled",
+            "scenario": "thermal",
+        },
+        "vital_signs": {
+            "certified": True,
+            "cognitive_quality": 0.8,
+            "episode_count": 1,
+            "identity_continuity": 0.9,
+            "mode": "active",
+            "resource_pressure": 0.2,
+            "risk_score": 0.1,
+            "viability_margin": 0.7,
+        },
+        "episode_result": {
+            "certification": {
+                "certificate_id": "random-id",
+                "decision_verdict": "promote",
+                "promotion_candidate": True,
+                "verdict": "certified",
+            },
+            "episode": {
+                "episode_id": "episode-random",
+                "scenario": "thermal",
+                "context": {"intervention": "cool", "observation": {"temp": 0.8}},
+                "result": {
+                    "reasoning_sequence": ["CAU", "CTF"],
+                    "updated_world": {"temp": 0.7},
+                    "p1_cognitive_loop": {"n3": {"risk": 0.1}},
+                },
+            },
+        },
+    }
+    shadow_changed = json.loads(json.dumps(base))
+    shadow_changed["episode_result"]["episode"]["episode_id"] = "episode-other"
+    shadow_changed["episode_result"]["episode"]["result"]["p1_cognitive_loop"] = {
+        "n3": {"risk": 0.9}
+    }
+    world_changed = json.loads(json.dumps(base))
+    world_changed["episode_result"]["episode"]["result"]["updated_world"]["temp"] = 0.6
+
+    base_hash = integral_runner._canonical_behavior_sha256([base])
+    assert integral_runner._canonical_behavior_sha256([shadow_changed]) == base_hash
+    assert integral_runner._canonical_behavior_sha256([world_changed]) != base_hash
 
 
 def test_backend_provenance_distinguishes_model_reference_and_disabled() -> None:
