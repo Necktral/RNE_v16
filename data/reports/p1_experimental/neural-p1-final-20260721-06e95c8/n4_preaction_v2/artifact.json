@@ -1,0 +1,405 @@
+{
+  "backend": "rnfe-n4-preaction-linear-v2",
+  "calibration_half_width": 0.05034521898163413,
+  "coefficients": {
+    "lagged_confidence": -0.07105446663631385,
+    "lagged_delta": 0.3083015581836092,
+    "n3_continuity": 0.17578970387932852,
+    "n3_importance": 0.14132441743642432,
+    "n3_risk": 0.045337318288434174,
+    "n3_trend": 0.14662598677468824,
+    "n3_uncertainty": -0.06822489349287861,
+    "observed_value": -0.35515896944214154,
+    "prior_confidence": 0.1585569952563835,
+    "prior_delta": -0.04938171939287597
+  },
+  "confidence": 0.9795095196113797,
+  "feature_names": [
+    "observed_value",
+    "prior_delta",
+    "prior_confidence",
+    "lagged_delta",
+    "lagged_confidence",
+    "n3_trend",
+    "n3_uncertainty",
+    "n3_risk",
+    "n3_importance",
+    "n3_continuity"
+  ],
+  "feature_ranges": {
+    "deferred_load_trap::boost_throughput": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        -0.034706263828488626,
+        0.10000000000000002
+      ],
+      "n3_continuity": [
+        0.7295660603449438,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.27043393965505624
+      ],
+      "n3_risk": [
+        0.0,
+        0.27043393965505624
+      ],
+      "n3_trend": [
+        -0.034706263828488626,
+        0.2298688487067978
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.6652937361715113,
+        1.0
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        -0.15,
+        -0.15
+      ]
+    },
+    "deferred_load_trap::shed_load": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        -0.014706263828488608,
+        0.10798680094605939
+      ],
+      "n3_continuity": [
+        0.7295660603449438,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.27043393965505624
+      ],
+      "n3_risk": [
+        0.0,
+        0.27043393965505624
+      ],
+      "n3_trend": [
+        -0.034706263828488626,
+        0.2298688487067978
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.6652937361715113,
+        1.0
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        -0.05,
+        -0.05
+      ]
+    },
+    "grid_thermal_5x5::activate_cooling": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        -0.06851862668802922,
+        0.0
+      ],
+      "n3_continuity": [
+        0.9932002459395294,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.006799754060470614
+      ],
+      "n3_risk": [
+        0.0,
+        0.006799754060470614
+      ],
+      "n3_trend": [
+        0.0,
+        0.005779790951400021
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.82,
+        0.8526636850537881
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        -0.07,
+        -0.07
+      ]
+    },
+    "grid_thermal_5x5::deactivate_cooling": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        0.0,
+        0.00573474021515219
+      ],
+      "n3_continuity": [
+        0.9932002459395294,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.006799754060470614
+      ],
+      "n3_risk": [
+        0.0,
+        0.006799754060470614
+      ],
+      "n3_trend": [
+        0.0,
+        0.005779790951400021
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.82,
+        0.8526636850537881
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        0.0,
+        0.0
+      ]
+    },
+    "resource_management::start_production": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        -0.05815007248035403,
+        0.04353467612726025
+      ],
+      "n3_continuity": [
+        0.30924963759823,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.69075036240177
+      ],
+      "n3_risk": [
+        0.0,
+        0.69075036240177
+      ],
+      "n3_trend": [
+        -0.13815007248035402,
+        0.0443168535896849
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.0,
+        0.25
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        0.08,
+        0.08
+      ]
+    },
+    "resource_management::stop_production": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        -0.13815007248035402,
+        0.0
+      ],
+      "n3_continuity": [
+        0.30924963759823,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.69075036240177
+      ],
+      "n3_risk": [
+        0.0,
+        0.69075036240177
+      ],
+      "n3_trend": [
+        -0.13815007248035402,
+        0.0443168535896849
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.0,
+        0.25
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        0.0,
+        0.0
+      ]
+    },
+    "thermal_homeostasis::activate_cooling": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        -0.021939650568398528,
+        0.0715574120698862
+      ],
+      "n3_continuity": [
+        0.833461868153075,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.166538131846925
+      ],
+      "n3_risk": [
+        0.0,
+        0.166538131846925
+      ],
+      "n3_trend": [
+        -0.03272228580148018,
+        0.14155741206988626
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.82,
+        1.0
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        -0.07,
+        -0.07
+      ]
+    },
+    "thermal_homeostasis::deactivate_cooling": {
+      "lagged_confidence": [
+        0.0,
+        0.6363636363636364
+      ],
+      "lagged_delta": [
+        0.0,
+        0.14155741206988626
+      ],
+      "n3_continuity": [
+        0.833461868153075,
+        1.0
+      ],
+      "n3_importance": [
+        0.0,
+        0.166538131846925
+      ],
+      "n3_risk": [
+        0.0,
+        0.166538131846925
+      ],
+      "n3_trend": [
+        -0.03272228580148018,
+        0.14155741206988626
+      ],
+      "n3_uncertainty": [
+        0.125,
+        1.0
+      ],
+      "observed_value": [
+        0.82,
+        1.0
+      ],
+      "prior_confidence": [
+        0.5,
+        0.5
+      ],
+      "prior_delta": [
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "model_id": "n4-preaction-v2",
+  "pair_bias": {
+    "deferred_load_trap::boost_throughput": 0.12618996666342608,
+    "deferred_load_trap::shed_load": 0.13162968383115536,
+    "grid_thermal_5x5::activate_cooling": 0.04033570692675939,
+    "grid_thermal_5x5::deactivate_cooling": 0.09490895656127898,
+    "resource_management::start_production": -0.15220126133185197,
+    "resource_management::stop_production": -0.2055064302634117,
+    "thermal_homeostasis::activate_cooling": 0.12674531054580473,
+    "thermal_homeostasis::deactivate_cooling": 0.15501065902307787
+  },
+  "schema_version": "n4-preaction-artifact-v2",
+  "training_provenance": {
+    "evaluation_opened": false,
+    "scenarios": 4,
+    "sealed_evaluation_rows": 768,
+    "split_disjoint": true,
+    "split_unit": "complete_trajectory",
+    "state_hashes": {
+      "evaluation": "9829555682fb52e8c9456118b3e3c5b4041a119dc446f40951b9d1ec914c1fbd",
+      "train": "c88aa195da1baef96c8d92b88f9a9b104ea13202ee4410ad8804604c677db1f0",
+      "validation": "91dccdbfd4565383a4b397f01413c7511e41642c8e067c1b918faa098f6d8257"
+    },
+    "steps_per_trajectory": 32,
+    "train_rows": 1536,
+    "trajectory_counts": {
+      "evaluation": 12,
+      "train": 24,
+      "validation": 6
+    },
+    "trajectory_hashes": {
+      "evaluation": "f5b25fc671b92c67ce382338501867df595ee37d7aff19e44d9c4154d4834818",
+      "train": "7e72a1c9ac4fa805d84b5ba2817ee9954e7a764ddd05a0e6b804a9666ca631ce",
+      "validation": "06527899ee544579acc084b9e4ae44246f27492f5b6357ad72bc21712538cd30"
+    },
+    "validation_mae": 0.020919123273809456,
+    "validation_rows": 384
+  }
+}

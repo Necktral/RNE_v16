@@ -1,0 +1,183 @@
+{
+  "audit_commit": "5f22227a9fee8584be7c740af65b7f6b41a2e47e",
+  "authority_ceiling": "shadow",
+  "campaign_id": "neural-p1-final-20260721-06e95c8",
+  "conclusion": "cognitive_contribution_detected_in_shadow",
+  "correction": {
+    "code": "closure_denominator_included_non_episode_quarantine_steps",
+    "correct_denominator": "emitted_episode_results",
+    "original_denominator": "life_steps",
+    "source_matrix_preserved": true
+  },
+  "gates": {
+    "any_cognitive_contribution": true,
+    "canonical_behavior_identical": true,
+    "canonical_integrity": true,
+    "n2": false,
+    "n3": true,
+    "n3_backend_valid": true,
+    "n3_brier_not_worse": true,
+    "n4": false
+  },
+  "integrity": {
+    "canonical_behavior_parity": {
+      "lane_hash_comparison_count": 108,
+      "mismatch_count": 0,
+      "mismatches": [],
+      "reference_profile": "off",
+      "step_comparison_count": 3456
+    },
+    "certification_rate": 1.0,
+    "closure_rate": 1.0,
+    "duplicate_event_count": 0,
+    "emitted_episodes": 3250,
+    "episode_emission_rate": 0.8463541666666666,
+    "life_steps": 3840,
+    "matched_closures": 3250,
+    "missing_episode_ids": 0,
+    "safety_violations": 0,
+    "unexpected_episode_ids": 0
+  },
+  "profiles": [
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "off",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "shadow-none",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "only-n2",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "only-n3-reference",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "only-n3-trained",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "only-n4-v2",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "p1-all",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "p1-without-n2",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "p1-without-n3",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    },
+    {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "duplicate_event_count": 0,
+      "emitted_episodes": 325,
+      "episode_emission_rate": 0.8463541666666666,
+      "life_steps": 384,
+      "matched_closures": 325,
+      "missing_episode_ids": 0,
+      "profile_id": "p1-without-n4",
+      "safety_violations": 0,
+      "unexpected_episode_ids": 0
+    }
+  ],
+  "promotion_authorized": false,
+  "schema_version": "rnfe-p1-cognitive-loop-matrix-audit-v2",
+  "source_matrix": {
+    "experiment_commit": "06e95c8f45c132be87f81f03c19a966674dfb51b",
+    "path": "/home/wis/Desarrollo/RNE_v16/rnfe_artifacts/integral_campaigns/neural-p1-final-20260721-06e95c8/p1/matrix.json",
+    "schema_version": "rnfe-p1-cognitive-loop-matrix-v1",
+    "sha256": "30af9f71de23c8b51e0414471a0bc1644ab7408545aba36470d75ea501c297f0"
+  },
+  "staging_authorized": false,
+  "training_authorized": false
+}

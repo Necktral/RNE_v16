@@ -1,0 +1,24 @@
+{
+  "artifact_path": "artifact.json",
+  "artifact_sha256": "2cc29b27d1681dbe4e307d612a9a130a8c26cd0026ada6946bedb1577c260f17",
+  "authority_effect": "none",
+  "backend": "rnfe-n4-preaction-linear-v2",
+  "capability": "preaction_intervention_scoring",
+  "dataset": {
+    "evaluation_opened": false,
+    "record_count": 2688,
+    "steps_per_trajectory": 32,
+    "trajectory_counts": {
+      "evaluation": 12,
+      "train": 24,
+      "validation": 6
+    },
+    "trajectory_seeds_sha256": "eadebd6bc06e606d6961a808738ae0f7cc5c3760b61c667cb7dd59cdf40e403a"
+  },
+  "input_schema_version": "n4-preaction-intervention-set-v1",
+  "model_id": "n4-preaction-v2",
+  "organ": "N4",
+  "output_schema_version": "n4-intervention-score-set-v1",
+  "promotion_authorized": false,
+  "schema_version": "n4-preaction-manifest-v1"
+}
