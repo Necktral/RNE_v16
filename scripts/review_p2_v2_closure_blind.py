@@ -59,6 +59,9 @@ def compute_confirmatory_contrasts(prereg,units):
    sv.append(sum(per)/len(per))
   cs[name]=stats(sv,name,prereg.get("bootstrap_samples",10000))
  return cs
+def shared_fields_match(expected,actual):
+ if not isinstance(expected,dict) or not isinstance(actual,dict): return False
+ return all(name in actual and all(actual[name].get(key)==value for key,value in values.items()) for name,values in expected.items())
 def review(prereg,manifest,rows,matrix=None,audit2=None,verdict2=None):
  validation=validate_primary_evidence(prereg,manifest,rows)
  if not validation["valid"]:
@@ -81,7 +84,7 @@ def review(prereg,manifest,rows,matrix=None,audit2=None,verdict2=None):
   t[a]={x+"_count":c[x] for x in ("full_order","top1","sequence","membership","action","regret")};t[a].update({x+"_rate":c[x]/d["units"] for x in ("full_order","top1","sequence","membership","action","regret")});t[a]["membership_delivered"]=t[a]["membership_rate"]>=d["gate"]
  cs=compute_confirmatory_contrasts(prereg,validated_units)
  valid=not errors;status,result,gain,pref=disposition(valid,t,cs)
- return {"schema_version":"p2-v2-blind-review-v3","campaign_id":prereg["campaign_id"],"derived_dimensions":d,"observed_dimensions":validation["observed_dimensions"],"primary_evidence_integrity":{"valid":valid,"errors":sorted(set(errors)),"derived_field_mismatches":mismatches},"observable_treatment":t,"confirmatory_contrasts_recomputed":cs,"exact_treatment_geometry":{"status":"NOT_RECONSTRUCTIBLE_FROM_FROZEN_EVIDENCE"},"comparison_with_v1":{"contrasts_match":matrix is not None and matrix.get("contrasts")==cs},"comparison_with_v2":{"numeric_treatment_match":audit2 is not None and all(abs(t[a]["membership_rate"]-audit2["treatment_geometry_observed"][a]["top4_membership_change_rate"])<1e-15 for a in t)},"authority":AUTH,"review_valid":valid,"review_status":status,"review_result":result,"n3_decisional_gain":gain,"backend_preference":pref}
+ return {"schema_version":"p2-v2-blind-review-v3","campaign_id":prereg["campaign_id"],"derived_dimensions":d,"observed_dimensions":validation["observed_dimensions"],"primary_evidence_integrity":{"valid":valid,"errors":sorted(set(errors)),"derived_field_mismatches":mismatches},"observable_treatment":t,"confirmatory_contrasts_recomputed":cs,"exact_treatment_geometry":{"status":"NOT_RECONSTRUCTIBLE_FROM_FROZEN_EVIDENCE"},"comparison_with_v1":{"contrasts_match":matrix is not None and shared_fields_match(matrix.get("contrasts"),cs)},"comparison_with_v2":{"numeric_treatment_match":audit2 is not None and all(abs(t[a]["membership_rate"]-audit2["treatment_geometry_observed"][a]["top4_membership_change_rate"])<1e-15 for a in t)},"authority":AUTH,"review_valid":valid,"review_status":status,"review_result":result,"n3_decisional_gain":gain,"backend_preference":pref}
 def bias_findings():
  specs=[
   ("HARDCODED_K_EXPOSED",True,"high","scripts/build_p2_v2_bounded_closure.py","classify_influence slices [:4]","synthetic k=2 or k=5 is classified with four","metrics",True,False),

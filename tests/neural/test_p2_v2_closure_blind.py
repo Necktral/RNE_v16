@@ -62,3 +62,9 @@ def test_validated_unit_count_mismatch_is_guarded(monkeypatch):
  p,m,r=inputs(); validation=validate_primary_evidence(p,m,r); validation["units"]={}
  monkeypatch.setattr(module,"validate_primary_evidence",lambda *args: validation)
  with pytest.raises(ValueError,match="validated_unit_count_mismatch"): module.review(p,m,r)
+def test_v1_contrast_comparison_accepts_additive_v3_fields():
+ p,m,r=inputs(); baseline=review(p,m,r)
+ legacy={"contrasts":{name:{key:value for key,value in values.items() if key not in ("sample_size","standard_deviation_status")} for name,values in baseline["confirmatory_contrasts_recomputed"].items()}}
+ assert review(p,m,r,matrix=legacy)["comparison_with_v1"]["contrasts_match"] is True
+ legacy["contrasts"]["reference - canonical"]["mean"]=99
+ assert review(p,m,r,matrix=legacy)["comparison_with_v1"]["contrasts_match"] is False
