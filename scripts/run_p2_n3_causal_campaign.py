@@ -140,7 +140,11 @@ def main() -> int:
                 arm_signals = {
                     "canonical": None,
                     "n3-reference": ref_directive.scale_signals if ref_directive.eligible else {},
-                    "n3-trained": {key: float(trained_candidate[key]) for key in ("risk", "importance", "continuity")},
+                    "n3-trained": {
+                        "micro": float(trained_candidate["risk"]),
+                        "meso": float(trained_candidate["importance"]),
+                        "macro": float(trained_candidate["continuity"]),
+                    },
                 }
                 for arm in ARMS:
                     fresh = scenario_for(scenario_name, seed, episode)

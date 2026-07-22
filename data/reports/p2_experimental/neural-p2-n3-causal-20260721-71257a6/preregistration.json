@@ -1,5 +1,5 @@
 {
-  "schema_version": "p2-n3-causal-preregistration-v1",
+  "schema_version": "p2-n3-causal-preregistration-v2",
   "campaign_id": "neural-p2-n3-causal-20260721-71257a6",
   "source_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
   "p1_closure_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
@@ -35,4 +35,14 @@
     "backend": "rnfe-mamba2-temporal-v1"
   },
   "authority_flags": {"live": false, "staging": false, "promotion": false, "main_merge": false, "p3_automatic": false}
+  ,
+  "invalidated_attempts": [
+    {
+      "execution_commit": "ae1f734f586a6236eedc8ea067de575594950b9d",
+      "status": "invalidated_before_receipt_persistence",
+      "reason": "trained temporal heads were passed without the preregistered semantic-to-scale mapping",
+      "results_observed": false,
+      "receipt_count_written": 0
+    }
+  ]
 }
