@@ -18,6 +18,7 @@ if str(REPO) not in sys.path:
 
 from runtime.neural.integration.contracts import canonical_sha256
 from runtime.neural.integration.p2_v2_n3_decision import ARMS, contrast_statistics
+from scripts.build_p2_v2_bounded_closure import audit_frozen_receipts, classify_influence
 
 
 def _dump(path: Path, value: object) -> None:
