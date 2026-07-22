@@ -2,7 +2,7 @@
   "schema_version": "p2-v2-preregistration-v3",
   "campaign_id": "neural-p2-v2-n3-causal-20260722-71257a6",
   "p1_closure_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
-  "preregistration_commit": "TO_BE_RECORDED_V3",
+  "preregistration_commit": "e6c04317d18695937a0f62d3bc8093c120a76388",
   "ind_memory_sensitivity_control_required": true,
   "reference_warmup_policy": "canonical_order_until_reference_trend_is_measured",
   "primary_endpoint": "seed_level_mean_decisional_regret_gain",
