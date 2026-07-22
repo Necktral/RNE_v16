@@ -1,4 +1,5 @@
 from runtime.neural.integration.p1_n3 import derive_n3_shadow_directive
+from scripts.run_p2_v2_n3_causal_campaign import scenario_for, verify_ind_memory_sensitivity
 
 
 def test_reference_and_trained_share_official_p1_bridge():
@@ -23,3 +24,8 @@ def test_authority_ceiling_is_structural():
     assert not hasattr(source, "promote")
     assert not hasattr(source, "train")
 
+
+def test_ind_positive_control_for_all_preregistered_scenarios():
+    for name in ("thermal_homeostasis", "resource_management",
+                 "grid_thermal_5x5", "deferred_load_trap"):
+        assert verify_ind_memory_sensitivity(scenario_for(name, 23, 0))

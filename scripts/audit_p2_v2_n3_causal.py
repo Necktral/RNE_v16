@@ -38,10 +38,22 @@ def audit_receipts(rows: Sequence[Mapping[str, Any]], *, expected_units: int) ->
         raise ValueError("p2_v2_three_arm_pairing_invalid")
     nonconstant = 0
     treatment = {"n3-reference": 0, "n3-trained": 0}
+    balance_verified = 0
     for unit in groups.values():
         canonical = next(x for x in unit if x["arm_id"] == "canonical")
         raw_ids = canonical["raw_candidate_ids"]
         raw_structures = canonical["raw_candidate_structures"]
+        raw_scales = canonical.get("raw_candidate_scales", [])
+        cells = [(str(structure.get("intervention")), str(scale),
+                  str(structure.get("relation_kind")))
+                 for structure, scale in zip(raw_structures, raw_scales)]
+        interventions = {cell[0] for cell in cells}
+        expected = {(iv, scale, relation) for iv in interventions
+                    for scale in ("micro", "meso", "macro")
+                    for relation in ("support", "contradiction")}
+        if len(cells) != 12 or set(cells) != expected or len(interventions) != 2:
+            raise ValueError("p2_v2_memory_bank_balance_invalid")
+        balance_verified += 1
         for row in unit:
             if (row["snapshot_sha256"] != row["actual_pre_action_state_sha256"]
                     or row.get("snapshot_matches_actual") is not True):
@@ -67,6 +79,7 @@ def audit_receipts(rows: Sequence[Mapping[str, Any]], *, expected_units: int) ->
         "oracle_order_integrity": 1.0, "unauthorized_interventions": 0,
         "external_reasoner_calls": 0, "training_calls": 0,
         "units_with_nonconstant_scores_rate": nonconstant / expected_units,
+        "balanced_memory_bank_rate": balance_verified / expected_units,
         "treatment_delivery": {arm: changed / expected_units for arm, changed in treatment.items()},
     }
 

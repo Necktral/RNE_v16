@@ -28,6 +28,7 @@ from runtime.neural.integration.p2_v2_n3_decision import (
 from runtime.neural.technology_backends import Mamba2TemporalTorchBackend
 from runtime.storage import StorageConfig, StorageFactory
 from runtime.world.registry import get_scenario
+from runtime.reasoning.families.core_inference import induce
 
 
 def dump(path: Path, value: object) -> None:
@@ -99,6 +100,34 @@ def context_for(adapter: N3Adapter, scenario: object, seed: int, episode: int,
     return identity, context, candidate
 
 
+def verify_ind_memory_sensitivity(scenario: object) -> bool:
+    interventions = list(scenario.config.interventions)
+    if len(interventions) != 2:
+        return False
+    def choose(target: str) -> str | None:
+        memory = [
+            {"memory_id": f"control-{target}-{i}", "score": 1.0,
+             "structure": {"relation_kind": "support" if i < 3 else "contradiction",
+                           "intervention": target}}
+            for i in range(4)
+        ]
+        state = {
+            "observation": {**dict(scenario.observe().state),
+                            "alarm": scenario.observe().alarm},
+            "retrieved_memory": memory,
+            "scenario_metadata": {
+                "scenario_name": scenario.config.name,
+                "main_variable": scenario.config.main_variable,
+                "alarm_threshold": scenario.config.alarm_threshold,
+                "interventions": interventions,
+                "optimization_direction": scenario.causal_signature.optimization_direction,
+                "causal_signature": scenario.causal_signature,
+            },
+        }
+        return induce(state)["state_delta"].get("ind_best_intervention")
+    return choose(interventions[0]) == interventions[0] and choose(interventions[1]) == interventions[1]
+
+
 def verify_execution(prereg_path: Path, prereg: dict) -> str:
     if git("branch", "--show-current") != "codex/p2-n3-causal-decision-v2":
         raise SystemExit("p2_v2_wrong_branch")
@@ -125,6 +154,10 @@ def main() -> int:
     if out != args.preregistration.resolve().parent:
         raise SystemExit("p2_v2_output_must_equal_preregistration_parent")
     execution_commit = verify_execution(args.preregistration, prereg)
+    controls = {name: verify_ind_memory_sensitivity(scenario_for(name, prereg["seeds"][0], 0))
+                for name in prereg["scenarios"]}
+    if not all(controls.values()):
+        raise SystemExit("P2_V2_BLOCKED_BY_INSENSITIVE_DECISION_SEAM")
 
     manifest_path = args.artifact_root.resolve() / "n3" / "manifest.json"
     if file_sha(manifest_path) != prereg["trained_artifact"]["manifest_sha256"]:
@@ -229,6 +262,7 @@ def main() -> int:
         "gpu_required": False, "authority_ceiling": "controlled_paired_sandbox",
         "trained_artifact": prereg["trained_artifact"], "duration_seconds": time.time() - started,
         "receipt_sha256": file_sha(receipt_path),
+        "ind_memory_sensitivity_control": controls,
     })
     return 0
 

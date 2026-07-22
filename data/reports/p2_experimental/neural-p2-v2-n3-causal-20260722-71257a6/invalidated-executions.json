@@ -6,6 +6,14 @@
       "reason": "reference warmup was incorrectly rejected instead of producing neutral canonical exposure",
       "outcomes_reused": false,
       "artifact_database_reused": false
+    },
+    {
+      "preregistration_schema": "p2-v2-preregistration-v2",
+      "status": "INVALIDATED_AFTER_COMPLETE_EXECUTION_BEFORE_PUBLICATION",
+      "reason": "IND positive sensitivity control and independent balance recomputation were missing",
+      "provisional_verdict": "p2_v2_treatment_not_delivered",
+      "outcomes_reused": false,
+      "artifact_database_reused": false
     }
   ]
 }
