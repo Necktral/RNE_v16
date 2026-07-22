@@ -13,6 +13,11 @@ This package publishes the reviewable evidence for campaign
 - `n3-attribution.audit-v1.json`: deterministic seed/lane-level attribution audit
   derived exclusively from the two published matrices. Its verdict is
   `n3_attribution_supported_limited`; it does not authorize P2.
+- `p1-closure.audit-v1.json`: machine-readable canonical closure with
+  `P1_STATUS=CLOSED`, `N2=FAILED`, `N3=SUPPORTED_LIMITED` and `N4=FAILED`.
+- `P1_CLOSURE.md`: human-readable definitive P1 closure. The ambiguous source gate
+  `trained_vs_reference` is replaced by separate ranking, Brier, MRR, balanced
+  accuracy and global-superiority subgates.
 - `SHA256SUMS`: hashes for byte-level verification.
 
 ## N3 attribution audit
@@ -23,6 +28,17 @@ assignments. It names the published ranking statistic
 eligible pool and fixed independent IDCG required to reconstruct conventional
 nDCG. Individual predictions and labels are also absent, so Brier decomposition is
 not recomputable. N3 remains SHADOW-only; P2 remains subject to human review.
+
+## Canonical P1 closure
+
+P1 is closed as a SHADOW cognitive-attribution experiment. N3 has limited support,
+while N2 and N4 failed their endpoints. Trained N3 global superiority over reference
+was not demonstrated. P2, live authority, staging, promotion and merge to `main`
+remain unauthorized. Verify the complete package from this directory with:
+
+```bash
+sha256sum -c SHA256SUMS
+```
 
 The original runtime tree is approximately 17 GB and contains PostgreSQL/runtime
 material plus 120 verbose lane reports. It is intentionally not committed to Git.

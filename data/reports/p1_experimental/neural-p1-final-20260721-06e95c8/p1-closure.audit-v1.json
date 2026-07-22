@@ -1,0 +1,214 @@
+{
+  "campaign_rerun": false,
+  "closure_gates": {
+    "authority_isolation": true,
+    "campaign_integrity": true,
+    "canonical_parity": true,
+    "certification_integrity": true,
+    "durable_closure": true,
+    "live_authority": false,
+    "main_merge_authorized": false,
+    "n2_gate": false,
+    "n3_context_independence": true,
+    "n3_isolated_contribution": true,
+    "n3_limited_gate": true,
+    "n3_trained_balanced_accuracy_superiority": false,
+    "n3_trained_brier_superiority": true,
+    "n3_trained_global_superiority": false,
+    "n3_trained_mrr_superiority": false,
+    "n3_trained_ranking_superiority": false,
+    "n4_gate": false,
+    "p1_closed": true,
+    "p1_ready_to_close": true,
+    "p2_authorized": false,
+    "promotion_authorized": false,
+    "source_integrity": true,
+    "staging_authorized": false
+  },
+  "decisions": {
+    "canonical_influence": "none",
+    "live_authority": false,
+    "main_merge_authorized": false,
+    "p2_authorized": false,
+    "promotion_authorized": false,
+    "staging_authorized": false
+  },
+  "forbidden_inferences": [
+    "AGI",
+    "general intelligence",
+    "operational autonomy",
+    "autopoiesis",
+    "effective self-evolution",
+    "improved final decision",
+    "improved actuation",
+    "improved scheduler",
+    "top-rank improvement",
+    "conventional nDCG",
+    "decomposed calibration",
+    "trained-reference global superiority",
+    "sufficient OOD robustness",
+    "live safety",
+    "production readiness",
+    "P2 authorization",
+    "main merge authorization"
+  ],
+  "integrity": {
+    "canonical_behavior_identical": true,
+    "canonical_mismatches": 0,
+    "canonical_step_comparisons": 3456,
+    "certification_rate": 1.0,
+    "emitted_episodes": 3250,
+    "matched_closures": 3250,
+    "profiles": 10,
+    "safety_violations": 0,
+    "seeds_per_profile": 12,
+    "steps_per_lane": 32,
+    "warmup_visits_per_scenario": 2
+  },
+  "invariants": {
+    "campaign_rerun": false,
+    "external_reasoner_used": false,
+    "raw_runtime_tree_used": false,
+    "runtime_modified": false,
+    "source_audit_v2_preserved": true,
+    "source_matrix_preserved": true,
+    "source_n3_attribution_v1_preserved": true,
+    "training_executed": false
+  },
+  "limitations": [
+    "Conventional nDCG is not recomputable from the published aggregate.",
+    "Brier reliability, resolution and uncertainty are not recomputable.",
+    "The trained-reference ranking contrast is inconclusive (exact p=0.125).",
+    "MRR did not improve.",
+    "Trained balanced accuracy degraded relative to reference.",
+    "No canonical decision, memory, scheduler, actuation or certification influence was demonstrated.",
+    "One external reasoning-stress XPASS is recorded as non-blocking and unrelated to P1."
+  ],
+  "n3_semantic_resolution": {
+    "deprecated_source_gate": "trained_vs_reference",
+    "deprecated_source_gate_status": "deprecated_ambiguous_source_gate",
+    "replacement_subgates": {
+      "trained_balanced_accuracy_vs_reference": "REFUTED",
+      "trained_brier_vs_reference": "SUPPORTED",
+      "trained_global_superiority": "NOT_DEMONSTRATED",
+      "trained_mrr_vs_reference": "NOT_SUPPORTED",
+      "trained_ranking_vs_reference": "INCONCLUSIVE"
+    }
+  },
+  "objective": "P1 cognitive attribution closure",
+  "organ_results": {
+    "N2": {
+      "final_false_rejections": 70,
+      "interpretation": "The second-verification policy was safe but did not demonstrate utility.",
+      "retry_false_accepts": 0,
+      "status": "FAILED",
+      "valid_corrections": 0
+    },
+    "N3": {
+      "balanced_accuracy": "DEGRADED",
+      "brier_improvement": "DEMONSTRATED",
+      "context_contrasts": {
+        "p1_all_vs_isolated_trained": {
+          "mean": 0.0,
+          "zero_seeds": 12
+        },
+        "without_n2_vs_isolated_trained": {
+          "mean": 0.0,
+          "zero_seeds": 12
+        },
+        "without_n4_vs_isolated_trained": {
+          "mean": 0.0,
+          "zero_seeds": 12
+        }
+      },
+      "context_dependence": "NOT_DETECTED",
+      "global_superiority": "NOT_DEMONSTRATED",
+      "isolated_contribution": "DEMONSTRATED",
+      "isolated_signal": {
+        "ci95": [
+          0.014940696408712381,
+          0.02188782420647339
+        ],
+        "exact_sign_flip_p": 0.00048828125,
+        "legacy_metric_name": "n3_ndcg_delta",
+        "mean": 0.01835533397030496,
+        "metric": "paired_binary_normalized_dcg_delta_v1",
+        "negative_seeds": 0,
+        "positive_seeds": 12,
+        "zero_seeds": 0
+      },
+      "mrr_improvement": "NOT_DEMONSTRATED",
+      "status": "SUPPORTED_LIMITED",
+      "trained_vs_reference": {
+        "balanced_accuracy": {
+          "exact_sign_flip_p": 0.00048828125,
+          "negative_seeds": 12,
+          "paired_delta": -0.2451402185777186,
+          "reference_mean": 0.48408564814814814,
+          "status": "REFUTED",
+          "trained_mean": 0.23894542957042955
+        },
+        "brier": {
+          "decomposition": {
+            "reliability": "not_recomputable",
+            "resolution": "not_recomputable",
+            "uncertainty": "not_recomputable"
+          },
+          "exact_sign_flip_p": 0.00048828125,
+          "paired_improvement": 0.3178849374622885,
+          "positive_seeds": 12,
+          "reference_mean": 0.6067907714486019,
+          "status": "SUPPORTED",
+          "trained_mean": 0.2889058339863134
+        },
+        "global_superiority": "NOT_DEMONSTRATED",
+        "mrr": {
+          "mean_delta": 0.0,
+          "status": "NOT_SUPPORTED",
+          "zero_seeds": 12
+        },
+        "ranking": {
+          "exact_sign_flip_p": 0.125,
+          "mean_delta": 0.00451492140564504,
+          "negative_seeds": 0,
+          "positive_seeds": 4,
+          "status": "INCONCLUSIVE",
+          "zero_seeds": 8
+        }
+      }
+    },
+    "N4": {
+      "coverage_frozen_rounded": 0.917,
+      "coverage_observed": 0.9169956140350877,
+      "incremental_value_vs_causal_prior": "not_demonstrated",
+      "interpretation": "N4 did not demonstrate incremental value over the causal prior and remains rejected.",
+      "isolated_coverage": 0.0,
+      "status": "FAILED",
+      "top1_accuracy": 1.0
+    }
+  },
+  "qa_observations": {
+    "external_xpass": {
+      "belongs_to_p1_scope": false,
+      "closure_impact": "none",
+      "closure_limitation": "recorded_non_blocking_external_xpass",
+      "node_id": "tests/reasoning_stress/test_temporal_hysteresis.py::test_no_undesired_memory_effects",
+      "xfail_reason": "Caracterización: histéresis ~0.02 (un paso discreto del sweep) frente a una expectativa de ~0; brittleness de discretización, no un bug del scheduler."
+    }
+  },
+  "runtime_modified": false,
+  "schema_version": "rnfe-p1-closure-audit-v1",
+  "source": {
+    "audit_v2_sha256": "aaef87cc73141a21912f8aed007bc46e25e16439c4794d446864e838acecc1ff",
+    "campaign_id": "neural-p1-final-20260721-06e95c8",
+    "closure_fix_commit": "5f22227a9fee8584be7c740af65b7f6b41a2e47e",
+    "evidence_publication_head": "060101975a752793c4b5bae6872002ce69c0f8ec",
+    "experiment_commit": "06e95c8f45c132be87f81f03c19a966674dfb51b",
+    "matrix_sha256": "30af9f71de23c8b51e0414471a0bc1644ab7408545aba36470d75ea501c297f0",
+    "n3_attribution_head": "d2d54a649309e54d9cc434871e8a4e40c6325ad0",
+    "n3_attribution_v1_sha256": "e98bd9354b819c4e34afcaf3b0fb32368cc09fe226304da0459dd143e108cf2d",
+    "source_files_preserved": true
+  },
+  "status": "CLOSED",
+  "training_executed": false
+}
