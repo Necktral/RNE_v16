@@ -51,6 +51,12 @@ def test_ineligible_or_arbitrary_mapping_fails_closed():
         rerank(pool(), arm_id="n3-trained", directive=replace(directive(), status="unavailable"))
 
 
+def test_reference_warmup_is_neutral_not_fabricated_treatment():
+    frozen = pool()
+    warmup = replace(directive(), status="warmup", reason="reference_trend_not_measured")
+    assert rerank(frozen, arm_id="n3-reference", directive=warmup) == frozen.hits
+
+
 def test_oracle_requires_decision_seal():
     with pytest.raises(ValueError, match="P2_ORACLE_BEFORE_DECISION_SEAL"):
         open_oracle(scenario=object(), external_input=0.0,
@@ -62,4 +68,3 @@ def test_statistics_are_seed_level_and_deterministic():
     assert first == contrast_statistics([0.1] * 12, name="reference-canonical")
     assert first["assignments_enumerated"] == 4096
     assert first["gate_passed"] is True
-

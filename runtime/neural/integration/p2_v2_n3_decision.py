@@ -63,6 +63,8 @@ def rerank(
         raise ValueError("p2_v2_arm_invalid")
     if arm_id == "canonical":
         return pool.hits
+    if arm_id == "n3-reference" and directive is not None and directive.status == "warmup":
+        return pool.hits
     if directive is None or not directive.eligible:
         raise ValueError("p2_v2_n3_directive_not_eligible")
     signals = directive.scale_signals  # official P1 semantic bridge
@@ -214,6 +216,8 @@ def evaluate_arm(
         "exposed_set_changed": exposed_set != canonical_exposed,
         "top1_changed": ordered_ids[0] != canonical_ids[0],
         "full_order_changed": ordered_ids != canonical_ids,
+        "n3_directive_status": None if directive is None else directive.status,
+        "n3_directive_reason": None if directive is None else directive.reason,
         "unique_score_count": len(set(scores)), "score_range": max(scores) - min(scores),
         "tie_count": len(scores) - len(set(scores)),
         "decision_sealed": True, "decision_sha256": seal.sha256,

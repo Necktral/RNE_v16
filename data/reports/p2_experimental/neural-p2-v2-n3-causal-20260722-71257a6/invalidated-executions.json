@@ -1,0 +1,11 @@
+{
+  "executions": [
+    {
+      "preregistration_schema": "p2-v2-preregistration-v1",
+      "status": "INVALIDATED_BEFORE_FIRST_COMPLETE_UNIT",
+      "reason": "reference warmup was incorrectly rejected instead of producing neutral canonical exposure",
+      "outcomes_reused": false,
+      "artifact_database_reused": false
+    }
+  ]
+}
