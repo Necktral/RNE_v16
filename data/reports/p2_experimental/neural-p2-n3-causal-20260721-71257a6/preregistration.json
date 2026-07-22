@@ -1,0 +1,38 @@
+{
+  "schema_version": "p2-n3-causal-preregistration-v1",
+  "campaign_id": "neural-p2-n3-causal-20260721-71257a6",
+  "source_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
+  "p1_closure_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
+  "hypothesis": {
+    "H1_reference": "N3 reference reduces decision regret versus canonical retrieval.",
+    "H1_trained": "N3 trained reduces decision regret versus canonical retrieval."
+  },
+  "null_hypothesis": "N3 reranking does not improve decision outcomes.",
+  "arms": ["canonical", "n3-reference", "n3-trained"],
+  "primary_endpoint": "decision_regret_reduction_vs_canonical",
+  "secondary_endpoints": ["optimal_action_rate", "action_divergence_rate", "closure_rate", "certification_rate", "causal_support_rate", "safety_violation_count", "mean_latency_ms", "p95_latency_ms", "retrieval_top1_change_rate", "paired_binary_normalized_dcg_delta_v1", "mrr_delta", "risk_brier", "risk_balanced_accuracy", "abstention_rate"],
+  "inference_unit": "seed; episodes averaged by scenario, then scenarios averaged per seed",
+  "seed_derivation": "int.from_bytes(sha256(f'rnfe-p2-n3-causal-v1:{i}'.encode()).digest()[:4], 'big') & 0x7FFFFFFF for i=0..11",
+  "seeds": [1752726358, 2028904492, 451178818, 401174225, 734129406, 965802336, 237833712, 1695529792, 254447928, 310802106, 1260027411, 1959994480],
+  "scenario_inclusion_rule": "all registered deterministic CPU scenarios with >=2 interventions, nonmutating counterfactual simulation, clonable constructor state, and declared optimization utility",
+  "scenario_exclusion_rule": "exclude only a scenario that fails a technical inclusion rule before outcomes are observed",
+  "scenarios_included": ["thermal_homeostasis", "resource_management", "grid_thermal_5x5", "deferred_load_trap"],
+  "scenarios_excluded": {},
+  "steps_per_lane": 8,
+  "retrieval_limit": 6,
+  "pairing_contract": "same scenario, seed, episode, pre-action observation, external input, immutable six-candidate pool and budget across all three arms",
+  "bootstrap_method": "deterministic 10000-resample percentile bootstrap over 12 seed means; RNG seed is SHA-256 of contrast name",
+  "randomization_method": "two-sided exact sign-flip test over 12 seed means; 4096 assignments",
+  "success_gates": {"mean_gain_gt": 0.0, "bootstrap_ci95_lower_gt": 0.0, "exact_sign_flip_p_lt": 0.05, "positive_seed_count_gte": 9, "negative_seed_count_lte": 3},
+  "failure_gates": {"material_closure_or_certification_regression_gt": 0.01, "baseline_one_requires_n3_one": true},
+  "stop_conditions": ["pretreatment divergence", "candidate set mutation", "oracle before decision seal", "shared write", "GPU or external reasoner requirement", "training", "safety violation", "code change after preregistration"],
+  "authority_ceiling": "paired_sandbox",
+  "trained_artifact": {
+    "root": "/home/wis/Desarrollo/RNE_v16/rnfe_artifacts/integral_campaigns/neural-p1-final-20260721-06e95c8/evaluation_artifacts/neural",
+    "manifest_sha256": "4b412cb19993b77910276bd7c1fb5ac00c571578f1e5d23bcef728dd1b0c4232",
+    "artifact_sha256": "e6976349aee73a392d72659b6f409506040f83f84fc4f4c54be5e13044bffaa0",
+    "model_id": "rnfe-mamba2-temporal-lab-v1",
+    "backend": "rnfe-mamba2-temporal-v1"
+  },
+  "authority_flags": {"live": false, "staging": false, "promotion": false, "main_merge": false, "p3_automatic": false}
+}
