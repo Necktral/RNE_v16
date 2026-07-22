@@ -1,0 +1,48 @@
+{
+  "schema_version": "p2-v2-preregistration-v1",
+  "campaign_id": "neural-p2-v2-n3-causal-20260722-71257a6",
+  "p1_closure_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
+  "preregistration_commit": "TO_BE_RECORDED",
+  "primary_endpoint": "seed_level_mean_decisional_regret_gain",
+  "n_raw": 12,
+  "k_exposed": 4,
+  "episodes_per_scenario": 16,
+  "scenarios": [
+    "thermal_homeostasis",
+    "resource_management",
+    "grid_thermal_5x5",
+    "deferred_load_trap"
+  ],
+  "seeds": [
+    1846334338,
+    57736234,
+    639740116,
+    1546601053,
+    1947536575,
+    1458983260,
+    1608330941,
+    1560397283,
+    1555509152,
+    1662846167,
+    500904710,
+    1917875512
+  ],
+  "bootstrap_samples": 10000,
+  "exact_sign_flip_assignments": 4096,
+  "canonical_discrimination_gate": 0.8,
+  "treatment_delivery_gate": 0.1,
+  "trained_artifact": {
+    "model_id": "rnfe-mamba2-temporal-lab-v1",
+    "backend": "rnfe-mamba2-temporal-v1",
+    "artifact_sha256": "e6976349aee73a392d72659b6f409506040f83f84fc4f4c54be5e13044bffaa0",
+    "manifest_sha256": "4b412cb19993b77910276bd7c1fb5ac00c571578f1e5d23bcef728dd1b0c4232"
+  },
+  "external_reasoner": false,
+  "training": false,
+  "gpu": false,
+  "live_authority": false,
+  "p3_design_authorized": false,
+  "staging_authorized": false,
+  "promotion_authorized": false,
+  "main_merge_authorized": false
+}

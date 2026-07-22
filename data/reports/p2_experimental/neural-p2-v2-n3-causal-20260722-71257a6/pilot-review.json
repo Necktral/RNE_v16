@@ -1,0 +1,22 @@
+{
+  "pilot_branch": "codex/p2-n3-causal-decision-v1",
+  "pilot_head": "fe95d1107ca409653d4003bf1548d91470bcb3a0",
+  "pilot_preregistration_commit": "47cd37fe36a5728140b0dbc2f51aff6cad922095",
+  "defects": {
+    "synthetic_candidate_pool": true,
+    "canonical_retrieval_not_used": true,
+    "all_candidate_scores_equal": true,
+    "scale_intervention_alias": true,
+    "decision_consumed_full_pool": true,
+    "integrity_fields_hardcoded": true,
+    "closure_fields_defaulted": true,
+    "certification_fields_defaulted": true,
+    "safety_fields_defaulted": true,
+    "auditor_did_not_recompute_pairing": true,
+    "actual_arm_state_hash_not_verified": true,
+    "focused_test_coverage_insufficient": true
+  },
+  "pilot_confirmatory_valid": false,
+  "pilot_numerical_results_preserved": true,
+  "pilot_transfer_verdict_superseded": true
+}
