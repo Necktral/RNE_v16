@@ -1,0 +1,299 @@
+{
+  "action_geometry": {
+    "n3-reference": {
+      "change_count": 56,
+      "change_rate": 0.07291666666666667
+    },
+    "n3-trained": {
+      "change_count": 64,
+      "change_rate": 0.08333333333333333
+    }
+  },
+  "authority": {
+    "LIVE_AUTHORITY": false,
+    "MAIN_MERGE_AUTHORIZED": false,
+    "P3_DESIGN_AUTHORIZED": false,
+    "PROMOTION_AUTHORIZED": false,
+    "STAGING_AUTHORIZED": false
+  },
+  "campaign_id": "neural-p2-v2-n3-causal-20260722-71257a6",
+  "exact_treatment_geometry": {
+    "forbidden_reconstruction_methods": [
+      "rerun_reference_backend",
+      "rerun_trained_backend",
+      "infer_multipliers_from_final_order",
+      "derive_unique_scores_from_partial_order"
+    ],
+    "missing_fields": [
+      "observed_micro_signal",
+      "observed_meso_signal",
+      "observed_macro_signal",
+      "candidate_multiplier",
+      "candidate_adjusted_score"
+    ],
+    "status": "NOT_RECONSTRUCTIBLE_FROM_FROZEN_EVIDENCE"
+  },
+  "integrity": {
+    "actual_state_hash_parity": 1.0,
+    "arms_per_unit": 3,
+    "canonical_order_valid": true,
+    "oracle_and_regret_valid": true,
+    "pool_conservation_valid": true,
+    "raw_pool_parity": 1.0,
+    "snapshot_actual_match_rate": 1.0,
+    "three_arm_pairing": 1.0
+  },
+  "original_confirmatory_contrasts": {
+    "reference - canonical": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -2.6041666666667485e-05,
+        0.003437500000000001
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.099609375,
+      "gate_passed": false,
+      "maximum": 0.007187500000000001,
+      "mean": 0.0017447916666666666,
+      "median": 0.0024999999999999988,
+      "minimum": -0.0037500000000000025,
+      "negative_count": 3,
+      "positive_count": 8,
+      "seed_values": [
+        0.003749999999999999,
+        0.002499999999999997,
+        0.0037500000000000007,
+        -0.0021875,
+        0.0021875,
+        -0.0037500000000000025,
+        -0.0025000000000000005,
+        0.0,
+        0.0037500000000000025,
+        0.007187500000000001,
+        0.0025000000000000005,
+        0.0037500000000000007
+      ],
+      "standard_deviation_ddof1": 0.0032158894320257897,
+      "zero_count": 1
+    },
+    "trained - canonical": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -0.00046875000000000047,
+        0.003854166666666667
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.1748046875,
+      "gate_passed": false,
+      "maximum": 0.009687500000000002,
+      "mean": 0.0016666666666666663,
+      "median": 0.0025000000000000005,
+      "minimum": -0.0037500000000000025,
+      "negative_count": 4,
+      "positive_count": 8,
+      "seed_values": [
+        0.004062499999999999,
+        0.003749999999999997,
+        0.0025000000000000005,
+        -0.0034375000000000005,
+        0.0021875,
+        -0.0037500000000000025,
+        -0.0025000000000000005,
+        -0.002187500000000002,
+        0.003437500000000002,
+        0.009687500000000002,
+        0.0025000000000000005,
+        0.0037500000000000007
+      ],
+      "standard_deviation_ddof1": 0.003944603380991977,
+      "zero_count": 0
+    },
+    "trained - reference": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -0.0007291666666666674,
+        0.0005729166666666666
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.9375,
+      "gate_passed": false,
+      "maximum": 0.0024999999999999996,
+      "mean": -7.812500000000027e-05,
+      "median": 0.0,
+      "minimum": -0.002187500000000002,
+      "negative_count": 5,
+      "positive_count": 3,
+      "seed_values": [
+        0.0003125000000000003,
+        0.0012499999999999998,
+        -0.0012500000000000002,
+        -0.0012500000000000002,
+        0.0,
+        0.0,
+        -2.168404344971009e-19,
+        -0.002187500000000002,
+        -0.0003125000000000003,
+        0.0024999999999999996,
+        0.0,
+        0.0
+      ],
+      "standard_deviation_ddof1": 0.0012001790231044704,
+      "zero_count": 4
+    }
+  },
+  "receipt_count": 2304,
+  "regret_diagnostics": {
+    "arms": {
+      "n3-reference": {
+        "ACTION_CHANGED_WITHOUT_MEMBERSHIP_CHANGE": {
+          "mean_regret_gain": 0.023928571428571428,
+          "regret_change_count": 56,
+          "unit_count": 56
+        },
+        "ACTION_CHANGE_ANY": {
+          "mean_regret_gain": 0.023928571428571428,
+          "regret_change_count": 56,
+          "unit_count": 56
+        },
+        "NO_INFLUENCE": {
+          "mean_regret_gain": 0.0,
+          "regret_change_count": 0,
+          "unit_count": 55
+        },
+        "ORDER_CHANGED_OUTSIDE_TOP4": {
+          "mean_regret_gain": 0.0,
+          "regret_change_count": 0,
+          "unit_count": 134
+        },
+        "TOP4_SEQUENCE_CHANGED": {
+          "mean_regret_gain": 0.0,
+          "regret_change_count": 0,
+          "unit_count": 523
+        }
+      },
+      "n3-trained": {
+        "ACTION_CHANGED_WITHOUT_MEMBERSHIP_CHANGE": {
+          "mean_regret_gain": 0.019999999999999997,
+          "regret_change_count": 64,
+          "unit_count": 64
+        },
+        "ACTION_CHANGE_ANY": {
+          "mean_regret_gain": 0.019999999999999997,
+          "regret_change_count": 64,
+          "unit_count": 64
+        },
+        "NO_INFLUENCE": {
+          "mean_regret_gain": 0.0,
+          "regret_change_count": 0,
+          "unit_count": 2
+        },
+        "ORDER_CHANGED_OUTSIDE_TOP4": {
+          "mean_regret_gain": 0.0,
+          "regret_change_count": 0,
+          "unit_count": 91
+        },
+        "TOP4_SEQUENCE_CHANGED": {
+          "mean_regret_gain": 0.0,
+          "regret_change_count": 0,
+          "unit_count": 611
+        }
+      }
+    },
+    "confirmatory_authority": false,
+    "preregistered": false,
+    "status": "EXPLORATORY_DIAGNOSTIC_ONLY"
+  },
+  "schema_version": "p2-v2-receipt-audit-v2",
+  "source_receipt_sha256": "7521987e9259a1c9b2d174da5ee7ac5f433bf210e27e1bd31ee6bca8ac1f666d",
+  "treatment_geometry_observed": {
+    "n3-reference": {
+      "action_change_count": 56,
+      "action_change_rate": 0.07291666666666667,
+      "full_order_change_count": 713,
+      "full_order_change_rate": 0.9283854166666666,
+      "membership_treatment_delivered": false,
+      "order_treatment_delivered": true,
+      "regret_change_count": 56,
+      "regret_change_rate": 0.07291666666666667,
+      "top1_change_count": 457,
+      "top1_change_rate": 0.5950520833333334,
+      "top4_membership_change_count": 0,
+      "top4_membership_change_rate": 0.0,
+      "top4_sequence_change_count": 579,
+      "top4_sequence_change_rate": 0.75390625
+    },
+    "n3-trained": {
+      "action_change_count": 64,
+      "action_change_rate": 0.08333333333333333,
+      "full_order_change_count": 766,
+      "full_order_change_rate": 0.9973958333333334,
+      "membership_treatment_delivered": false,
+      "order_treatment_delivered": true,
+      "regret_change_count": 64,
+      "regret_change_rate": 0.08333333333333333,
+      "top1_change_count": 511,
+      "top1_change_rate": 0.6653645833333334,
+      "top4_membership_change_count": 0,
+      "top4_membership_change_rate": 0.0,
+      "top4_sequence_change_count": 675,
+      "top4_sequence_change_rate": 0.87890625
+    }
+  },
+  "treatment_taxonomy": {
+    "n3-reference": {
+      "ACTION_CHANGED_WITHOUT_MEMBERSHIP_CHANGE": {
+        "count": 56,
+        "rate": 0.07291666666666667
+      },
+      "ACTION_CHANGED_WITH_MEMBERSHIP_CHANGE": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "NO_INFLUENCE": {
+        "count": 55,
+        "rate": 0.07161458333333333
+      },
+      "ORDER_CHANGED_OUTSIDE_TOP4": {
+        "count": 134,
+        "rate": 0.17447916666666666
+      },
+      "TOP4_MEMBERSHIP_CHANGED": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "TOP4_SEQUENCE_CHANGED": {
+        "count": 523,
+        "rate": 0.6809895833333334
+      }
+    },
+    "n3-trained": {
+      "ACTION_CHANGED_WITHOUT_MEMBERSHIP_CHANGE": {
+        "count": 64,
+        "rate": 0.08333333333333333
+      },
+      "ACTION_CHANGED_WITH_MEMBERSHIP_CHANGE": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "NO_INFLUENCE": {
+        "count": 2,
+        "rate": 0.0026041666666666665
+      },
+      "ORDER_CHANGED_OUTSIDE_TOP4": {
+        "count": 91,
+        "rate": 0.11848958333333333
+      },
+      "TOP4_MEMBERSHIP_CHANGED": {
+        "count": 0,
+        "rate": 0.0
+      },
+      "TOP4_SEQUENCE_CHANGED": {
+        "count": 611,
+        "rate": 0.7955729166666666
+      }
+    }
+  },
+  "unit_count": 768,
+  "valid": true,
+  "verdict": "p2_v2_treatment_not_delivered"
+}

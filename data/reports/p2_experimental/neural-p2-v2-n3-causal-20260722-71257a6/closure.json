@@ -1,0 +1,40 @@
+{
+  "audit_v1_sha256": "15f90badd1efb9f536cf0db0fd35ce323b2a495461aff017d9691d585b7b5d08",
+  "audit_v2_sha256": "4c23e5a820a1d2bf9052cee7a812a37dd927c3928b7e4bfd1fd8802712fcc70f",
+  "authority_ceiling": "none",
+  "base_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
+  "branch": "codex/p2-n3-causal-decision-v2",
+  "campaign_id": "neural-p2-v2-n3-causal-20260722-71257a6",
+  "closure_schema_version": "p2-v2-bounded-closure-v1",
+  "evidence_commit": "edb79dbcfcddd99ac793d86608295d13a8038904",
+  "execution_commit": "55f716e24804ac4ae58f656af8f8d0805b8aa5df",
+  "final_result": "VALID_TREATMENT_FEASIBILITY_FAILURE_WITH_INSTRUMENTATION_LIMITATION",
+  "final_status": "CLOSED",
+  "focused_test_result": {
+    "command": "pytest focused P2-v2/P1 files -q -rxX",
+    "duration_seconds": 12.17,
+    "failed": 0,
+    "passed": 89
+  },
+  "full_suite_result": {
+    "all_shards_completed": true,
+    "failed": 0,
+    "green": true,
+    "historical_xpass_count": 1,
+    "new_xpass_count": 0,
+    "passed": 1784,
+    "shard_count": 19,
+    "skipped": 22,
+    "timeouts": 0,
+    "warnings": 6,
+    "xfailed": 32,
+    "xpassed": 1
+  },
+  "git_diff_check": "passed",
+  "matrix_sha256": "15f90badd1efb9f536cf0db0fd35ce323b2a495461aff017d9691d585b7b5d08",
+  "preregistration_commit": "e6c04317d18695937a0f62d3bc8093c120a76388",
+  "receipt_sha256": "7521987e9259a1c9b2d174da5ee7ac5f433bf210e27e1bd31ee6bca8ac1f666d",
+  "scope_check": "passed",
+  "verdict_v1_sha256": "8d94b624e37e6bcb3ef1267afe4eedd1ffad5163a369914b02075020a9166eaf",
+  "verdict_v2_sha256": "3fd452c1de2ad49fa1e043b24a4903a6d90e978ba6c762aea0dc01333be384e6"
+}

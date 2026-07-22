@@ -1,0 +1,50 @@
+{
+  "authority": {
+    "LIVE_AUTHORITY": false,
+    "MAIN_MERGE_AUTHORIZED": false,
+    "P3_DESIGN_AUTHORIZED": false,
+    "PROMOTION_AUTHORIZED": false,
+    "STAGING_AUTHORIZED": false
+  },
+  "authorization_effect": "none",
+  "invariants": {
+    "ADJUSTED_SCORES_PERSISTED": true,
+    "BOUNDARY_DIAGNOSTICS_RECONSTRUCTIBLE": true,
+    "DIRECTIVE_SIGNALS_PERSISTED": true,
+    "MULTIPLIERS_PERSISTED": true,
+    "NO_BACKEND_RERUN_REQUIRED_FOR_AUDIT": true,
+    "RANK_TRANSITION_PERSISTED": true
+  },
+  "required_per_arm_unit_fields": [
+    "directive_status",
+    "directive_reason",
+    "directive_candidate_hash",
+    "observed_micro_signal",
+    "observed_meso_signal",
+    "observed_macro_signal",
+    "scale_signal_vector_sha256",
+    "memory_id",
+    "canonical_score",
+    "scale",
+    "observed_scale_signal",
+    "applied_multiplier",
+    "adjusted_score",
+    "rank_before",
+    "rank_after",
+    "inside_top_k_before",
+    "inside_top_k_after",
+    "k_exposed",
+    "canonical_boundary_score",
+    "adjusted_boundary_score",
+    "boundary_crossed",
+    "rerank_formula_id",
+    "rerank_formula_version",
+    "scorer_version",
+    "retrieval_version",
+    "raw_pool_sha256",
+    "adjusted_pool_sha256",
+    "exposed_sequence_sha256",
+    "exposed_membership_sha256"
+  ],
+  "schema_version": "p2-next-observability-contract-v1"
+}
