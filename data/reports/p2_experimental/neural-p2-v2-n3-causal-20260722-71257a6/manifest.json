@@ -1,0 +1,38 @@
+{
+  "arms": [
+    "canonical",
+    "n3-reference",
+    "n3-trained"
+  ],
+  "authority_ceiling": "controlled_paired_sandbox",
+  "base_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
+  "branch": "codex/p2-n3-causal-decision-v2",
+  "campaign_id": "neural-p2-v2-n3-causal-20260722-71257a6",
+  "duration_seconds": 19.769495010375977,
+  "execution_commit": "55f716e24804ac4ae58f656af8f8d0805b8aa5df",
+  "external_reasoner_enabled": false,
+  "gpu_required": false,
+  "ind_memory_sensitivity_control": {
+    "deferred_load_trap": true,
+    "grid_thermal_5x5": true,
+    "resource_management": true,
+    "thermal_homeostasis": true
+  },
+  "k_exposed": 4,
+  "n_raw": 12,
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "python_version": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+  "real_memory_retrieval_used": true,
+  "receipt_count": 2304,
+  "receipt_sha256": "7521987e9259a1c9b2d174da5ee7ac5f433bf210e27e1bd31ee6bca8ac1f666d",
+  "repository": "Necktral/RNE_v16",
+  "schema_version": "p2-v2-manifest-v1",
+  "single_retrieval_per_unit": true,
+  "trained_artifact": {
+    "artifact_sha256": "e6976349aee73a392d72659b6f409506040f83f84fc4f4c54be5e13044bffaa0",
+    "backend": "rnfe-mamba2-temporal-v1",
+    "manifest_sha256": "4b412cb19993b77910276bd7c1fb5ac00c571578f1e5d23bcef728dd1b0c4232",
+    "model_id": "rnfe-mamba2-temporal-lab-v1"
+  },
+  "training_enabled": false
+}

@@ -1,0 +1,11 @@
+{
+  "audit_sha256": "15f90badd1efb9f536cf0db0fd35ce323b2a495461aff017d9691d585b7b5d08",
+  "authority": {
+    "LIVE_AUTHORITY": false,
+    "MAIN_MERGE_AUTHORIZED": false,
+    "P3_DESIGN_AUTHORIZED": false,
+    "PROMOTION_AUTHORIZED": false,
+    "STAGING_AUTHORIZED": false
+  },
+  "verdict": "p2_v2_treatment_not_delivered"
+}
