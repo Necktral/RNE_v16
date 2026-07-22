@@ -1,0 +1,53 @@
+{
+  "arms": [
+    "canonical",
+    "n3-reference",
+    "n3-trained"
+  ],
+  "authority_ceiling": "paired_sandbox",
+  "branch": "codex/p2-n3-causal-decision-v1",
+  "campaign_id": "neural-p2-n3-causal-20260721-71257a6",
+  "candidate_pool_contract": "same immutable six-hit pool; permutation only",
+  "decision_utility_source": "runtime.world.intervention_override.outcome_effectiveness",
+  "execution_commit": "47cd37fe36a5728140b0dbc2f51aff6cad922095",
+  "external_reasoner_enabled": false,
+  "gpu_required": false,
+  "oracle_contract": "scenario.simulate_counterfactual after decision_sha256",
+  "p1_closure_commit": "71257a66cde77f9b4bfb97d4b1d2df9898e8cb52",
+  "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+  "preregistration_commit": "47cd37fe36a5728140b0dbc2f51aff6cad922095",
+  "python_version": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+  "repository": "Necktral/RNE_v16",
+  "retrieval_limit": 6,
+  "scenarios_excluded": {},
+  "scenarios_included": [
+    "thermal_homeostasis",
+    "resource_management",
+    "grid_thermal_5x5",
+    "deferred_load_trap"
+  ],
+  "schema_version": "p2-n3-causal-manifest-v1",
+  "seeds": [
+    1752726358,
+    2028904492,
+    451178818,
+    401174225,
+    734129406,
+    965802336,
+    237833712,
+    1695529792,
+    254447928,
+    310802106,
+    1260027411,
+    1959994480
+  ],
+  "steps_per_lane": 8,
+  "trained_artifact": {
+    "artifact_sha256": "e6976349aee73a392d72659b6f409506040f83f84fc4f4c54be5e13044bffaa0",
+    "backend": "rnfe-mamba2-temporal-v1",
+    "manifest_sha256": "4b412cb19993b77910276bd7c1fb5ac00c571578f1e5d23bcef728dd1b0c4232",
+    "model_id": "rnfe-mamba2-temporal-lab-v1",
+    "root": "/home/wis/Desarrollo/RNE_v16/rnfe_artifacts/integral_campaigns/neural-p1-final-20260721-06e95c8/evaluation_artifacts/neural"
+  },
+  "training_enabled": false
+}

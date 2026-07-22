@@ -1,0 +1,14 @@
+{
+  "campaign_id": "neural-p2-n3-causal-20260721-71257a6",
+  "checks": {
+    "all_authority_false": true,
+    "all_finite": true,
+    "integrity_zero": true,
+    "receipt_count": true,
+    "receipt_hash": true
+  },
+  "preferred_backend": "none",
+  "schema_version": "p2-n3-causal-audit-v1",
+  "valid": true,
+  "verdict": "p2_n3_signal_not_transferred_to_decision"
+}

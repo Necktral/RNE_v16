@@ -1,0 +1,11 @@
+{
+  "N3_DECISIONAL_INFLUENCE": "NOT_DEMONSTRATED",
+  "P3_DESIGN_AUTHORIZED": false,
+  "live_authority": false,
+  "main_merge_authorized": false,
+  "preferred_backend": "none",
+  "promotion_authorized": false,
+  "schema_version": "p2-n3-causal-verdict-v1",
+  "staging_authorized": false,
+  "verdict": "p2_n3_signal_not_transferred_to_decision"
+}

@@ -1,0 +1,210 @@
+{
+  "arms": {
+    "canonical": {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "decisions": 384,
+      "mean_regret": 0.03187500000000001,
+      "optimal_action_rate": 0.46875,
+      "safety_violations": 0
+    },
+    "n3-reference": {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "decisions": 384,
+      "mean_regret": 0.030833333333333338,
+      "optimal_action_rate": 0.4817708333333333,
+      "safety_violations": 0
+    },
+    "n3-trained": {
+      "certification_rate": 1.0,
+      "closure_rate": 1.0,
+      "decisions": 384,
+      "mean_regret": 0.03187500000000001,
+      "optimal_action_rate": 0.46875,
+      "safety_violations": 0
+    }
+  },
+  "campaign_id": "neural-p2-n3-causal-20260721-71257a6",
+  "contrasts": {
+    "reference - canonical": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -0.0008333333333333335,
+        0.0025000000000000005
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.369140625,
+      "gate_passed": false,
+      "maximum": 0.005000000000000001,
+      "mean": 0.0010416666666666669,
+      "median": 0.0025000000000000005,
+      "minimum": -0.005000000000000001,
+      "negative_count": 2,
+      "positive_count": 8,
+      "seed_values": [
+        0.0,
+        0.0025000000000000005,
+        -0.005000000000000001,
+        0.0025000000000000005,
+        0.0025000000000000005,
+        0.0025000000000000005,
+        0.0025000000000000005,
+        0.005000000000000001,
+        0.0,
+        -0.005000000000000001,
+        0.0025000000000000005,
+        0.0025000000000000005
+      ],
+      "standard_deviation_ddof1": 0.0031002810234303643,
+      "zero_count": 2
+    },
+    "trained - canonical": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        0.0,
+        0.0
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 1.0,
+      "gate_passed": false,
+      "maximum": 0.0,
+      "mean": 0.0,
+      "median": 0.0,
+      "minimum": 0.0,
+      "negative_count": 0,
+      "positive_count": 0,
+      "seed_values": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "standard_deviation_ddof1": 0.0,
+      "zero_count": 12
+    },
+    "trained - reference": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -0.0025000000000000005,
+        0.0008333333333333335
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.369140625,
+      "gate_passed": false,
+      "maximum": 0.005000000000000001,
+      "mean": -0.0010416666666666669,
+      "median": -0.0025000000000000005,
+      "minimum": -0.005000000000000001,
+      "negative_count": 8,
+      "positive_count": 2,
+      "seed_values": [
+        0.0,
+        -0.0025000000000000005,
+        0.005000000000000001,
+        -0.0025000000000000005,
+        -0.0025000000000000005,
+        -0.0025000000000000005,
+        -0.0025000000000000005,
+        -0.005000000000000001,
+        0.0,
+        0.005000000000000001,
+        -0.0025000000000000005,
+        -0.0025000000000000005
+      ],
+      "standard_deviation_ddof1": 0.0031002810234303643,
+      "zero_count": 2
+    }
+  },
+  "integrity": {
+    "candidate_pool_count_parity": 1.0,
+    "candidate_pool_mutations": 0,
+    "candidate_pool_set_parity": 1.0,
+    "decision_receipt_completeness": 1.0,
+    "external_reasoner_calls": 0,
+    "first_intended_divergence_stage": "memory_reranking",
+    "oracle_leakage": 0,
+    "pre_action_hash_parity": 1.0,
+    "scenario_pairing": 1.0,
+    "seed_pairing": 1.0,
+    "shared_state_writes": 0,
+    "training_calls": 0,
+    "unauthorized_actions": 0
+  },
+  "receipt_sha256": "deb489dd2139bf44d9a0ca511e2da43ae79407584ca1732fea06f54b4fb664e3",
+  "results_by_scenario": {
+    "deferred_load_trap": {
+      "canonical": 0.010625000000000008,
+      "n3-reference": 0.010625000000000008,
+      "n3-trained": 0.010625000000000008
+    },
+    "grid_thermal_5x5": {
+      "canonical": 0.0371875,
+      "n3-reference": 0.0371875,
+      "n3-trained": 0.0371875
+    },
+    "resource_management": {
+      "canonical": 0.04250000000000001,
+      "n3-reference": 0.03833333333333334,
+      "n3-trained": 0.04250000000000001
+    },
+    "thermal_homeostasis": {
+      "canonical": 0.03718750000000001,
+      "n3-reference": 0.03718750000000001,
+      "n3-trained": 0.03718750000000001
+    }
+  },
+  "results_by_seed": {
+    "reference - canonical": [
+      0.0,
+      0.0025000000000000005,
+      -0.005000000000000001,
+      0.0025000000000000005,
+      0.0025000000000000005,
+      0.0025000000000000005,
+      0.0025000000000000005,
+      0.005000000000000001,
+      0.0,
+      -0.005000000000000001,
+      0.0025000000000000005,
+      0.0025000000000000005
+    ],
+    "trained - canonical": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "trained - reference": [
+      0.0,
+      -0.0025000000000000005,
+      0.005000000000000001,
+      -0.0025000000000000005,
+      -0.0025000000000000005,
+      -0.0025000000000000005,
+      -0.0025000000000000005,
+      -0.005000000000000001,
+      0.0,
+      0.005000000000000001,
+      -0.0025000000000000005,
+      -0.0025000000000000005
+    ]
+  },
+  "schema_version": "p2-n3-causal-matrix-v1"
+}
