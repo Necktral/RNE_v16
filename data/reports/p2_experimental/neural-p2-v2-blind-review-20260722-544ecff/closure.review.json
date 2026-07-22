@@ -1,0 +1,59 @@
+{
+  "authority": {
+    "LIVE_AUTHORITY": false,
+    "MAIN_MERGE_AUTHORIZED": false,
+    "P3_DESIGN_AUTHORIZED": false,
+    "PROMOTION_AUTHORIZED": false,
+    "STAGING_AUTHORIZED": false
+  },
+  "classification": "CONFIRMED_WITH_IMPLEMENTATION_BIAS",
+  "knowledge_gain": {
+    "causal_claims_authorized": [
+      "N3 arms changed observable ordering under the frozen harness"
+    ],
+    "causal_claims_not_authorized": [
+      "N3 improved decisional gain",
+      "Either backend is superior",
+      "Operational readiness"
+    ],
+    "highest_information_remaining_question": "Does a preregistered N3 intervention that changes top-k membership reduce seed-level decisional regret relative to canonical retrieval?",
+    "instrumentation_gaps": [
+      "observed scale signals",
+      "applied multipliers",
+      "candidate adjusted scores"
+    ],
+    "partially_resolved_questions": [
+      {
+        "evidence": "action changes observed without membership change; causal quality not isolated",
+        "question": "Can order alone alter IND action?"
+      }
+    ],
+    "resolved_questions": [
+      {
+        "evidence": "observable_treatment full_order and sequence rates",
+        "question": "Did N3 observably alter ranking and exposure sequence?"
+      },
+      {
+        "evidence": "membership_rate and preregistered gate",
+        "question": "Was preregistered membership treatment delivered?"
+      }
+    ],
+    "unexpected_findings": [
+      {
+        "evidence": {
+          "reference_action_rate": 0.07291666666666667,
+          "trained_action_rate": 0.08333333333333333
+        },
+        "finding": "Action changed despite unchanged exposure membership"
+      }
+    ],
+    "unresolved_questions": [
+      {
+        "evidence": "exact_treatment_geometry NOT_RECONSTRUCTIBLE",
+        "question": "Which recorded N3 signal or multiplier caused each rank transition?"
+      }
+    ]
+  },
+  "review_result": "TREATMENT_NOT_DELIVERED",
+  "schema_version": "p2-v2-closure-review-v1"
+}

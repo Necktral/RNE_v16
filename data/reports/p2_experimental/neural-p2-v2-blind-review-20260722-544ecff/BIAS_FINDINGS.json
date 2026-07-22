@@ -1,0 +1,113 @@
+{
+  "findings": [
+    {
+      "behavioral_impact": "metrics",
+      "behavioral_test": "synthetic k=2 or k=5 is classified with four",
+      "can_change_disposition": false,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "classify_influence slices [:4]",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "HARDCODED_K_EXPOSED",
+      "present": true,
+      "severity": "high"
+    },
+    {
+      "behavioral_impact": "disposition",
+      "behavioral_test": "synthetic gate=.40 still uses .10",
+      "can_change_disposition": true,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "delivery compares against .10",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "HARDCODED_TREATMENT_GATE",
+      "present": true,
+      "severity": "high"
+    },
+    {
+      "behavioral_impact": "validity",
+      "behavioral_test": "inconsistent fixture cannot select invalid output",
+      "can_change_disposition": false,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "audit return sets valid true",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "HARDCODED_VALID_TRUE",
+      "present": true,
+      "severity": "high"
+    },
+    {
+      "behavioral_impact": "disposition",
+      "behavioral_test": "invalid fixture still receives closure template",
+      "can_change_disposition": true,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "verdict sets CLOSED",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "HARDCODED_CLOSED_STATUS",
+      "present": true,
+      "severity": "medium"
+    },
+    {
+      "behavioral_impact": "disposition",
+      "behavioral_test": "delivered synthetic campaign cannot choose supported result",
+      "can_change_disposition": true,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "failure result is literal",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "HARDCODED_RESULT",
+      "present": true,
+      "severity": "high"
+    },
+    {
+      "behavioral_impact": "disposition",
+      "behavioral_test": "supported synthetic arm cannot become preferred",
+      "can_change_disposition": true,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "backend preference is NONE",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "HARDCODED_BACKEND_PREFERENCE",
+      "present": true,
+      "severity": "medium"
+    },
+    {
+      "behavioral_impact": "disposition",
+      "behavioral_test": "synthetic delivered+passing contrast selects not-demonstrated",
+      "can_change_disposition": true,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "delivered branch ignores contrast gates",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "NON_NEUTRAL_DELIVERED_BRANCH",
+      "present": true,
+      "severity": "high"
+    },
+    {
+      "behavioral_impact": "metrics",
+      "behavioral_test": "manifest arms and prereg k variants are not authoritative",
+      "can_change_disposition": false,
+      "can_change_metrics": true,
+      "did_change_observed_v2_result": false,
+      "evidence": "N3 arms and top-k are module literals",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "EXPECTED_DIMENSIONS_NOT_FULLY_DERIVED",
+      "present": true,
+      "severity": "medium"
+    },
+    {
+      "behavioral_impact": "none",
+      "behavioral_test": "independent recomputation path exists",
+      "can_change_disposition": false,
+      "can_change_metrics": false,
+      "did_change_observed_v2_result": false,
+      "evidence": "v2 does not consume its own prior audit as calculation input",
+      "file": "scripts/build_p2_v2_bounded_closure.py",
+      "finding_id": "SELF_CONFIRMING_INPUT_DEPENDENCY",
+      "present": false,
+      "severity": "none"
+    }
+  ],
+  "schema_version": "p2-v2-bias-findings-v1"
+}

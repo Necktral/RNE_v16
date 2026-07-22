@@ -1,0 +1,189 @@
+{
+  "authority": {
+    "LIVE_AUTHORITY": false,
+    "MAIN_MERGE_AUTHORIZED": false,
+    "P3_DESIGN_AUTHORIZED": false,
+    "PROMOTION_AUTHORIZED": false,
+    "STAGING_AUTHORIZED": false
+  },
+  "backend_preference": "NONE",
+  "campaign_id": "neural-p2-v2-n3-causal-20260722-71257a6",
+  "comparison_with_v1": {
+    "contrasts_match": true
+  },
+  "comparison_with_v2": {
+    "numeric_treatment_match": true
+  },
+  "confirmatory_contrasts_recomputed": {
+    "reference - canonical": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -2.6041666666667485e-05,
+        0.003437500000000001
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.099609375,
+      "gate_passed": false,
+      "maximum": 0.007187500000000001,
+      "mean": 0.0017447916666666666,
+      "median": 0.0024999999999999988,
+      "minimum": -0.0037500000000000025,
+      "negative_count": 3,
+      "positive_count": 8,
+      "sample_size": 12,
+      "seed_values": [
+        0.003749999999999999,
+        0.002499999999999997,
+        0.0037500000000000007,
+        -0.0021875,
+        0.0021875,
+        -0.0037500000000000025,
+        -0.0025000000000000005,
+        0.0,
+        0.0037500000000000025,
+        0.007187500000000001,
+        0.0025000000000000005,
+        0.0037500000000000007
+      ],
+      "standard_deviation_ddof1": 0.0032158894320257897,
+      "standard_deviation_status": "MEASURED",
+      "zero_count": 1
+    },
+    "trained - canonical": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -0.00046875000000000047,
+        0.003854166666666667
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.1748046875,
+      "gate_passed": false,
+      "maximum": 0.009687500000000002,
+      "mean": 0.0016666666666666663,
+      "median": 0.0025000000000000005,
+      "minimum": -0.0037500000000000025,
+      "negative_count": 4,
+      "positive_count": 8,
+      "sample_size": 12,
+      "seed_values": [
+        0.004062499999999999,
+        0.003749999999999997,
+        0.0025000000000000005,
+        -0.0034375000000000005,
+        0.0021875,
+        -0.0037500000000000025,
+        -0.0025000000000000005,
+        -0.002187500000000002,
+        0.003437500000000002,
+        0.009687500000000002,
+        0.0025000000000000005,
+        0.0037500000000000007
+      ],
+      "standard_deviation_ddof1": 0.003944603380991977,
+      "standard_deviation_status": "MEASURED",
+      "zero_count": 0
+    },
+    "trained - reference": {
+      "assignments_enumerated": 4096,
+      "bootstrap_ci95": [
+        -0.0007291666666666674,
+        0.0005729166666666666
+      ],
+      "bootstrap_samples": 10000,
+      "exact_sign_flip_p_value": 0.9375,
+      "gate_passed": false,
+      "maximum": 0.0024999999999999996,
+      "mean": -7.812500000000027e-05,
+      "median": 0.0,
+      "minimum": -0.002187500000000002,
+      "negative_count": 5,
+      "positive_count": 3,
+      "sample_size": 12,
+      "seed_values": [
+        0.0003125000000000003,
+        0.0012499999999999998,
+        -0.0012500000000000002,
+        -0.0012500000000000002,
+        0.0,
+        0.0,
+        -2.168404344971009e-19,
+        -0.002187500000000002,
+        -0.0003125000000000003,
+        0.0024999999999999996,
+        0.0,
+        0.0
+      ],
+      "standard_deviation_ddof1": 0.0012001790231044704,
+      "standard_deviation_status": "MEASURED",
+      "zero_count": 4
+    }
+  },
+  "derived_dimensions": {
+    "arms": [
+      "canonical",
+      "n3-reference",
+      "n3-trained"
+    ],
+    "episodes": 16,
+    "gate": 0.1,
+    "k": 4,
+    "receipts": 2304,
+    "scenarios": 4,
+    "seeds": 12,
+    "units": 768
+  },
+  "exact_treatment_geometry": {
+    "status": "NOT_RECONSTRUCTIBLE_FROM_FROZEN_EVIDENCE"
+  },
+  "n3_decisional_gain": "NOT_EVALUABLE",
+  "observable_treatment": {
+    "n3-reference": {
+      "action_count": 56,
+      "action_rate": 0.07291666666666667,
+      "full_order_count": 713,
+      "full_order_rate": 0.9283854166666666,
+      "membership_count": 0,
+      "membership_delivered": false,
+      "membership_rate": 0.0,
+      "regret_count": 56,
+      "regret_rate": 0.07291666666666667,
+      "sequence_count": 579,
+      "sequence_rate": 0.75390625,
+      "top1_count": 457,
+      "top1_rate": 0.5950520833333334
+    },
+    "n3-trained": {
+      "action_count": 64,
+      "action_rate": 0.08333333333333333,
+      "full_order_count": 766,
+      "full_order_rate": 0.9973958333333334,
+      "membership_count": 0,
+      "membership_delivered": false,
+      "membership_rate": 0.0,
+      "regret_count": 64,
+      "regret_rate": 0.08333333333333333,
+      "sequence_count": 675,
+      "sequence_rate": 0.87890625,
+      "top1_count": 511,
+      "top1_rate": 0.6653645833333334
+    }
+  },
+  "observed_dimensions": {
+    "receipt_count": 2304,
+    "unit_count": 768
+  },
+  "primary_evidence_integrity": {
+    "derived_field_mismatches": 0,
+    "errors": [],
+    "valid": true
+  },
+  "review_result": "TREATMENT_NOT_DELIVERED",
+  "review_status": "READY_TO_CLOSE",
+  "review_valid": true,
+  "schema_version": "p2-v2-blind-review-v3",
+  "source_hashes": {
+    "decision-receipts.jsonl": "7521987e9259a1c9b2d174da5ee7ac5f433bf210e27e1bd31ee6bca8ac1f666d",
+    "manifest.json": "307f5b5ffdba762c96f527c7f973059515ae7b5cdde2c6e5efb315d814d0af24",
+    "preregistration.json": "066e3ca178ccd0c69acd5e5ce00d6334a79a5ab52dc4eadc1993d8f55d03fff1"
+  }
+}
