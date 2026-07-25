@@ -6,6 +6,7 @@ import math
 import os
 import hashlib
 import json
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Dict, List, Mapping
 
 from runtime.storage import StorageFacade
@@ -48,6 +49,200 @@ _CROSS_VERSION_PENALTY = 0.8
 # Por eso el pool es acotado y configurable, no "traer todo": crece lineal con P y con
 # embeddings pesados (llama) P grande se paga caro.
 _DEFAULT_CANDIDATE_POOL_SIZE = 200
+_SCORING_VERSION = "mfm-canonical-structural-v1"
+
+
+def _canonical_json(value: Any) -> str:
+    """Stable JSON snapshot used only by the immutable pre-cut contract."""
+
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=True,
+        default=str,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ScoredMemoryCandidate:
+    """Immutable snapshot of one canonically scored memory before top-k."""
+
+    memory_id: str
+    run_id: str
+    episode_id: str
+    scale: str
+    ttl_seconds: int | None
+    created_at: str
+    structure_json: str
+    metadata_json: str
+    canonical_score: float
+    source_order: int
+    canonical_rank: int
+    tie_group: int
+    tie_size: int
+    ioc_proxy: float | None
+    support_count: int
+    certificate_id: str | None
+    cross_scenario_source: bool
+    cross_version_source: bool
+    scoring_trace: tuple[tuple[str, Any], ...]
+
+    @property
+    def structure(self) -> dict[str, Any]:
+        """Return a detached copy; callers cannot mutate the frozen pool."""
+
+        value = json.loads(self.structure_json)
+        return dict(value) if isinstance(value, dict) else {}
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        value = json.loads(self.metadata_json)
+        return dict(value) if isinstance(value, dict) else {}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "structure": self.structure,
+            "metadata": self.metadata,
+            "scoring_trace": dict(self.scoring_trace),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ScoredMemoryPool:
+    """Canonical, ordered and immutable scored pool before top-k selection."""
+
+    candidates: tuple[ScoredMemoryCandidate, ...]
+    requested_pool_size: int
+    source_candidate_count: int
+    scored_candidate_count: int
+    candidate_same_scenario_count: int
+    candidate_cross_scenario_count: int
+    candidate_cross_version_count: int
+    filtered_cross_scenario_count: int
+    cross_scenario_penalty_applied: bool
+    cross_version_penalty_applied: bool
+    scenario_filter_mode: str
+    query_scenario: str | None
+    query_scenario_version: str | None
+    retrieval_configuration_json: str
+    retrieval_configuration_fingerprint: str
+    storage_input_fingerprint: str
+    scoring_version: str = _SCORING_VERSION
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "candidates": [item.to_dict() for item in self.candidates],
+            "retrieval_configuration": json.loads(
+                self.retrieval_configuration_json
+            ),
+        }
+
+
+def _retrieval_entry(candidate: ScoredMemoryCandidate) -> dict[str, Any]:
+    metadata = candidate.metadata
+    item_scenario, item_version = _item_scenario_identity(metadata)
+    entry: dict[str, Any] = {
+        "memory_id": candidate.memory_id,
+        "scale": candidate.scale,
+        "score": candidate.canonical_score,
+        "structure": candidate.structure,
+        "ioc_proxy": candidate.ioc_proxy,
+        "support_count": candidate.support_count,
+        "scenario_name": item_scenario,
+        "scenario_version": item_version,
+        "certificate_id": candidate.certificate_id,
+    }
+    if candidate.cross_scenario_source:
+        entry["analogical_source"] = True
+    if candidate.cross_version_source:
+        entry["cross_version_source"] = True
+    return entry
+
+
+def select_top_k(pool: ScoredMemoryPool, limit: int) -> list[dict[str, Any]]:
+    """Adapt a frozen scored pool to the historical public retrieval result."""
+
+    out = [_retrieval_entry(item) for item in pool.candidates[:limit]]
+    returned_same_scenario_count = sum(
+        1 for entry in out if not entry.get("analogical_source")
+    )
+    returned_cross_scenario_count = sum(
+        1 for entry in out if entry.get("analogical_source")
+    )
+    returned_cross_version_count = sum(
+        1 for entry in out if entry.get("cross_version_source")
+    )
+    returned_count = len(out)
+    retrieval_purity = (
+        returned_same_scenario_count / returned_count if returned_count else None
+    )
+    if pool.query_scenario is None:
+        validation_status = "pass"
+        degradation_level = "unfiltered"
+    elif returned_count == 0:
+        validation_status = "warn"
+        degradation_level = "no_memory"
+    elif (
+        pool.scenario_filter_mode == "strict_same_scenario"
+        and returned_cross_scenario_count
+    ):
+        validation_status = "fail"
+        degradation_level = "strict_policy_violation"
+    elif returned_cross_scenario_count:
+        validation_status = "warn"
+        degradation_level = "analogical_penalized"
+    elif returned_cross_version_count:
+        validation_status = "pass"
+        degradation_level = "cross_version_penalized"
+    else:
+        validation_status = "pass"
+        degradation_level = "strict_isolated"
+
+    retrieval_metrics = {
+        "retrieved_same_scenario_count": returned_same_scenario_count,
+        "retrieved_cross_scenario_count": returned_cross_scenario_count,
+        "candidate_same_scenario_count": pool.candidate_same_scenario_count,
+        "candidate_cross_scenario_count": pool.candidate_cross_scenario_count,
+        "filtered_cross_scenario_count": pool.filtered_cross_scenario_count,
+        "scenario_filter_mode": pool.scenario_filter_mode,
+        "cross_scenario_penalty_applied": pool.cross_scenario_penalty_applied,
+        "retrieval_purity": retrieval_purity,
+        "candidate_cross_version_count": pool.candidate_cross_version_count,
+        "retrieved_cross_version_count": returned_cross_version_count,
+        "cross_version_penalty_applied": pool.cross_version_penalty_applied,
+        "candidate_pool_size": pool.requested_pool_size,
+        "candidate_pool_scored": pool.source_candidate_count,
+    }
+    rag_attestation = {
+        "schema": "memory_rag_attestation.v1",
+        "scenario_filter_mode": pool.scenario_filter_mode,
+        "query_scenario": pool.query_scenario,
+        "query_scenario_version": pool.query_scenario_version,
+        "returned_count": returned_count,
+        "returned_same_scenario_count": returned_same_scenario_count,
+        "returned_cross_scenario_count": returned_cross_scenario_count,
+        "candidate_same_scenario_count": pool.candidate_same_scenario_count,
+        "candidate_cross_scenario_count": pool.candidate_cross_scenario_count,
+        "filtered_cross_scenario_count": pool.filtered_cross_scenario_count,
+        "cross_scenario_penalty_applied": pool.cross_scenario_penalty_applied,
+        "candidate_cross_version_count": pool.candidate_cross_version_count,
+        "returned_cross_version_count": returned_cross_version_count,
+        "cross_version_penalty_applied": pool.cross_version_penalty_applied,
+        "retrieval_purity": (
+            round(retrieval_purity, 4) if retrieval_purity is not None else None
+        ),
+        "validation_status": validation_status,
+        "degradation_level": degradation_level,
+        "trace_memory_ids": [str(entry["memory_id"]) for entry in out],
+    }
+    for entry in out:
+        entry["retrieval_metrics"] = retrieval_metrics
+        entry["rag_attestation"] = rag_attestation
+    return out
 
 
 def _embedding_weight() -> float:
@@ -171,13 +366,37 @@ class MemoryRetrieval:
         Returns:
             List of scored memory dicts with retrieval_metrics.
         """
+        pool = self.build_scored_pool(
+            run_id=run_id,
+            query=query,
+            scales=scales,
+            limit=limit,
+            scenario_name=scenario_name,
+            scenario_version=scenario_version,
+            scenario_filter_mode=scenario_filter_mode,
+            candidate_pool_size=candidate_pool_size,
+            scale_weights=scale_weights,
+        )
+        return select_top_k(pool, limit)
+
+    def build_scored_pool(
+        self,
+        *,
+        run_id: str,
+        query: Dict[str, Any],
+        scales: list[str] | None = None,
+        limit: int = 5,
+        scenario_name: str | None = None,
+        scenario_version: str | None = None,
+        scenario_filter_mode: str = "strict_same_scenario",
+        candidate_pool_size: int | None = None,
+        scale_weights: Mapping[str, float] | None = None,
+    ) -> ScoredMemoryPool:
+        """Build the canonical stable ranking without applying top-k."""
+
         resolved_scale_weights = self._validate_scale_weights(scale_weights)
-        # Normalize alias
         if scenario_filter_mode == "analogical":
             scenario_filter_mode = "cross_scenario_analogical"
-        # B28: el pool (cuántos candidatos compiten) se separa del top-k (cuántos se
-        # devuelven). El TTL ya se aplica en storage ANTES del limit (P6), así que las
-        # filas expiradas no consumen presupuesto de pool: eso se respeta tal cual.
         pool_size = _resolve_candidate_pool_size(
             limit=limit, override=candidate_pool_size
         )
@@ -186,13 +405,53 @@ class MemoryRetrieval:
             scales=scales or ["macro", "meso", "micro"],
             limit=pool_size,
         )
+        storage_projection = [
+            {
+                "memory_id": item.memory_id,
+                "run_id": item.run_id,
+                "episode_id": item.episode_id,
+                "scale": item.scale,
+                "structure_json": item.structure_json,
+                "metadata": item.metadata,
+                "ttl_seconds": item.ttl_seconds,
+                "certificate_id": item.certificate_id,
+                "ioc_proxy": item.ioc_proxy,
+                "support_count": item.support_count,
+                "created_at": item.created_at,
+            }
+            for item in candidates
+        ]
+        storage_input_fingerprint = hashlib.sha256(
+            _canonical_json(storage_projection).encode("utf-8")
+        ).hexdigest()
 
-        # El embedding de la query se calcula UNA vez por retrieve, no una vez por
-        # candidato: con el pool ampliado eso serían 2*P embeds por llamada.
         embedder = get_embedder()
         query_embedding = (
             embedder.embed(text_from_mapping(query)) if embedder is not None else None
         )
+        configuration = {
+            "run_id": run_id,
+            "query": query,
+            "scales": scales or ["macro", "meso", "micro"],
+            "limit_for_pool_resolution": limit,
+            "requested_pool_size": pool_size,
+            "scenario_name": scenario_name,
+            "scenario_version": scenario_version,
+            "scenario_filter_mode": scenario_filter_mode,
+            "scale_weights": resolved_scale_weights,
+            "embedding_mode": os.environ.get(
+                "RNFE_MEMORY_EMBEDDINGS", "off"
+            ).strip().lower(),
+            "embedding_provider": (
+                type(embedder).__name__ if embedder is not None else None
+            ),
+            "embedding_weight": _embedding_weight(),
+            "scoring_version": _SCORING_VERSION,
+        }
+        configuration_json = _canonical_json(configuration)
+        configuration_fingerprint = hashlib.sha256(
+            configuration_json.encode("utf-8")
+        ).hexdigest()
 
         candidate_same_scenario_count = 0
         candidate_cross_scenario_count = 0
@@ -200,167 +459,133 @@ class MemoryRetrieval:
         filtered_cross_scenario_count = 0
         penalty_applied = False
         version_penalty_applied = False
+        scored: list[ScoredMemoryCandidate] = []
 
-        scored = []
-        for item in candidates:
+        for source_order, item in enumerate(candidates):
             structure = item.structure_json or {}
             meta = item.metadata or {}
-            score = self._score(
+            scoring = self._score_with_trace(
                 query=query,
                 structure=structure,
                 embedder=embedder,
                 query_embedding=query_embedding,
             )
-            # Ruta exclusivamente opt-in para comparaciones shadow. Cuando no se
-            # pasan pesos no se multiplica ni se agregan campos: retrieval conserva
-            # exactamente el contrato y ranking historicos.
+            score = float(scoring["score"])
+            scale_weight = 1.0
             if resolved_scale_weights is not None:
-                score *= resolved_scale_weights.get(str(item.scale), 1.0)
+                scale_weight = resolved_scale_weights.get(str(item.scale), 1.0)
+                score *= scale_weight
 
-            # Scenario filtering
             is_cross_scenario = False
             is_cross_version = False
+            scenario_penalty = 1.0
+            version_penalty = 1.0
             if scenario_name is not None:
                 item_scenario, item_version = _item_scenario_identity(meta)
-                # B30: DOS ejes distintos, no uno.
-                #
-                # (a) OTRO ESCENARIO (scenario_name distinto) -> contaminación
-                #     (canon MEMORY_COMPATIBILITY_POLICY_v1 §6). En estricto se DESCARTA;
-                #     en analógico se penaliza fuerte (0.5) y se marca analogical_source.
-                #     SIN CAMBIOS respecto del comportamiento previo.
-                #
-                # (b) MISMO ESCENARIO, OTRA VERSION -> NO es contaminación: es la misma
-                #     identidad causal con otra config. Antes se lo degradaba al bucket
-                #     cross-scenario, así que en estricto se DESCARTABA. El canon dice lo
-                #     contrario: §5.1 descarta solo `scenario_name != query.scenario_name`,
-                #     §2.1 pide misma versión "preferiblemente", y §100-103 promete un
-                #     `penalty_cross_version = 0.8` propio y más suave. Se conserva
-                #     penalizado, en AMBOS modos, y NO se marca analogical_source (esa
-                #     bandera significa procedencia cross-escenario y alimenta
-                #     pollution_detected / transfer_assessment / belief_state).
                 if item_scenario != scenario_name:
                     candidate_cross_scenario_count += 1
                     is_cross_scenario = True
                     if scenario_filter_mode == "strict_same_scenario":
                         filtered_cross_scenario_count += 1
-                        continue  # Discard cross-scenario memory
-                    # Analogical mode: penalize but keep
-                    score *= _CROSS_SCENARIO_PENALTY
+                        continue
+                    scenario_penalty = _CROSS_SCENARIO_PENALTY
+                    score *= scenario_penalty
                     penalty_applied = True
                 else:
                     candidate_same_scenario_count += 1
                     if scenario_version is not None and item_version != scenario_version:
                         candidate_cross_version_count += 1
                         is_cross_version = True
-                        score *= _CROSS_VERSION_PENALTY
+                        version_penalty = _CROSS_VERSION_PENALTY
+                        score *= version_penalty
                         version_penalty_applied = True
 
-            scored.append((score, item, is_cross_scenario, is_cross_version))
+            scoring_trace = tuple(
+                sorted(
+                    {
+                        **scoring,
+                        "scale_weight": float(scale_weight),
+                        "cross_scenario_penalty": float(scenario_penalty),
+                        "cross_version_penalty": float(version_penalty),
+                        "canonical_score": float(score),
+                    }.items()
+                )
+            )
+            scored.append(
+                ScoredMemoryCandidate(
+                    memory_id=str(item.memory_id),
+                    run_id=str(item.run_id),
+                    episode_id=str(item.episode_id),
+                    scale=str(item.scale),
+                    ttl_seconds=(
+                        int(item.ttl_seconds)
+                        if item.ttl_seconds is not None
+                        else None
+                    ),
+                    created_at=str(item.created_at),
+                    structure_json=_canonical_json(item.structure_json or {}),
+                    metadata_json=_canonical_json(item.metadata or {}),
+                    canonical_score=float(score),
+                    source_order=source_order,
+                    canonical_rank=-1,
+                    tie_group=-1,
+                    tie_size=0,
+                    ioc_proxy=(
+                        float(item.ioc_proxy)
+                        if item.ioc_proxy is not None
+                        else None
+                    ),
+                    support_count=int(item.support_count),
+                    certificate_id=(
+                        str(item.certificate_id)
+                        if item.certificate_id is not None
+                        else None
+                    ),
+                    cross_scenario_source=is_cross_scenario,
+                    cross_version_source=is_cross_version,
+                    scoring_trace=scoring_trace,
+                )
+            )
 
-        scored.sort(key=lambda pair: pair[0], reverse=True)
-        out = []
-        for score, item, is_cross, is_cross_ver in scored[:limit]:
-            meta = item.metadata or {}
-            item_scenario, item_version = _item_scenario_identity(meta)
-            entry: Dict[str, Any] = {
-                "memory_id": item.memory_id,
-                "scale": item.scale,
-                "score": score,
-                "structure": item.structure_json,
-                "ioc_proxy": item.ioc_proxy,
-                "support_count": item.support_count,
-                "scenario_name": item_scenario,
-                "scenario_version": item_version,
-                "certificate_id": item.certificate_id,
-            }
-            if is_cross:
-                entry["analogical_source"] = True
-            if is_cross_ver:
-                # Bandera PROPIA: mismo escenario, otra versión. Deliberadamente NO es
-                # analogical_source (eso significaría "vino de otro escenario" y dispararía
-                # pollution_detected en reality/service.py:401-408).
-                entry["cross_version_source"] = True
-            out.append(entry)
+        scored.sort(key=lambda item: item.canonical_score, reverse=True)
+        tie_groups: list[list[int]] = []
+        for index, candidate in enumerate(scored):
+            if (
+                not tie_groups
+                or candidate.canonical_score
+                != scored[tie_groups[-1][0]].canonical_score
+            ):
+                tie_groups.append([])
+            tie_groups[-1].append(index)
+        ranked = list(scored)
+        for tie_group, indexes in enumerate(tie_groups):
+            tie_size = len(indexes)
+            for index in indexes:
+                ranked[index] = replace(
+                    ranked[index],
+                    canonical_rank=index,
+                    tie_group=tie_group,
+                    tie_size=tie_size,
+                )
 
-        returned_same_scenario_count = sum(1 for entry in out if not entry.get("analogical_source"))
-        returned_cross_scenario_count = sum(1 for entry in out if entry.get("analogical_source"))
-        returned_cross_version_count = sum(1 for entry in out if entry.get("cross_version_source"))
-        returned_count = len(out)
-        retrieval_purity = (
-            returned_same_scenario_count / returned_count
-            if returned_count
-            else None
+        return ScoredMemoryPool(
+            candidates=tuple(ranked),
+            requested_pool_size=pool_size,
+            source_candidate_count=len(candidates),
+            scored_candidate_count=len(ranked),
+            candidate_same_scenario_count=candidate_same_scenario_count,
+            candidate_cross_scenario_count=candidate_cross_scenario_count,
+            candidate_cross_version_count=candidate_cross_version_count,
+            filtered_cross_scenario_count=filtered_cross_scenario_count,
+            cross_scenario_penalty_applied=penalty_applied,
+            cross_version_penalty_applied=version_penalty_applied,
+            scenario_filter_mode=scenario_filter_mode,
+            query_scenario=scenario_name,
+            query_scenario_version=scenario_version,
+            retrieval_configuration_json=configuration_json,
+            retrieval_configuration_fingerprint=configuration_fingerprint,
+            storage_input_fingerprint=storage_input_fingerprint,
         )
-        if scenario_name is None:
-            validation_status = "pass"
-            degradation_level = "unfiltered"
-        elif returned_count == 0:
-            validation_status = "warn"
-            degradation_level = "no_memory"
-        elif scenario_filter_mode == "strict_same_scenario" and returned_cross_scenario_count:
-            validation_status = "fail"
-            degradation_level = "strict_policy_violation"
-        elif returned_cross_scenario_count:
-            validation_status = "warn"
-            degradation_level = "analogical_penalized"
-        elif returned_cross_version_count:
-            # B30: mismo escenario, otra versión. NO es violación de la policy estricta
-            # (canon §5.1 descarta por scenario_name, no por versión) => "pass". Pero se
-            # reporta como degradación propia para que la mezcla de versiones sea visible
-            # y no se confunda con un retrieval limpio.
-            validation_status = "pass"
-            degradation_level = "cross_version_penalized"
-        else:
-            validation_status = "pass"
-            degradation_level = "strict_isolated"
-
-        # Attach retrieval metrics to each result for observability
-        retrieval_metrics = {
-            "retrieved_same_scenario_count": returned_same_scenario_count,
-            "retrieved_cross_scenario_count": returned_cross_scenario_count,
-            "candidate_same_scenario_count": candidate_same_scenario_count,
-            "candidate_cross_scenario_count": candidate_cross_scenario_count,
-            "filtered_cross_scenario_count": filtered_cross_scenario_count,
-            "scenario_filter_mode": scenario_filter_mode,
-            "cross_scenario_penalty_applied": penalty_applied,
-            "retrieval_purity": retrieval_purity,
-            # B30: el eje versión se reporta SEPARADO del eje escenario. Una memoria del
-            # mismo escenario con otra versión NO suma a los contadores cross-scenario ni a
-            # cross_scenario_penalty_applied (de los que cuelga pollution_detected).
-            "candidate_cross_version_count": candidate_cross_version_count,
-            "retrieved_cross_version_count": returned_cross_version_count,
-            "cross_version_penalty_applied": version_penalty_applied,
-            # B28: observabilidad del pool. `candidate_pool_scored` == `candidate_pool_size`
-            # significa que el pool se saturó: puede haber memorias relevantes que no
-            # llegaron a competir (subir RNFE_MEMORY_CANDIDATE_POOL).
-            "candidate_pool_size": pool_size,
-            "candidate_pool_scored": len(candidates),
-        }
-        rag_attestation = {
-            "schema": "memory_rag_attestation.v1",
-            "scenario_filter_mode": scenario_filter_mode,
-            "query_scenario": scenario_name,
-            "query_scenario_version": scenario_version,
-            "returned_count": returned_count,
-            "returned_same_scenario_count": returned_same_scenario_count,
-            "returned_cross_scenario_count": returned_cross_scenario_count,
-            "candidate_same_scenario_count": candidate_same_scenario_count,
-            "candidate_cross_scenario_count": candidate_cross_scenario_count,
-            "filtered_cross_scenario_count": filtered_cross_scenario_count,
-            "cross_scenario_penalty_applied": penalty_applied,
-            "candidate_cross_version_count": candidate_cross_version_count,
-            "returned_cross_version_count": returned_cross_version_count,
-            "cross_version_penalty_applied": version_penalty_applied,
-            "retrieval_purity": round(retrieval_purity, 4) if retrieval_purity is not None else None,
-            "validation_status": validation_status,
-            "degradation_level": degradation_level,
-            "trace_memory_ids": [str(entry["memory_id"]) for entry in out],
-        }
-        for entry in out:
-            entry["retrieval_metrics"] = retrieval_metrics
-            entry["rag_attestation"] = rag_attestation
-
-        return out
 
     def snapshot_hash(
         self,
@@ -472,6 +697,25 @@ class MemoryRetrieval:
         embedder: Any = _UNSET,
         query_embedding: Any = _UNSET,
     ) -> float:
+        return float(
+            self._score_with_trace(
+                query=query,
+                structure=structure,
+                embedder=embedder,
+                query_embedding=query_embedding,
+            )["score"]
+        )
+
+    def _score_with_trace(
+        self,
+        *,
+        query: Dict[str, Any],
+        structure: Dict[str, Any],
+        embedder: Any = _UNSET,
+        query_embedding: Any = _UNSET,
+    ) -> dict[str, Any]:
+        """Single canonical scoring implementation plus immutable audit components."""
+
         jaccard = self._jaccard(query=query, structure=structure)
         # RNFE_MEMORY_EMBEDDINGS off (default) -> get_embedder() None -> Jaccard puro
         # (byte-idéntico). hashed/llama -> mezcla coseno semántico.
@@ -481,7 +725,13 @@ class MemoryRetrieval:
         if embedder is _UNSET:
             embedder = get_embedder()
         if embedder is None:
-            return jaccard
+            return {
+                "score": jaccard,
+                "jaccard_score": jaccard,
+                "cosine_score": None,
+                "embedding_weight": 0.0,
+                "embedding_used": False,
+            }
         if query_embedding is _UNSET:
             query_embedding = embedder.embed(text_from_mapping(query))
         cos = cosine_similarity(
@@ -490,9 +740,22 @@ class MemoryRetrieval:
         )
         if cos <= 0.0:
             # Embedding no disponible/degradado (p.ej. llama sin GGUF): cae a Jaccard.
-            return jaccard
+            return {
+                "score": jaccard,
+                "jaccard_score": jaccard,
+                "cosine_score": float(cos),
+                "embedding_weight": 0.0,
+                "embedding_used": False,
+            }
         weight = _embedding_weight()
-        return float((1.0 - weight) * jaccard + weight * cos)
+        score = float((1.0 - weight) * jaccard + weight * cos)
+        return {
+            "score": score,
+            "jaccard_score": jaccard,
+            "cosine_score": float(cos),
+            "embedding_weight": weight,
+            "embedding_used": True,
+        }
 
     @staticmethod
     def _jaccard(*, query: Dict[str, Any], structure: Dict[str, Any]) -> float:
