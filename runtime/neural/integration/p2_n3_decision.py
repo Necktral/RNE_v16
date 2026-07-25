@@ -155,6 +155,9 @@ class P2N3DecisionEvaluator:
             "ordered_memory_ids": list(ordered_ids), "chosen_intervention": chosen,
         }
         decision_sha = canonical_sha256(decision_payload)  # oracle opens below this line
+        seal_decision = getattr(scenario, "seal_preaction_decision", None)
+        if seal_decision is not None:
+            seal_decision(decision_sha)
 
         sig = scenario.causal_signature
         utilities: dict[str, float] = {}

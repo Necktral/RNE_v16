@@ -7,6 +7,7 @@ cargan dentro de ``load`` después de que N0 verificó modo, recursos y SHA-256.
 from __future__ import annotations
 
 from collections import deque
+import math
 from typing import Any, Mapping
 
 from .contracts import BackendOutput, NeuralInferenceRequest, NeuralModelManifest
@@ -372,6 +373,74 @@ class Mamba2TemporalTorchBackend:
                 "backend_device": self.device,
             },
         )
+
+    def export_state(self) -> dict[str, Any]:
+        """Export deterministic temporal histories without model weights."""
+
+        return {
+            "schema_version": "mamba2-temporal-history-v1",
+            "model_id": self.model_id,
+            "artifact_sha256": self.artifact_hash,
+            "input_size": self.input_size,
+            "history_size": self.history_size,
+            "entries": [
+                {
+                    "state_key": list(key),
+                    "maxlen": history.maxlen,
+                    "vectors": [list(vector) for vector in history],
+                }
+                for key, history in sorted(self.histories.items())
+            ],
+        }
+
+    def restore_state(self, payload: Mapping[str, Any] | None) -> int:
+        """Restore histories into an already compatible backend, never loading a model."""
+
+        data = dict(payload or {})
+        if data.get("schema_version") != "mamba2-temporal-history-v1":
+            raise ValueError("mamba2_temporal_history_schema_mismatch")
+        expected = (
+            self.model_id,
+            self.artifact_hash,
+            self.input_size,
+            self.history_size,
+        )
+        received = (
+            str(data.get("model_id") or ""),
+            str(data.get("artifact_sha256") or ""),
+            int(data.get("input_size") or 0),
+            int(data.get("history_size") or 0),
+        )
+        if received != expected:
+            raise ValueError("mamba2_temporal_history_backend_mismatch")
+        restored: dict[tuple[str, str, str], deque[tuple[float, ...]]] = {}
+        for item in data.get("entries") or ():
+            if not isinstance(item, Mapping):
+                raise ValueError("mamba2_temporal_history_entry_invalid")
+            raw_key = item.get("state_key")
+            if (
+                not isinstance(raw_key, (list, tuple))
+                or len(raw_key) != 3
+                or not all(str(value or "").strip() for value in raw_key)
+            ):
+                raise ValueError("mamba2_temporal_history_key_invalid")
+            maxlen = int(item.get("maxlen") or 0)
+            if maxlen != self.history_size:
+                raise ValueError("mamba2_temporal_history_maxlen_mismatch")
+            key = tuple(str(value) for value in raw_key)
+            if key in restored:
+                raise ValueError("mamba2_temporal_history_duplicate_key")
+            history: deque[tuple[float, ...]] = deque(maxlen=maxlen)
+            for raw_vector in item.get("vectors") or ():
+                vector = tuple(float(value) for value in raw_vector)
+                if len(vector) != self.input_size or not all(
+                    math.isfinite(value) for value in vector
+                ):
+                    raise ValueError("mamba2_temporal_history_vector_invalid")
+                history.append(vector)
+            restored[key] = history
+        self.histories = restored
+        return len(restored)
 
     def unload(self) -> None:
         self.model = None
