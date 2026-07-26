@@ -37,8 +37,20 @@ class TransferBeliefLedger:
             belief_origin="structural-transfer",
             logical_time=item.logical_time,
         )
-        if previous is not None and previous != candidate:
-            raise ValueError("transfer_belief_collision")
+        if previous is not None:
+            if (
+                previous.package_id,
+                previous.morphism_id,
+                previous.belief_origin,
+                previous.logical_time,
+            ) != (
+                candidate.package_id,
+                candidate.morphism_id,
+                candidate.belief_origin,
+                candidate.logical_time,
+            ):
+                raise ValueError("transfer_belief_collision")
+            return
         self._beliefs[item.hypothesis_id] = candidate
 
     def apply(self, evaluation: NeuralHypothesisEvaluation) -> None:
@@ -55,6 +67,13 @@ class TransferBeliefLedger:
         self._beliefs[evaluation.hypothesis_id] = replace(
             previous, status=status, evaluation_reason=evaluation.reason
         )
+
+    def reject(self, hypothesis_id: str, *, reason: str) -> None:
+        previous = self._beliefs.get(hypothesis_id)
+        if previous is not None:
+            self._beliefs[hypothesis_id] = replace(
+                previous, status="OUT", evaluation_reason=reason
+            )
 
     def snapshot(self) -> tuple[Mapping[str, Any], ...]:
         return tuple(self._beliefs[key].to_dict() for key in sorted(self._beliefs))

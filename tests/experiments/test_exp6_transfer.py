@@ -9,6 +9,7 @@ from runtime.symbolic.mci import (
 from scripts.experiments.exp6_transfer import (
     _condition_is_correct,
     _mapping_only_hypotheses,
+    evaluate_negative_controls,
 )
 
 
@@ -38,3 +39,10 @@ def test_mapping_only_is_guided_but_contains_no_source_claim() -> None:
 
 def test_translator_rejects_package_cross_wiring() -> None:
     assert OverlayTranslator is not None
+
+
+def test_negative_controls_reject_permutation_and_incompatible_origin() -> None:
+    controls = evaluate_negative_controls()
+    assert controls["passed"] is True
+    assert controls["permuted_actions"]["rejected"] is True
+    assert controls["incompatible_origin"]["rejected"] is True

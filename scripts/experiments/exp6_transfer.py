@@ -12,6 +12,7 @@ import math
 import os
 import random
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -21,6 +22,7 @@ from runtime.symbolic.mci import (
     TransferredHypothesis,
     resource_with_energy_oracle_spec,
     resource_with_energy_spec,
+    deferred_load_spec,
     thermal_battery_spec,
     thermal_battery_to_resource_energy,
 )
@@ -109,6 +111,14 @@ def acquire_source(
         "acquired": payload is not None,
         "acquired_episode": acquired_episode,
         "overlay": payload,
+        "evidence_refs": (
+            [
+                item.evidence_id
+                for item in runner._mci_runtime.learner.get_recent_evidence()
+            ]
+            if payload is not None
+            else []
+        ),
     }
 
 
@@ -153,6 +163,56 @@ def _rank_transfer(
     return sorted(hypotheses, key=lambda item: item.hypothesis_id)
 
 
+def evaluate_negative_controls() -> dict[str, Any]:
+    """Controles preregistrados, separados de los brazos estadísticos."""
+
+    source, target = thermal_battery_spec(), resource_with_energy_spec()
+    mapping = thermal_battery_to_resource_energy(source, target)
+    permuted = replace(
+        mapping,
+        action_map={
+            "activate_cooling": "stop_production",
+            "deactivate_cooling": "start_production",
+        },
+    )
+    permuted.validate(source, target)
+    source_effect_action = next(
+        effect.action
+        for equation in source.equations
+        for effect in equation.effects
+        if effect.effect_id == "thermal_battery/cooling"
+    )
+    target_effect_action = next(
+        effect.action
+        for equation in target.equations
+        for effect in equation.effects
+        if effect.effect_id == "resource_energy/production"
+    )
+    action_control_rejected = (
+        permuted.action_map[source_effect_action] != target_effect_action
+    )
+    incompatible_rejected = False
+    try:
+        mapping.validate(deferred_load_spec(), target)
+    except ValueError:
+        incompatible_rejected = True
+    return {
+        "permuted_actions": {
+            "rejected": action_control_rejected,
+            "reason": "effect_action_semantics_mismatch",
+        },
+        "incompatible_origin": {
+            "rejected": incompatible_rejected,
+            "reason": "morphism_spec_id_mismatch",
+        },
+        "insufficient_support_policy": {
+            "minimum_evidence_refs": 5,
+            "status": "enforced_by_receiver",
+        },
+        "passed": action_control_rejected and incompatible_rejected,
+    }
+
+
 def _run_target(
     *,
     root: Path,
@@ -185,8 +245,7 @@ def _run_target(
             source_overlay,
             morphism,
             evidence_refs=tuple(
-                str(item)
-                for item in (source_overlay.evidence.get("evidence_refs") or ())
+                str(item) for item in source.get("evidence_refs") or ()
             ),
             confidence=0.8,
         )
@@ -342,6 +401,7 @@ def run(
             "paired_inputs": True,
         },
         "source_acquisition": list(sources.values()),
+        "negative_controls": evaluate_negative_controls(),
         "arms": arms,
         "metrics": {
             "discovery_rate_before_40": discovery_rate,

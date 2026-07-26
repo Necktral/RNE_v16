@@ -41,7 +41,9 @@ def test_transfer_package_translation_and_adapter_are_typed() -> None:
     mapping = thermal_battery_to_resource_energy(source, target)
     translator = OverlayTranslator()
     package = translator.build_package(
-        _source_overlay(), mapping, evidence_refs=("source/e1",)
+        _source_overlay(),
+        mapping,
+        evidence_refs=tuple(f"source/e{index}" for index in range(5)),
     )
     hypotheses = translator.translate_overlay(
         _source_overlay(), mapping, package, logical_time=9
@@ -55,7 +57,9 @@ def test_transfer_package_translation_and_adapter_are_typed() -> None:
     assert adapted.provider == "structural-transfer"
     assert adapted.model_ref == mapping.morphism_id
     assert adapted.evidence_refs == ()
-    assert adapted.submitted_evidence_refs == ("source/e1",)
+    assert adapted.submitted_evidence_refs == tuple(
+        f"source/e{index}" for index in range(5)
+    )
     with pytest.raises(FrozenInstanceError):
         package.confidence = 0.1  # type: ignore[misc]
     assert package.sha256 == package.sha256
@@ -66,7 +70,11 @@ def test_transferred_belief_is_revisable_until_empirical_evaluation() -> None:
     mapping = thermal_battery_to_resource_energy(source, target)
     translator = OverlayTranslator()
     overlay = _source_overlay()
-    package = translator.build_package(overlay, mapping)
+    package = translator.build_package(
+        overlay,
+        mapping,
+        evidence_refs=tuple(f"source/e{index}" for index in range(5)),
+    )
     hypotheses = translator.translate_overlay(
         overlay, mapping, package, logical_time=1
     )
@@ -102,7 +110,11 @@ def test_transferred_hypothesis_promotes_only_after_destination_validation() -> 
     mapping = thermal_battery_to_resource_energy(source, target)
     translator = OverlayTranslator()
     source_overlay = _source_overlay()
-    package = translator.build_package(source_overlay, mapping)
+    package = translator.build_package(
+        source_overlay,
+        mapping,
+        evidence_refs=tuple(f"source/e{index}" for index in range(5)),
+    )
     transferred = [
         item
         for item in translator.translate_overlay(
@@ -160,3 +172,22 @@ def test_transferred_hypothesis_promotes_only_after_destination_validation() -> 
     assert promoted is not None
     assert promoted.evidence["source"] == "transferred"
     assert evaluations[0].status == "promoted"
+
+
+def test_insufficient_source_support_is_retracted_before_validation() -> None:
+    source, target = thermal_battery_spec(), resource_with_energy_spec()
+    mapping = thermal_battery_to_resource_energy(source, target)
+    translator = OverlayTranslator()
+    overlay = _source_overlay()
+    package = translator.build_package(
+        overlay, mapping, evidence_refs=("only-one",)
+    )
+    hypotheses = translator.translate_overlay(
+        overlay, mapping, package, logical_time=1
+    )
+    runtime = MCIRuntime(target)
+    runtime.ingest_transferred_hypotheses(hypotheses)
+    assert {
+        (item["status"], item["evaluation_reason"])
+        for item in runtime.transfer_ledger.snapshot()
+    } == {("OUT", "insufficient_source_evidence")}

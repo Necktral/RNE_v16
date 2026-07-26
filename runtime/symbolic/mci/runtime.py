@@ -47,10 +47,21 @@ class MCIRuntime:
     def ingest_transferred_hypotheses(
         self, hypotheses: list[TransferredHypothesis]
     ) -> None:
+        accepted: list[TransferredHypothesis] = []
         for hypothesis in hypotheses:
             self.transfer_ledger.propose(hypothesis)
+            if (
+                not hypothesis.package_id.startswith("mapping-only-")
+                and len(hypothesis.source_evidence_refs) < 5
+            ):
+                self.transfer_ledger.reject(
+                    hypothesis.hypothesis_id,
+                    reason="insufficient_source_evidence",
+                )
+                continue
+            accepted.append(hypothesis)
         self.ingest_neural_hypotheses(
-            [adapt_transferred_hypothesis(item) for item in hypotheses]
+            [adapt_transferred_hypothesis(item) for item in accepted]
         )
 
     def restore_transfer_ledger(
