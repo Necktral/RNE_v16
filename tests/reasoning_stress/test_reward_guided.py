@@ -126,7 +126,7 @@ class TestOverlayDirectivesInPolicy:
 class TestRewardGuidedSelector:
     def test_disabled_by_default(self, monkeypatch):
         monkeypatch.delenv("RNFE_REWARD_GUIDED_SELECTION", raising=False)
-        assert is_reward_guided_enabled() is False
+        assert is_reward_guided_enabled() is True
 
     def test_candidates_exclude_core_and_eml(self):
         assert "eml_sr" not in DEFAULT_CANDIDATES
@@ -295,7 +295,7 @@ class TestRewardGuidedLiveLoop:
     def test_disabled_runner_has_no_reward_guided_block(self, tmp_path, monkeypatch):
         from runtime.world import ScenarioEpisodeRunner
 
-        monkeypatch.delenv("RNFE_REWARD_GUIDED_SELECTION", raising=False)
+        monkeypatch.setenv("RNFE_REWARD_GUIDED_SELECTION", "0")
         storage = _storage(tmp_path)
         runner = ScenarioEpisodeRunner(
             storage=storage, run_id="rg-off", scenario="thermal_homeostasis"

@@ -14,8 +14,8 @@ de la greedy, y (c) una GUARDA certifica que la alterna es genuinamente mejor en
 la dirección de optimización (no regresa), se adopta la alterna.
 
 Honestidad por construcción:
-- Gated por ``RNFE_REASONING_ACTUATES=1`` (sombra OFF por defecto ⇒ camino nominal
-  byte-idéntico).
+- Activo en el organismo experimental; ``RNFE_REASONING_ACTUATES=0`` crea la
+  ablación sombra explícita.
 - La guarda usa el RESULTADO SIMULADO (el contrafactual ya calculado): no puede
   disparar salvo que la alterna sea de verdad mejor. No se fabrica ganancia.
 - Atribución: sin familia que recomiende la alterna, no hay override (el baseline
@@ -32,7 +32,9 @@ from typing import Any, Callable, List, Mapping, Optional, Sequence, Tuple
 
 
 def is_actuation_enabled() -> bool:
-    return os.environ.get("RNFE_REASONING_ACTUATES", "0").strip() == "1"
+    from runtime.organism.experimental_authority import experimental_capability_enabled
+
+    return experimental_capability_enabled("RNFE_REASONING_ACTUATES")
 
 
 # Familias que producen una intervención CONCRETA (no solo señal de conflicto).

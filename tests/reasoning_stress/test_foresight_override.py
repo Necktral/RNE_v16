@@ -90,8 +90,8 @@ class TestRunnerWiring:
             closure_profile="adaptive_min",
         )
 
-    def test_disabled_by_default_no_override(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("RNFE_REASONING_ACTUATES", raising=False)
+    def test_explicit_ablation_disables_override(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("RNFE_REASONING_ACTUATES", "0")
         runner = self._runner(tmp_path)
         factual = runner.scenario.factual_transition(intervention="boost_throughput", external_input=0.04)
         decision, candidate = runner._maybe_override_intervention(
@@ -145,7 +145,7 @@ class TestLiveEpisodeWiring:
         if actuate:
             monkeypatch.setenv("RNFE_REASONING_ACTUATES", "1")
         else:
-            monkeypatch.delenv("RNFE_REASONING_ACTUATES", raising=False)
+            monkeypatch.setenv("RNFE_REASONING_ACTUATES", "0")
 
     def _run(self, tmp_path):
         runner = ScenarioEpisodeRunner(

@@ -40,6 +40,9 @@ def _storage(tmp_path: Path):
 
 
 def _run(tmp_path, *, profile, actuate, regime="causal_counterfactual_conflict", monkeypatch):
+    # Isolate the reasoning→action pathway from the now-live experience/reward loops.
+    monkeypatch.setenv("RNFE_EXPERIENCE", "0")
+    monkeypatch.setenv("RNFE_REWARD_GUIDED_SELECTION", "0")
     monkeypatch.setenv("RNFE_REASONING_MODE", "adaptive")
     monkeypatch.setenv("RNFE_REASONING_FAMILY_PROFILE", profile)
     monkeypatch.setenv("RNFE_REASONING_REGIME_HINT", regime)
@@ -47,7 +50,7 @@ def _run(tmp_path, *, profile, actuate, regime="causal_counterfactual_conflict",
     if actuate:
         monkeypatch.setenv("RNFE_REASONING_ACTUATES", "1")
     else:
-        monkeypatch.delenv("RNFE_REASONING_ACTUATES", raising=False)
+        monkeypatch.setenv("RNFE_REASONING_ACTUATES", "0")
     runner = ScenarioEpisodeRunner(
         scenario=GridThermalScenario(**CONFLICT),
         storage=_storage(tmp_path),
@@ -129,9 +132,9 @@ class TestPureLogic:
 
 
 class TestShadowDiscipline:
-    def test_disabled_by_default(self, monkeypatch):
+    def test_enabled_by_default_for_experimental_organism(self, monkeypatch):
         monkeypatch.delenv("RNFE_REASONING_ACTUATES", raising=False)
-        assert is_actuation_enabled() is False
+        assert is_actuation_enabled() is True
 
     def test_flag_off_no_override(self, tmp_path, monkeypatch):
         result = _run(tmp_path, profile="core_plus_opt", actuate=False, monkeypatch=monkeypatch)
@@ -212,6 +215,8 @@ class TestEffectivenessReward:
 
     def test_override_emits_audit_event(self, tmp_path, monkeypatch):
         storage = _storage(tmp_path)
+        monkeypatch.setenv("RNFE_REWARD_GUIDED_SELECTION", "0")
+        monkeypatch.setenv("RNFE_EXPERIENCE", "0")
         monkeypatch.setenv("RNFE_REASONING_MODE", "adaptive")
         monkeypatch.setenv("RNFE_REASONING_FAMILY_PROFILE", "core_plus_opt")
         monkeypatch.setenv("RNFE_REASONING_REGIME_HINT", "causal_counterfactual_conflict")
