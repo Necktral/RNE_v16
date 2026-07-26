@@ -3,7 +3,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from . import exp1_regret, exp2_learning, exp3_brier, exp4_regime, exp5_n4_closed_loop
+from . import (
+    exp1_regret,
+    exp2_learning,
+    exp3_brier,
+    exp4_regime,
+    exp5_n4_closed_loop,
+    exp6_transfer,
+)
 
 
 def run(*, root: Path, quick: bool = False):
@@ -13,6 +20,7 @@ def run(*, root: Path, quick: bool = False):
         "exp3": exp3_brier.run(root=root, quick=quick),
         "exp4": exp4_regime.run(root=root, quick=quick),
         "exp5": exp5_n4_closed_loop.run(root=root, quick=quick),
+        "exp6": exp6_transfer.run(root=root, quick=quick),
     }
 
 
