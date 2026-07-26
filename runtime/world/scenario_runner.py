@@ -49,6 +49,17 @@ from runtime.organism.constitution import OrganismConstitution
 from runtime.organism.dynamic_state import OrganismDynamicState, canonical_hash, measured
 from runtime.organism.identity import mint_lineage_id, mint_organism_id
 from runtime.organism.lineage import LineageState
+from runtime.organism.neural_organ import (
+    NeuralBodyState,
+    NeuralGovernanceState,
+    NeuralMemoryState,
+    NeuralOrgan,
+    NeuralOutcomeFeedback,
+    NeuralPercept,
+    NeuralReasoningState,
+    NeuralResourceState,
+    OrganismNeuralBus,
+)
 from runtime.organism.life_transition import DynamicLifeChain
 from runtime.organism.regime_model import (
     REGIME_REGISTRY,
@@ -243,6 +254,7 @@ class ScenarioEpisodeRunner:
         organism_state: OrganismState | None = None,
         lineage: LineageState | None = None,
         reward_guided=None,
+        neural_organ_mode: str = "off",
     ):
         """Inicializa runner con escenario especificado.
 
@@ -296,6 +308,10 @@ class ScenarioEpisodeRunner:
         # Señales de recursos (host+GPU) inyectadas por el LifeKernel por ciclo.
         # Vacío por defecto -> el contexto de razonamiento no cambia (byte-idéntico).
         self._resource_signals: Dict[str, Any] = {}
+        effective_neural_mode = os.environ.get(
+            "RNFE_NEURAL_ORGAN_MODE", neural_organ_mode
+        ).strip().lower()
+        self._organism_neural_bus = OrganismNeuralBus(NeuralOrgan(mode=effective_neural_mode))
         # Habilitación por-episodio del razonador externo (tier_3). El runtime
         # solo lo agenda si además el perfil admitido y el gate lo permiten (Bloque C).
         self._external_reasoner_enabled: bool = False
@@ -939,6 +955,19 @@ class ScenarioEpisodeRunner:
         """
         self._causal_context = dict(causal_context) if causal_context else None
 
+    def _append_organ_neural_event(self, event_type: str, payload: Mapping[str, Any]) -> bool:
+        """Neural evidence is important but a ledger outage cannot kill the organism."""
+        try:
+            self.storage.append_event(
+                event_type=event_type,
+                run_id=self.run_id,
+                source="organism_neural_bus",
+                payload=dict(payload),
+            )
+            return True
+        except Exception:
+            return False
+
     def set_neural_config(self, config: NeuralRuntimeConfig) -> None:
         """Inyecta desde LifeKernel modo, recursos y límites N0 sin duplicar lógica."""
 
@@ -953,6 +982,7 @@ class ScenarioEpisodeRunner:
             "n3_temporal_state": self._neural.export_temporal_state(),
             "dynamic_chain": self._dynamic_chain.export_checkpoint(),
             "adaptive_state": self._adaptive_states.export_checkpoint(),
+            "organism_neural_organ": self._organism_neural_bus.snapshot().to_dict(),
             "contract_versions": {
                 "symbiosis_trace": "neural-symbiosis-trace-v2",
                 "consumer_receipt": "neural-consumer-receipt-v1",
@@ -969,6 +999,14 @@ class ScenarioEpisodeRunner:
             restored = self._neural.restore_temporal_state(data.get("n3_temporal_state"))
             self._dynamic_chain.restore_checkpoint(data.get("dynamic_chain"))
             self._adaptive_states.restore_checkpoint(data.get("adaptive_state"))
+            organ_snapshot = data.get("organism_neural_organ")
+            if isinstance(organ_snapshot, Mapping):
+                self._organism_neural_bus.restore(organ_snapshot)
+                self.storage.append_event(
+                    event_type="neural.snapshot.restored", run_id=self.run_id,
+                    source="organism_neural_bus",
+                    payload={"neural_state_sha256": organ_snapshot.get("neural_state_sha256")},
+                )
             return restored
         restored = self._neural.restore_temporal_state(data)
         self._dynamic_chain.restore_checkpoint(None)
@@ -1259,6 +1297,50 @@ class ScenarioEpisodeRunner:
         observation = self.scenario.observe()
         observation_dict = self.scenario.to_observation_dict(observation)
         observation_ref = self.smg.add_observation(observation_dict)
+        # N4: integrate the organism before memory top-k and before any outcome is opened.
+        unit_id = f"{self.run_id}:{self.scenario.config.name}:{self._organism_state.episode_count}"
+        percept = NeuralPercept(
+            unit_id=unit_id,
+            episode_index=self._organism_state.episode_count,
+            scenario=self.scenario.config.name,
+            features=tuple(sorted({**observation_dict, "alarm": observation.alarm}.items())),
+            alarm=bool(observation.alarm),
+            allowed_interventions=tuple(self.scenario.config.interventions),
+        )
+        resource_values = {
+            key: float(self._resource_signals.get(key, 0.0) or 0.0)
+            for key in ("cpu_pressure", "memory_pressure", "vram_pressure", "thermal_pressure")
+        }
+        inputs = self._organism_neural_bus.collect_inputs(
+            percept=percept,
+            body=NeuralBodyState(
+                viability_margin=float(getattr(self._organism_state.viability, "viability_margin", 1.0)),
+                continuity_score=float(self._organism_state.composite_health),
+                current_mode=str(self._organism_state.active_regime),
+            ),
+            memory=NeuralMemoryState(
+                lesson_count=len(self._experience_lessons),
+                wound_count=int(bool(getattr(self, "_experience_bias", None))),
+            ),
+            reasoning=NeuralReasoningState(),
+            resources=NeuralResourceState(
+                **resource_values,
+                gpu_available=bool(self._resource_signals.get("gpu_available", False)),
+            ),
+            governance=NeuralGovernanceState(accepted=True),
+        )
+        integrated_neural_state = self._organism_neural_bus.integrate(**inputs)
+        neural_organ_proposal = self._organism_neural_bus.produce_proposal(
+            self.scenario.config.interventions
+        )
+        self._append_organ_neural_event(
+            "neural.percept.created",
+            {"unit_id": unit_id, "previous_neural_state_hash":
+             integrated_neural_state.previous_neural_state_hash},
+        )
+        self._append_organ_neural_event(
+            "neural.proposal.created", neural_organ_proposal.to_dict()
+        )
 
         # 2. Crear signo principal
         main_proposition = self.scenario.get_main_proposition(observation)
@@ -1276,7 +1358,7 @@ class ScenarioEpisodeRunner:
         self.lotf.check(ast, self.scenario.config.type_context)
 
         # 4. Consultar memoria
-        memory_hits = self.memory_retrieval.retrieve(
+        canonical_memory_hits = self.memory_retrieval.retrieve(
             run_id=self.run_id,
             query={
                 "proposition": main_proposition,
@@ -1286,6 +1368,17 @@ class ScenarioEpisodeRunner:
             scenario_name=scenario_metadata["scenario_name"],
             scenario_filter_mode=self.memory_filter_mode,
         )
+        if self._organism_neural_bus.organ.mode in {"modulate", "bounded_actuation"}:
+            memory_hits = self.memory_retrieval.retrieve(
+                run_id=self.run_id,
+                query={"proposition": main_proposition, "alarm": observation.alarm},
+                limit=self.memory_retrieval_limit,
+                scenario_name=scenario_metadata["scenario_name"],
+                scenario_filter_mode=self.memory_filter_mode,
+                scale_weights=dict(neural_organ_proposal.memory_scale_weights),
+            )
+        else:
+            memory_hits = canonical_memory_hits
         p1_memory_snapshot_sha256 = (
             self.memory_retrieval.snapshot_hash(run_id=self.run_id)
             if _n3_shadow_counterfactual_enabled()
@@ -1294,6 +1387,7 @@ class ScenarioEpisodeRunner:
 
         # 5. Seleccionar intervención
         intervention = self.scenario.select_intervention(observation)
+        baseline_intervention = intervention
         if memory_hits:
             top = memory_hits[0].get("structure", {})
             if top.get("relation_kind") == "support" and observation.alarm:
@@ -1308,6 +1402,20 @@ class ScenarioEpisodeRunner:
             if alternative is not None and alternative != intervention:
                 self._experience_bias = {"avoided": intervention, "chose": alternative}
                 intervention = alternative
+        neural_action_allowed = (
+            self._organism_neural_bus.organ.mode == "bounded_actuation"
+            and not observation.alarm
+            and not neural_organ_proposal.abstention_signal
+            and neural_organ_proposal.intervention_prior in self.scenario.config.interventions
+        )
+        if neural_action_allowed:
+            intervention = str(neural_organ_proposal.intervention_prior)
+        neural_influence = self._organism_neural_bus.deliver_modulations(
+            baseline_action=baseline_intervention, governance_accepted=True
+        )
+        self._append_organ_neural_event(
+            "neural.influence.delivered", asdict(neural_influence)
+        )
 
         # N4-P1 is constructed from a whitelist of pre-action fields before the
         # hidden outcome oracle runs.  The candidate is frozen and evaluated later.
@@ -1560,6 +1668,14 @@ class ScenarioEpisodeRunner:
                 **self._causal_context_signals(),
             },
         )
+        if self._organism_neural_bus.organ.mode in {"modulate", "bounded_actuation"}:
+            reasoning_context["reasoning_max_steps"] = max(
+                1, 6 + int(neural_organ_proposal.reasoning_budget_modifier)
+            )
+            reasoning_context["neural_family_priority_modifiers"] = dict(
+                neural_organ_proposal.family_priority_modifiers
+            )
+            reasoning_context["neural_intervention_prior"] = neural_organ_proposal.intervention_prior
         overlay_directives: Dict[str, str] | None = None
         if self._reward_guided is not None:
             overlay_directives = self._reward_guided.directives(
@@ -1745,6 +1861,46 @@ class ScenarioEpisodeRunner:
         self.scenario.factual_transition(
             intervention=intervention, external_input=external_input
         )
+        # The organ learns only after the committed transition.  Values are normalized
+        # by the scenario scale so portable recurrent state never stores world units.
+        main_key = self.scenario.config.main_variable
+        scale = max(abs(float(self.scenario.config.alarm_threshold or 0.0)), 1.0)
+        observed_signal = max(-1.0, min(1.0, (
+            float(factual.state.get(main_key, 0.0)) -
+            float(observation.state.get(main_key, 0.0))
+        ) / scale))
+        factual_utility = outcome_effectiveness(
+            value=float(factual.state.get(main_key, 0.0)),
+            alarm_threshold=float(self.scenario.config.alarm_threshold),
+            alarm_semantics=str(self.scenario.causal_signature.alarm_semantics),
+        )
+        counter_utility = outcome_effectiveness(
+            value=float(counterfactual.state.get(main_key, 0.0)),
+            alarm_threshold=float(self.scenario.config.alarm_threshold),
+            alarm_semantics=str(self.scenario.causal_signature.alarm_semantics),
+        )
+        neural_feedback = NeuralOutcomeFeedback(
+            selected_action=intervention,
+            observed_outcome=observed_signal,
+            predicted_outcome=neural_organ_proposal.prediction,
+            prediction_error=observed_signal - neural_organ_proposal.prediction,
+            utility=factual_utility,
+            regret=max(factual_utility, counter_utility) - factual_utility,
+            viability_delta=0.0,
+            continuity_delta=0.0,
+            risk_delta=float(bool(factual.alarm)) - float(bool(observation.alarm)),
+            resource_cost=max(resource_values.values()),
+            decision_accepted=True,
+            neural_influence_delivered=neural_influence.delivered,
+        )
+        self._organism_neural_bus.collect_feedback(neural_feedback)
+        neural_update = self._organism_neural_bus.apply_plasticity(neural_feedback)
+        self._append_organ_neural_event(
+            "neural.feedback.observed", asdict(neural_feedback)
+        )
+        self._append_organ_neural_event(
+            "neural.plasticity.applied", asdict(neural_update)
+        )
 
         # 10. Construir payload de episodio
         factual_delta = float(factual.state.get(self.scenario.config.main_variable, 0.0)) - float(
@@ -1784,6 +1940,31 @@ class ScenarioEpisodeRunner:
                 "neural_comparisons": neural_comparisons,
             },
             "trace": reasoning["trace"],
+            "neural_organism": {
+                "mode": self._organism_neural_bus.organ.mode,
+                "proposal": neural_organ_proposal.to_dict(),
+                "influence": asdict(neural_influence),
+                "feedback": asdict(neural_feedback),
+                "plasticity": asdict(neural_update),
+                "metrics": {
+                    "neural_influence_requested": neural_influence.requested,
+                    "neural_influence_delivered": neural_influence.delivered,
+                    "memory_membership_changed": {
+                        item.get("memory_id") for item in canonical_memory_hits
+                    } != {item.get("memory_id") for item in memory_hits},
+                    "memory_sequence_changed": [
+                        item.get("memory_id") for item in canonical_memory_hits
+                    ] != [item.get("memory_id") for item in memory_hits],
+                    "reasoning_budget_changed":
+                        neural_organ_proposal.reasoning_budget_modifier != 0,
+                    "action_changed_vs_baseline": intervention != baseline_intervention,
+                    "prediction_error": neural_feedback.prediction_error,
+                    "plasticity_magnitude": neural_update.magnitude,
+                    "state_distance": neural_update.magnitude,
+                    "regret": neural_feedback.regret,
+                    "resource_cost": neural_feedback.resource_cost,
+                },
+            },
         }
         # 11. Persistir evento de cierre. B41: el sobre CausalContext viaja como clave
         # aditiva (gated). Ausente ⇒ episode_payload byte-idéntico a pre-B41.

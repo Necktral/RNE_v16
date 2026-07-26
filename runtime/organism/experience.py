@@ -11,7 +11,8 @@ Principio del usuario: *la sabiduría es proporcional al daño* — un roce deja
 lección tenue; una herida profunda, una lección fuerte. Y *la reflexión es parte
 de su vida en todo momento* — el recall es continuo y barato.
 
-Gated por ``RNFE_EXPERIENCE`` (off por defecto ⇒ conducta byte-idéntica).
+Activo por defecto en el organismo experimental. ``RNFE_EXPERIENCE=0`` permite
+una ablación explícita.
 """
 
 from __future__ import annotations
@@ -32,7 +33,9 @@ GAIN_THRESHOLD = 0.30   # severidad ≤ esto = buen episodio
 
 def experience_enabled() -> bool:
     """True si el organismo recuerda y aprende de su experiencia."""
-    return os.environ.get("RNFE_EXPERIENCE", "").strip().lower() in _TRUE
+    from runtime.organism.experimental_authority import experimental_capability_enabled
+
+    return experimental_capability_enabled("RNFE_EXPERIENCE")
 
 
 def _clamp01(value: Any) -> float:

@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Sequence
 
 from runtime.neural.integration.contracts import canonical_sha256
+from runtime.neural.integration.n3_scoring import n3_adjusted_score
 from runtime.reasoning.families.core_inference import induce
 from runtime.world.intervention_override import outcome_effectiveness
 
@@ -111,11 +112,7 @@ def rank_pool(pool: P2CandidatePool, *, arm_id: str,
     if set(signals) - {"micro", "meso", "macro"}:
         raise ValueError("p2_n3_scale_signal_invalid")
     indexed = list(enumerate(pool.candidates))
-    indexed.sort(key=lambda pair: (
-        -(0.75 + 0.25 * float(signals.get(str(pair[1].get("scale")), 0.0)))
-        * float(pair[1].get("score", 0.0)),
-        pair[0],
-    ))
+    indexed.sort(key=lambda pair: (-n3_adjusted_score(pair[1], signals), pair[0]))
     ranked = tuple(item for _, item in indexed)
     if set(pool.ids) != {str(item["memory_id"]) for item in ranked} or len(ranked) != len(pool.ids):
         raise ValueError("P2_INVALID_CANDIDATE_POOL_MUTATION")

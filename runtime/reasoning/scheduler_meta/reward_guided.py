@@ -61,7 +61,9 @@ def _env_int(name: str, default: int) -> int:
 
 
 def is_reward_guided_enabled() -> bool:
-    return os.environ.get("RNFE_REWARD_GUIDED_SELECTION", "0").strip() == "1"
+    from runtime.organism.experimental_authority import experimental_capability_enabled
+
+    return experimental_capability_enabled("RNFE_REWARD_GUIDED_SELECTION")
 
 
 _CORE = frozenset(CORE_SEQUENCE)

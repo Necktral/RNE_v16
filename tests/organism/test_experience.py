@@ -29,6 +29,8 @@ def _store():
 
 def test_flag_off_by_default(monkeypatch):
     monkeypatch.delenv("RNFE_EXPERIENCE", raising=False)
+    assert experience_enabled() is True
+    monkeypatch.setenv("RNFE_EXPERIENCE", "0")
     assert experience_enabled() is False
     monkeypatch.setenv("RNFE_EXPERIENCE", "1")
     assert experience_enabled() is True

@@ -80,6 +80,8 @@ class LifeKernelConfig:
     autonomy_policy: str = "bounded"
     # Inyección pública para campañas controladas. None usa sensado real/opt-in.
     resource_snapshot_override: Dict[str, Any] | None = None
+    # RNFE es experimental: el órgano propone y actúa sólo dentro de guards.
+    neural_organ_mode: str = "bounded_actuation"
 
 
 class LifeKernel:
@@ -830,6 +832,7 @@ class LifeKernel:
             closure_profile=closure_profile,
             organism_state=self.organism_state,
             lineage=self.lineage,
+            neural_organ_mode=self.config.neural_organ_mode,
         )
         # La identidad soberana debe fijarse antes de restaurar la cadena dinámica;
         # un checkpoint de otro organismo/linaje se rechaza, no se reetiqueta.
@@ -864,7 +867,7 @@ class LifeKernel:
     ):
         assert self.organism_state is not None
         assert self.lineage is not None
-        return self.checkpoints.save_checkpoint(
+        artifact = self.checkpoints.save_checkpoint(
             run_id=self.run_id,
             organism_id=self.organism_id,
             lineage_id=self.lineage_id,
@@ -886,6 +889,17 @@ class LifeKernel:
             neural_state=dict(self._neural_state),
             metadata={"reason": reason},
         )
+        organ_snapshot = (self._neural_state.get("organism_neural_organ") or {})
+        if organ_snapshot:
+            self.storage.append_event(
+                event_type="neural.snapshot.saved", run_id=self.run_id,
+                source="life_kernel",
+                payload={
+                    "artifact_id": artifact.artifact_id,
+                    "neural_state_sha256": organ_snapshot.get("neural_state_sha256"),
+                },
+            )
+        return artifact
 
     def _restore_latest_healthy_checkpoint(self) -> bool:
         # B41: el refugio sano (rollback/E5) se busca por GENOMA — el último yo sano del
