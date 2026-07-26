@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Dict
 from uuid import uuid4
 
@@ -35,6 +36,18 @@ from runtime.world.intervention_override import (
 )
 from runtime.world.causal_attestation import build_causal_attestation
 from runtime.symbolic.eml import EMLRunner
+from runtime.symbolic.acting_trace import ActingTraceCollector
+from runtime.symbolic.constraint_registry import ConstraintRegistry, semantic_segment
+from runtime.symbolic.core_reporter import persist_core_report
+from runtime.symbolic.optimization_tracker import build_optimization_report
+from runtime.symbolic.schemas import CausalGuardReport, sealed_sha256
+from runtime.symbolic.tracked_solver import TrackedSolver
+from runtime.symbolic.mci import (
+    MCIRuntime,
+    deferred_load_spec,
+    resource_spec,
+    thermal_spec,
+)
 
 from .scenario import CognitiveScenario, ScenarioObservation
 from .registry import get_scenario, DEFAULT_SCENARIO
@@ -69,6 +82,7 @@ class ScenarioEpisodeRunner:
         organism_state: OrganismState | None = None,
         lineage: LineageState | None = None,
         reward_guided=None,
+        family_profile: str | None = None,
     ):
         """Inicializa runner con escenario especificado.
 
@@ -119,6 +133,11 @@ class ScenarioEpisodeRunner:
             )
         self.closure_profile = closure_profile
         self.reasoning_mode = resolve_reasoning_mode(closure_profile)
+        self.family_profile = str(
+            family_profile
+            or os.environ.get("RNFE_REASONING_FAMILY_PROFILE")
+            or ""
+        ).strip().lower()
         # Señales de recursos (host+GPU) inyectadas por el LifeKernel por ciclo.
         # Vacío por defecto -> el contexto de razonamiento no cambia (byte-idéntico).
         self._resource_signals: Dict[str, Any] = {}
@@ -142,7 +161,12 @@ class ScenarioEpisodeRunner:
 
         self.smg = SMGMin(storage=self.storage, run_id=self.run_id)
         self.lotf = LOTFMin()
-        self.scheduler = MetaScheduler(trace_store=self.storage, mode=self.reasoning_mode)
+        self.scheduler = MetaScheduler(
+            trace_store=self.storage,
+            mode=self.reasoning_mode,
+            family_profile=self.family_profile or None,
+        )
+        self._mci_runtime = self._build_mci_runtime()
         self.memory_retrieval = MemoryRetrieval(storage=self.storage)
         self.promotion_gate = PromotionGate(storage=self.storage)
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
@@ -171,6 +195,7 @@ class ScenarioEpisodeRunner:
         # Los mandos (knobs) son parámetros de comportamiento REALES del runner;
         # el controlador solo actúa bajo degradación sostenida, así que los
         # baselines sanos quedan numéricamente intactos.
+
         self.memory_retrieval_limit = 3
         if lineage is not None:
             self._lineage = lineage
@@ -208,6 +233,53 @@ class ScenarioEpisodeRunner:
         # Reglas inducidas transferidas por una ecología multi-organismo
         # (modo reasoning_policy_plus_rules). None en el camino de un solo organismo.
         self._inherited_rules: list | None = None
+
+    def _build_mci_runtime(self) -> MCIRuntime | None:
+        """Construye el modelo del escenario sin estado global ni lógica duplicada."""
+        name = self.scenario.config.name
+        if name == "thermal_homeostasis":
+            spec = thermal_spec(
+                alarm_threshold=float(self.scenario.config.alarm_threshold),
+                cooling_effect=float(getattr(self.scenario, "_cooling_effect")),
+            )
+        elif name == "resource_management":
+            spec = resource_spec(
+                scarcity_threshold=float(self.scenario.config.alarm_threshold),
+                production_rate=float(getattr(self.scenario, "_production_rate")),
+            )
+        elif name == "deferred_load_trap":
+            spec = deferred_load_spec(
+                alarm_threshold=float(self.scenario.config.alarm_threshold),
+                boost_effect=float(getattr(self.scenario, "_boost_effect")),
+                shed_effect=float(getattr(self.scenario, "_shed_effect")),
+                boost_debt=float(getattr(self.scenario, "_boost_debt")),
+                shed_debt=float(getattr(self.scenario, "_shed_debt")),
+            )
+        else:
+            return None
+        runtime = MCIRuntime(spec)
+        try:
+            overlays = self.storage.list_events(
+                limit=200,
+                event_types=["mci.overlay.promoted"],
+                run_id=self.run_id,
+            )
+            compatible = [
+                event.payload
+                for event in overlays
+                if (event.payload or {}).get("base_spec_sha256") == spec.sha256
+            ]
+            if compatible:
+                runtime.restore_overlay(
+                    max(compatible, key=lambda item: int(item.get("version", 0)))
+                )
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+            pass
+        return runtime
+
+    @property
+    def mci_active(self) -> bool:
+        return self.family_profile == "mci_integrated_v1" and self._mci_runtime is not None
 
     def _maybe_override_intervention(
         self,
@@ -446,7 +518,13 @@ class ScenarioEpisodeRunner:
             signals["vram_headroom"] = float(snap["vram_headroom"])
         return signals
 
-    def run_episode(self, *, external_input: float = 0.04) -> Dict[str, Any]:
+    def run_episode(
+        self,
+        *,
+        external_input: float = 0.04,
+        replay_unit_id: str | None = None,
+        trace_dir: str | Path | None = None,
+    ) -> Dict[str, Any]:
         """Ejecuta un episodio cognitivo completo.
 
         Args:
@@ -457,6 +535,34 @@ class ScenarioEpisodeRunner:
         """
         episode_id = f"episode-{uuid4()}"
         scenario_metadata = self._build_scenario_metadata()
+        transition_ordinal = int(self._organism_state.episode_count) + 1
+        scenario_seed = getattr(self.scenario, "seed", getattr(self.scenario, "_seed", None))
+        resolved_replay_unit_id = replay_unit_id or (
+            f"{self.scenario.config.name}/seed-"
+            f"{scenario_seed if scenario_seed is not None else 'unavailable'}"
+            f"/ep-{transition_ordinal}"
+        )
+        preaction_logical_time = transition_ordinal * 2 - 1
+        trace_root = (
+            Path(trace_dir)
+            if trace_dir is not None
+            else Path(self.storage.config.artifact_root) / "traces"
+        )
+        episode_trace_dir = trace_root / semantic_segment(resolved_replay_unit_id)
+        constraint_registry = ConstraintRegistry(
+            replay_unit_id=resolved_replay_unit_id,
+            logical_time=preaction_logical_time,
+        )
+        tracked_solver = TrackedSolver(
+            registry=constraint_registry,
+            replay_unit_id=resolved_replay_unit_id,
+            logical_time=preaction_logical_time,
+        )
+        acting_collector = ActingTraceCollector(
+            replay_unit_id=resolved_replay_unit_id,
+            preaction_logical_time=preaction_logical_time,
+            trace_dir=episode_trace_dir,
+        )
 
         # 1. Observar escenario
         observation = self.scenario.observe()
@@ -506,6 +612,8 @@ class ScenarioEpisodeRunner:
             if alternative is not None and alternative != intervention:
                 self._experience_bias = {"avoided": intervention, "chose": alternative}
                 intervention = alternative
+        baseline_intervention = intervention
+        acting_collector.set_baseline_action(baseline_intervention)
 
         # 6. Simular contrafactual (sin intervención o con opuesta)
         counter_intervention = (
@@ -591,6 +699,17 @@ class ScenarioEpisodeRunner:
                 **self._causal_context_signals(),
             },
         )
+        # Objetos operativos privados: META los conserva para DED pero los excluye
+        # de su snapshot serializable, evitando una segunda representación.
+        reasoning_context["_constraint_registry"] = constraint_registry
+        reasoning_context["_tracked_solver"] = tracked_solver
+        reasoning_context["_replay_unit_id"] = resolved_replay_unit_id
+        reasoning_context["_preaction_logical_time"] = preaction_logical_time
+        if self.mci_active:
+            reasoning_context["family_profile"] = "mci_integrated_v1"
+            reasoning_context["regime_hint"] = self._trajectory_regime_label
+            reasoning_context["_mci_runtime"] = self._mci_runtime
+            reasoning_context["_mci_external_input"] = float(external_input)
         overlay_directives: Dict[str, str] | None = None
         if self._reward_guided is not None:
             overlay_directives = self._reward_guided.directives(
@@ -605,10 +724,41 @@ class ScenarioEpisodeRunner:
         # cuando además RNFE_EXTERNAL_REASONER_RUNTIME está on; el scheduler agenda
         # ext_open_thinker solo si el régimen valida la admisión, y degrada si no
         # (nunca crashea). Sin ambos flags -> perfil nominal (byte-idéntico).
-        if self._external_reasoner_enabled and _external_reasoner_runtime_flag():
+        if (
+            not self.mci_active
+            and self._external_reasoner_enabled
+            and _external_reasoner_runtime_flag()
+        ):
             reasoning_context["family_profile"] = "core_plus_external_reasoner_gated_v1"
             reasoning_context.setdefault("regime_hint", self._trajectory_regime_label)
         reasoning = self.scheduler.run(reasoning_context)
+        core_report = constraint_registry.latest_core_report
+        if core_report is None:
+            core_report = constraint_registry.get_core_report(
+                status="UNKNOWN",
+                core_ids=(),
+                all_ids=(),
+            )
+        acting_collector.set_ded_report(core_report)
+        opt_report = None
+        if isinstance((reasoning.get("state") or {}).get("opt_choice"), dict):
+            opt_report = build_optimization_report(
+                reasoning_context,
+                reasoning.get("state") or {},
+                resolved_replay_unit_id,
+                preaction_logical_time,
+            )
+        acting_collector.set_opt_report(opt_report)
+        if self.mci_active:
+            mci_evidence = (reasoning.get("state") or {}).get("mci_commit_report")
+            if isinstance(mci_evidence, dict):
+                acting_collector.set_mci_evidence(mci_evidence)
+        try:
+            constraint_registry.export_jsonl(acting_collector.paths["constraints"])
+            if core_report is not None:
+                persist_core_report(core_report, acting_collector.paths["core_report"])
+        except OSError:
+            acting_collector.mark_persistence_degraded()
 
         # 9b. Override determinista guardado (actuación del razonamiento). Gated por
         # RNFE_REASONING_ACTUATES=1 (sombra OFF ⇒ camino nominal byte-idéntico). En
@@ -670,11 +820,43 @@ class ScenarioEpisodeRunner:
                 payload={"episode_id": episode_id, **intervention_override.to_dict()},
             )
 
+        reasoning_state = reasoning.get("state") or {}
+        conflict_evidence = {
+            "cau": reasoning_state.get("cau_link"),
+            "ctf": reasoning_state.get("ctf_checked"),
+        }
+        guard_report = CausalGuardReport(
+            fired=intervention_override.fired,
+            from_intervention=intervention_override.from_intervention,
+            to_intervention=intervention_override.to_intervention,
+            margin_gain=float(intervention_override.margin_gain),
+            guard_reason=intervention_override.guard_reason,
+            conflict_evidence=conflict_evidence,
+        )
+        acting_collector.set_guard_report(guard_report)
+        acting_trace = None
+        governance_envelope = dict(reasoning.get("governance") or {})
+        traceability = governance_envelope.get("traceability")
+        if isinstance(traceability, dict):
+            governance_envelope["traceability"] = {
+                key: value for key, value in traceability.items() if key != "run_id"
+            }
+        try:
+            acting_trace = acting_collector.seal(
+                committed_action=intervention,
+                governance_verdict={
+                    "verdict": "admitted",
+                    "envelope": governance_envelope,
+                },
+            )
+        except (OSError, RuntimeError, TypeError, ValueError):
+            acting_collector.mark_persistence_degraded()
+
         # 9c. Aplicar la acción FINAL una sola vez desde el estado pre-acción. Hasta aquí
         # nada mutó el escenario (greedy y candidatas se computaron por simulación); esta
         # es la ÚNICA mutación que avanza el mundo, por la intervención efectivamente
         # elegida (greedy o la del override). Byte-idéntico con actuación OFF (final=greedy).
-        self.scenario.factual_transition(
+        observed_transition = self.scenario.factual_transition(
             intervention=intervention, external_input=external_input
         )
 
@@ -755,6 +937,13 @@ class ScenarioEpisodeRunner:
             "artifact": asdict(artifact),
             "run_id": self.run_id,
             "intervention_override": intervention_override.to_dict(),
+            "acting_trace": {
+                "sealed_hash": acting_trace.sealed_hash if acting_trace is not None else None,
+                "replay_unit_id": resolved_replay_unit_id,
+                "preaction_logical_time": preaction_logical_time,
+                "trace_status": acting_collector.trace_status,
+                "paths": acting_collector.paths,
+            },
         }
 
         # 12b. Build and persist belief state
@@ -853,12 +1042,43 @@ class ScenarioEpisodeRunner:
         # ceguera de ΔIoC*; pesa solo con RNFE_REWARD_LAMBDA_EFFECTIVENESS>0.
         try:
             effectiveness = outcome_effectiveness(
-                value=float(factual.state.get(self.scenario.config.main_variable, 0.0)),
+                value=float(observed_transition.state.get(self.scenario.config.main_variable, 0.0)),
                 alarm_threshold=float(self.scenario.config.alarm_threshold),
                 alarm_semantics=str(self.scenario.causal_signature.alarm_semantics),
             )
         except Exception:
             effectiveness = None
+        try:
+            observed_dict = self.scenario.to_transition_dict(observed_transition)
+            observed_value = float(
+                observed_transition.state.get(self.scenario.config.main_variable, 0.0)
+            )
+            predicted_value = float(
+                factual.state.get(self.scenario.config.main_variable, 0.0)
+            )
+            certificate = certification["certificate"]
+            decision = certification["decision"]
+            certification_fingerprint = sealed_sha256(
+                {
+                    "replay_unit_id": resolved_replay_unit_id,
+                    "verdict": certificate.verdict,
+                    "promotion_candidate": certificate.promotion_candidate,
+                    "ioc_proxy": certificate.ioc_proxy,
+                    "risk_score": certificate.risk_score,
+                    "decision_verdict": decision.verdict,
+                }
+            )
+            outcome_link = acting_collector.link_outcome(
+                outcome_observed=observed_dict,
+                prediction_error=round(observed_value - predicted_value, 6),
+                utility=round(effectiveness, 6) if effectiveness is not None else None,
+                certification_ref=f"sha256:{certification_fingerprint}",
+            )
+            episode_result["acting_trace"]["outcome_link"] = outcome_link.to_dict()
+            episode_result["acting_trace"]["certificate_id"] = certificate.certificate_id
+        except (OSError, RuntimeError, TypeError, ValueError):
+            acting_collector.mark_persistence_degraded()
+        episode_result["acting_trace"]["trace_status"] = acting_collector.trace_status
         # ν = cau.helps_goal (¿la acción factual va en la dirección del objetivo?),
         # ya direction-aware desde core_inference. Criterio de viabilidad de primera
         # clase (cura J(h|X)); pesa solo con RNFE_REWARD_LAMBDA_NU>0.
@@ -873,6 +1093,33 @@ class ScenarioEpisodeRunner:
             nu=nu_helps_goal,
         )
         episode_result["reasoning_reward"] = reasoning_reward
+        if self.mci_active and self._mci_runtime is not None:
+            try:
+                mci_outcome = self._mci_runtime.observe_outcome(
+                    self.scenario.to_transition_dict(observed_transition),
+                    committed_action=intervention,
+                    logical_time=preaction_logical_time + 1,
+                    reasoning_cost=reasoning_cost_from_trace(reasoning.get("trace") or []),
+                )
+                episode_result["mci_outcome"] = mci_outcome
+                self.storage.append_event(
+                    event_type="mci.outcome",
+                    run_id=self.run_id,
+                    source="mci_integrated_v1",
+                    payload={"episode_id": episode_id, **mci_outcome},
+                )
+                promoted_overlay = mci_outcome.get("promoted_overlay")
+                if isinstance(promoted_overlay, dict):
+                    self.storage.append_event(
+                        event_type="mci.overlay.promoted",
+                        run_id=self.run_id,
+                        source="mci_integrated_v1",
+                        payload={"episode_id": episode_id, **promoted_overlay},
+                    )
+            except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+                episode_result["mci_outcome"] = {
+                    "status": "persistence_degraded",
+                }
         executed_overlays = [
             family.lower()
             for family in (reasoning.get("sequence") or [])

@@ -38,6 +38,7 @@ def is_actuation_enabled() -> bool:
 # Familias que producen una intervención CONCRETA (no solo señal de conflicto).
 # Orden de prioridad como "driver" del override.
 _CONCRETE_RECOMMENDERS: Tuple[Tuple[str, str], ...] = (
+    ("mci", "mci_first_action"),
     ("opt", "opt_intervention"),
     ("plan", "plan_first_action"),
     ("ind", "ind_best_intervention"),
