@@ -44,6 +44,7 @@ def execute(state: dict[str, Any]) -> dict[str, Any]:
             external_input=float(state.get("_mci_external_input", 0.0)),
             logical_time=int(state.get("_preaction_logical_time", 0)),
             regime=str(state.get("regime_hint") or state.get("scenario") or "unknown"),
+            replay_unit_id=str(state.get("_replay_unit_id") or ""),
         )
     except (KeyError, RuntimeError, TypeError, ValueError, Z3Exception):
         return {

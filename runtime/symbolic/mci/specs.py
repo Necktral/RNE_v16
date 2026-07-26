@@ -58,6 +58,79 @@ def thermal_spec(*, alarm_threshold: float = 0.85, cooling_effect: float = 0.07)
     )
 
 
+def thermal_battery_spec(
+    *,
+    alarm_threshold: float = 0.85,
+    cooling_effect: float = 0.07,
+    battery_discharge_rate: float = 0.06,
+    battery_charge_rate: float = 0.01,
+) -> TransitionSpec:
+    """Modelo inicial deliberadamente incompleto: desconoce la guarda de batería."""
+    return TransitionSpec(
+        spec_id="transition/thermal_with_battery",
+        version="1.0",
+        scenario="thermal_with_battery",
+        variables=(
+            VariableSpec("temperature", "real"),
+            VariableSpec("battery_level", "real"),
+            VariableSpec("cooling_active", "bool"),
+            VariableSpec("alarm", "bool"),
+        ),
+        parameters={
+            "alarm_threshold": alarm_threshold,
+            "cooling_effect": cooling_effect,
+        },
+        actions=(
+            ActionSpec("activate_cooling", {"cooling_active": True}),
+            ActionSpec("deactivate_cooling", {"cooling_active": False}),
+        ),
+        equations=(
+            EquationSpec(
+                "temperature",
+                (
+                    TermSpec("state.temperature"),
+                    TermSpec("external_input"),
+                ),
+                (
+                    EffectSpec(
+                        "thermal_battery/cooling",
+                        "activate_cooling",
+                        -1.0,
+                        "cooling_effect",
+                    ),
+                ),
+            ),
+            EquationSpec(
+                "battery_level",
+                (TermSpec("state.battery_level"),),
+                (
+                    EffectSpec(
+                        "thermal_battery/active_consumption",
+                        "activate_cooling",
+                        -float(battery_discharge_rate),
+                    ),
+                    EffectSpec(
+                        "thermal_battery/passive_recharge",
+                        "deactivate_cooling",
+                        float(battery_charge_rate),
+                    ),
+                ),
+            ),
+        ),
+        alarm_variable="alarm",
+        alarm_source="temperature",
+        alarm_operator=">=",
+        alarm_threshold_parameter="alarm_threshold",
+        main_variable="temperature",
+        optimization_direction="minimize",
+        safe_action="activate_cooling",
+        invariants=(
+            InvariantSpec("temperature", "bounds", "alarm_threshold"),
+            InvariantSpec("battery_level", "bounds", "alarm_threshold"),
+        ),
+    )
+
+
 def resource_spec(*, scarcity_threshold: float = 0.20, production_rate: float = 0.08) -> TransitionSpec:
     return TransitionSpec(
         spec_id="transition/resource_management",

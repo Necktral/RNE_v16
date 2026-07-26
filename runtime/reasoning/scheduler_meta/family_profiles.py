@@ -272,6 +272,16 @@ PROFILES: Dict[str, FamilyProfile] = {
             "como competidores y fallback."
         ),
     ),
+    "mci_n4_closed_loop_v1": FamilyProfile(
+        name="mci_n4_closed_loop_v1",
+        core_sequence=list(CORE_SEQUENCE),
+        optional_families=["mci", "plan", "opt", "ind"],
+        adaptive=False,
+        description=(
+            "Perfil explícito MCI+N4 proposal-only con validación causal, "
+            "planificación y autoridad guardada."
+        ),
+    ),
     "full_family_deep_v1": FamilyProfile(
         name="full_family_deep_v1",
         core_sequence=list(CORE_SEQUENCE),

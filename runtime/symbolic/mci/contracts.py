@@ -33,6 +33,65 @@ class EffectSpec(_Schema):
 
 
 @dataclass(frozen=True)
+class NeuralHypothesis(_Schema):
+    hypothesis_id: str
+    kind: str
+    target_id: str
+    expression: str | None
+    proposed_value: float | None
+    confidence: float
+    evidence_refs: tuple[str, ...]
+    provider: str
+    model_ref: str
+    logical_time: int
+    submitted_evidence_refs: tuple[str, ...] = ()
+    unresolved_evidence_refs: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        allowed = {"precondition", "parameter", "edge", "regime"}
+        if self.kind not in allowed:
+            raise ValueError(f"Tipo de hipótesis neural inválido: {self.kind}")
+        confidence = float(self.confidence)
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError("confidence debe estar entre 0 y 1")
+        object.__setattr__(self, "confidence", round(confidence, 6))
+        object.__setattr__(self, "evidence_refs", tuple(self.evidence_refs))
+        object.__setattr__(
+            self, "submitted_evidence_refs", tuple(self.submitted_evidence_refs)
+        )
+        object.__setattr__(
+            self, "unresolved_evidence_refs", tuple(self.unresolved_evidence_refs)
+        )
+        if not self.hypothesis_id:
+            payload = {
+                "kind": self.kind,
+                "target_id": self.target_id,
+                "expression": self.expression,
+                "proposed_value": self.proposed_value,
+                "confidence": round(confidence, 6),
+                "evidence_refs": tuple(self.evidence_refs),
+                "provider": self.provider,
+                "model_ref": self.model_ref,
+                "logical_time": int(self.logical_time),
+            }
+            object.__setattr__(
+                self, "hypothesis_id", f"neural-{sealed_sha256(payload)[:24]}"
+            )
+
+
+@dataclass(frozen=True)
+class NeuralHypothesisEvaluation(_Schema):
+    hypothesis_id: str
+    status: str
+    reason: str
+    train_mae_before: float | None
+    train_mae_after: float | None
+    holdout_mae_before: float | None
+    holdout_mae_after: float | None
+    promoted_overlay_id: str | None
+
+
+@dataclass(frozen=True)
 class EquationSpec(_Schema):
     target: str
     terms: tuple[TermSpec, ...]
@@ -153,6 +212,7 @@ class SMTPlanReport(_Schema):
     risk: float | None
     constraint_ids: tuple[str, ...]
     tie_breaks: tuple[str, ...] = ("objective", "length", "actions")
+    objective_mode: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "actions", tuple(self.actions))
@@ -161,6 +221,12 @@ class SMTPlanReport(_Schema):
         )
         object.__setattr__(self, "constraint_ids", tuple(self.constraint_ids))
         object.__setattr__(self, "tie_breaks", tuple(self.tie_breaks))
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        if self.objective_mode is None:
+            payload.pop("objective_mode", None)
+        return payload
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ import json
 import os
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from runtime.certification.promotion_gate import PromotionGate
@@ -29,11 +29,13 @@ from runtime.storage.records import utc_now_iso
 from runtime.reasoning.families import a12 as a12_family
 from runtime.world.intervention_override import (
     OverrideDecision,
+    RolloutAssessment,
     evaluate_foresight_override,
     evaluate_override,
     is_actuation_enabled,
     outcome_effectiveness,
 )
+from runtime.world.scenario import ScenarioTransition
 from runtime.world.causal_attestation import build_causal_attestation
 from runtime.symbolic.eml import EMLRunner
 from runtime.symbolic.acting_trace import ActingTraceCollector
@@ -43,11 +45,23 @@ from runtime.symbolic.optimization_tracker import build_optimization_report
 from runtime.symbolic.schemas import CausalGuardReport, sealed_sha256
 from runtime.symbolic.tracked_solver import TrackedSolver
 from runtime.symbolic.mci import (
+    EdgeMapping,
+    HypothesisMappingRegistry,
+    HypothesisProvider,
     MCIRuntime,
+    MCIPlanningConfig,
     deferred_load_spec,
     resource_spec,
     thermal_spec,
+    thermal_battery_spec,
 )
+from runtime.symbolic.mci.hypothesis_mapping import default_edge_mappings
+from runtime.symbolic.mci.feedback import relay_feedback
+from runtime.symbolic.mci.provider_adapter import adapt_hypotheses
+from runtime.neural import NeuralMode, NeuralModelManifest, NeuralRuntime
+from runtime.neural.contracts import canonical_sha256
+from runtime.neural.n4_hypothesis_provider import N4HypothesisProvider
+from runtime.neural.organs import N4CausalRankingBackend
 
 from .scenario import CognitiveScenario, ScenarioObservation
 from .registry import get_scenario, DEFAULT_SCENARIO
@@ -61,6 +75,33 @@ def _external_reasoner_runtime_flag() -> bool:
         "yes",
         "on",
     }
+
+
+def _resolve_mci_planning_config(
+    explicit: MCIPlanningConfig | None,
+) -> MCIPlanningConfig:
+    if explicit is not None:
+        return explicit
+    horizon_raw = os.environ.get("RNFE_MCI_PLANNING_HORIZON")
+    exact_raw = os.environ.get("RNFE_MCI_EXACT_HORIZON")
+    mode_raw = os.environ.get("RNFE_MCI_OBJECTIVE_MODE")
+    if horizon_raw is None and exact_raw is None and mode_raw is None:
+        return MCIPlanningConfig()
+    try:
+        horizon = int(horizon_raw) if horizon_raw is not None else 3
+        exact = (
+            exact_raw.strip().lower() in {"1", "true", "yes", "on"}
+            if exact_raw is not None
+            else False
+        )
+        mode = mode_raw.strip() if mode_raw is not None else "terminal_regret"
+        return MCIPlanningConfig(
+            horizon=horizon,
+            exact_horizon=exact,
+            objective_mode=mode,
+        )
+    except (AttributeError, TypeError, ValueError):
+        return MCIPlanningConfig()
 
 
 class ScenarioEpisodeRunner:
@@ -83,6 +124,8 @@ class ScenarioEpisodeRunner:
         lineage: LineageState | None = None,
         reward_guided=None,
         family_profile: str | None = None,
+        mci_planning_config: MCIPlanningConfig | None = None,
+        n4_artifact_path: Path | None = None,
     ):
         """Inicializa runner con escenario especificado.
 
@@ -138,6 +181,10 @@ class ScenarioEpisodeRunner:
             or os.environ.get("RNFE_REASONING_FAMILY_PROFILE")
             or ""
         ).strip().lower()
+        self._mci_planning_config = _resolve_mci_planning_config(
+            mci_planning_config
+        )
+        self._n4_artifact_path = n4_artifact_path
         # Señales de recursos (host+GPU) inyectadas por el LifeKernel por ciclo.
         # Vacío por defecto -> el contexto de razonamiento no cambia (byte-idéntico).
         self._resource_signals: Dict[str, Any] = {}
@@ -167,6 +214,10 @@ class ScenarioEpisodeRunner:
             family_profile=self.family_profile or None,
         )
         self._mci_runtime = self._build_mci_runtime()
+        self._hypothesis_provider: HypothesisProvider | None = None
+        self._hypothesis_mappings = HypothesisMappingRegistry()
+        self._provider_hypothesis_metadata: dict[str, dict[str, str]] = {}
+        self._configure_n4_closed_loop()
         self.memory_retrieval = MemoryRetrieval(storage=self.storage)
         self.promotion_gate = PromotionGate(storage=self.storage)
         self.eml_mode = os.environ.get("RNFE_EML_MODE", "disabled").strip().lower()
@@ -233,7 +284,6 @@ class ScenarioEpisodeRunner:
         # Reglas inducidas transferidas por una ecología multi-organismo
         # (modo reasoning_policy_plus_rules). None en el camino de un solo organismo.
         self._inherited_rules: list | None = None
-
     def _build_mci_runtime(self) -> MCIRuntime | None:
         """Construye el modelo del escenario sin estado global ni lógica duplicada."""
         name = self.scenario.config.name
@@ -255,9 +305,23 @@ class ScenarioEpisodeRunner:
                 boost_debt=float(getattr(self.scenario, "_boost_debt")),
                 shed_debt=float(getattr(self.scenario, "_shed_debt")),
             )
+        elif name == "thermal_with_battery":
+            spec = thermal_battery_spec(
+                alarm_threshold=float(self.scenario.config.alarm_threshold),
+                cooling_effect=float(getattr(self.scenario, "cooling_effect")),
+                battery_discharge_rate=float(
+                    getattr(self.scenario, "_battery_discharge_rate")
+                ),
+                battery_charge_rate=float(
+                    getattr(self.scenario, "_battery_charge_rate")
+                ),
+            )
         else:
             return None
-        runtime = MCIRuntime(spec)
+        runtime = MCIRuntime(
+            spec,
+            planning_config=self._mci_planning_config,
+        )
         try:
             overlays = self.storage.list_events(
                 limit=200,
@@ -273,13 +337,126 @@ class ScenarioEpisodeRunner:
                 runtime.restore_overlay(
                     max(compatible, key=lambda item: int(item.get("version", 0)))
                 )
+            ledger_events = self.storage.list_events(
+                limit=1,
+                event_types=["mci.hypothesis.ledger"],
+                run_id=self.run_id,
+            )
+            if ledger_events:
+                ledger_payload = (ledger_events[0].payload or {}).get("entries") or ()
+                runtime.restore_hypothesis_ledger(
+                    tuple(dict(item) for item in ledger_payload)
+                )
         except (KeyError, OSError, RuntimeError, TypeError, ValueError):
             pass
         return runtime
 
     @property
     def mci_active(self) -> bool:
-        return self.family_profile == "mci_integrated_v1" and self._mci_runtime is not None
+        return self.family_profile in {
+            "mci_integrated_v1",
+            "mci_n4_closed_loop_v1",
+        } and self._mci_runtime is not None
+
+    def _configure_n4_closed_loop(self) -> None:
+        if (
+            self.family_profile != "mci_n4_closed_loop_v1"
+            or self._mci_runtime is None
+        ):
+            return
+        weights: dict[str, Any] = {
+            "ranking_weights": (2.0, 1.5, 0.5, 0.4, 1.0, 1.5),
+            "bias": -1.0,
+            "temperature": 1.0,
+        }
+        trained = False
+        provenance: dict[str, Any] = {}
+        metrics: dict[str, Any] = {"scientific_gate_eligible": False}
+        model_id = "n4-reference-ranking-v1"
+        artifact_path = "reference/n4-ranking-v1.json"
+        artifact_sha256 = canonical_sha256(weights)
+        if self._n4_artifact_path is not None:
+            raw_bytes = self._n4_artifact_path.read_bytes()
+            payload = json.loads(raw_bytes)
+            if payload.get("schema") != "n4-ranking-artifact.v1":
+                raise ValueError("n4_artifact_schema_invalid")
+            if payload.get("model_kind") != "trained":
+                raise ValueError("n4_artifact_must_be_trained")
+            if not bool(payload.get("promotable")):
+                raise ValueError("n4_artifact_not_promotable")
+            weights = payload
+            trained = True
+            provenance = dict(payload.get("training") or {})
+            metrics = {
+                "scientific_gate_eligible": True,
+                "validation": payload.get("validation"),
+                "holdout": payload.get("holdout"),
+            }
+            model_id = f"n4-trained-ranking-{hashlib.sha256(raw_bytes).hexdigest()[:12]}"
+            artifact_path = self._n4_artifact_path.name
+            artifact_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        manifest = NeuralModelManifest(
+            organ="N4",
+            capability="causal_hypothesis_ranking",
+            model_id=model_id,
+            version="1",
+            backend="python-deterministic",
+            artifact_path=artifact_path,
+            artifact_sha256=artifact_sha256,
+            trained=trained,
+            training_provenance=provenance,
+            metrics=metrics,
+        )
+        provider = N4HypothesisProvider(
+            runtime=NeuralRuntime(
+                backend=N4CausalRankingBackend(weights),
+                manifest=manifest,
+                mode=NeuralMode.EXPERIMENTAL,
+            ),
+            spec=self._mci_runtime.base_spec,
+            run_id=self.run_id,
+        )
+        try:
+            calibration_events = self.storage.list_events(
+                limit=1,
+                event_types=["n4.calibration.snapshot"],
+                run_id=self.run_id,
+            )
+            if calibration_events:
+                snapshot = (calibration_events[0].payload or {}).get("snapshot")
+                if isinstance(snapshot, dict):
+                    provider.calibration.restore(snapshot)
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+            pass
+        self.set_hypothesis_provider(provider)
+
+    def ingest_mci_hypotheses(self, hypotheses: list[Any]) -> bool:
+        """Encola hipótesis externas; no altera el baseline si MCI no está disponible."""
+        if self._mci_runtime is None:
+            return False
+        self._mci_runtime.ingest_neural_hypotheses(hypotheses)
+        return True
+
+    def set_hypothesis_provider(
+        self,
+        provider: HypothesisProvider | None,
+        *,
+        edge_mappings: tuple[EdgeMapping, ...] = (),
+    ) -> None:
+        """Configura un emisor proposal-only sin alterar el perfil cognitivo."""
+        if provider is not None and not isinstance(provider, HypothesisProvider):
+            raise TypeError("provider no implementa HypothesisProvider")
+        resolved_mappings = edge_mappings
+        if not resolved_mappings and self._mci_runtime is not None:
+            resolved_mappings = default_edge_mappings(
+                self._mci_runtime.base_spec.spec_id
+            )
+        registry = HypothesisMappingRegistry(resolved_mappings)
+        if self._mci_runtime is not None:
+            registry.validate_for(self._mci_runtime.base_spec)
+        self._hypothesis_provider = provider
+        self._hypothesis_mappings = registry
+        self._provider_hypothesis_metadata.clear()
 
     def _maybe_override_intervention(
         self,
@@ -319,6 +496,7 @@ class ScenarioEpisodeRunner:
             greedy_intervention=greedy_intervention,
         )
         if foresight.fired:
+            assert foresight.to_intervention is not None
             candidate = self.scenario.simulate_counterfactual(
                 intervention=foresight.to_intervention, external_input=external_input
             )
@@ -326,7 +504,7 @@ class ScenarioEpisodeRunner:
 
         # 2) Override greedy guardado de UN paso (existente): conflicto estructural +
         # familia deliberativa (opt/plan/ind) + mejora inmediata certificada.
-        sim_cache: Dict[str, Any] = {}
+        sim_cache: Dict[str, ScenarioTransition] = {}
 
         def simulate_value(intervention: str) -> float:
             transition = self.scenario.simulate_counterfactual(
@@ -342,9 +520,79 @@ class ScenarioEpisodeRunner:
             direction=direction,
             factual_value=float(factual.state.get(mv, 0.0)),
             simulate_value=simulate_value,
+            **self._mci_rollout_guard_inputs(
+                reasoning_state=reasoning_state,
+                greedy_intervention=greedy_intervention,
+                external_input=external_input,
+            ),
         )
-        candidate = sim_cache.get(decision.to_intervention) if decision.fired else None
+        candidate: Optional[ScenarioTransition] = (
+            sim_cache.get(str(decision.to_intervention))
+            if decision.fired and decision.to_intervention is not None
+            else None
+        )
+        if (
+            decision.fired
+            and decision.to_intervention is not None
+            and candidate is None
+        ):
+            candidate = self.scenario.simulate_counterfactual(
+                intervention=decision.to_intervention,
+                external_input=external_input,
+            )
         return decision, candidate
+
+    def _mci_rollout_guard_inputs(
+        self,
+        *,
+        reasoning_state: Dict[str, Any],
+        greedy_intervention: str,
+        external_input: float,
+    ) -> Dict[str, Any]:
+        """Construye callbacks multi-step solo para un plan MCI concreto y no trivial."""
+        if not self.mci_active or self._mci_runtime is None:
+            return {}
+        runtime = self._mci_runtime
+        plan_payload = reasoning_state.get("mci_plan_report")
+        if not isinstance(plan_payload, dict):
+            return {}
+        actions = tuple(str(item) for item in (plan_payload.get("actions") or ()))
+        candidate = str(reasoning_state.get("mci_first_action") or "")
+        if len(actions) <= 1 or not candidate or actions[0] != candidate:
+            return {}
+        horizon = min(5, len(actions))
+        actions = actions[:horizon]
+        observation = self.scenario.observe()
+        initial_state = {
+            **dict(observation.state),
+            runtime.base_spec.alarm_variable: bool(observation.alarm),
+        }
+        def simulate_rollout(sequence) -> RolloutAssessment:
+            report = runtime.evaluate_plan_sequence(
+                initial_state,
+                actions=tuple(str(item) for item in sequence),
+                external_input=float(external_input),
+            )
+            violations = tuple(
+                f"alarm/t/{index}"
+                for index, state in enumerate(report.projected_states, 1)
+                if bool(state.get(runtime.base_spec.alarm_variable))
+            )
+            return RolloutAssessment(
+                objective=(
+                    float(report.objective)
+                    if report.objective is not None
+                    else float("inf")
+                ),
+                invariant_violations=violations,
+                status=report.status,
+            )
+
+        return {
+            "candidate_sequence": actions,
+            "baseline_sequence": (greedy_intervention,) * horizon,
+            "simulate_rollout": simulate_rollout,
+        }
 
     def _apply_knob_changes(self, changes: Dict[str, Any]) -> None:
         """Aplica una modificación aceptada sobre los mandos reales del runner."""
@@ -706,10 +954,44 @@ class ScenarioEpisodeRunner:
         reasoning_context["_replay_unit_id"] = resolved_replay_unit_id
         reasoning_context["_preaction_logical_time"] = preaction_logical_time
         if self.mci_active:
-            reasoning_context["family_profile"] = "mci_integrated_v1"
+            reasoning_context["family_profile"] = self.family_profile
             reasoning_context["regime_hint"] = self._trajectory_regime_label
             reasoning_context["_mci_runtime"] = self._mci_runtime
             reasoning_context["_mci_external_input"] = float(external_input)
+            if self._hypothesis_provider is not None and self._mci_runtime is not None:
+                try:
+                    provider_context = {
+                        "state": {
+                            key: value
+                            for key, value in observation_dict.items()
+                            if key not in {"propositions", "level"}
+                        },
+                        "candidate_action": intervention,
+                        "spec_id": self._mci_runtime.base_spec.spec_id,
+                        "recent_evidence": self._mci_runtime.learner.get_recent_evidence(10),
+                        "logical_time": preaction_logical_time,
+                    }
+                    raw_hypotheses = tuple(
+                        self._hypothesis_provider.infer_hypotheses(provider_context)
+                    )
+                    hypotheses = adapt_hypotheses(
+                        raw_hypotheses,
+                        registry=self._hypothesis_mappings,
+                        spec=self._mci_runtime.base_spec,
+                        recent_evidence=provider_context["recent_evidence"],
+                        logical_time=preaction_logical_time,
+                    )
+                    for hypothesis in hypotheses:
+                        self._provider_hypothesis_metadata[
+                            hypothesis.hypothesis_id
+                        ] = {
+                            "provider": hypothesis.provider,
+                            "model_ref": hypothesis.model_ref,
+                        }
+                    self.ingest_mci_hypotheses(hypotheses)
+                except Exception:
+                    # El proveedor es evidence-only: jamás bloquea razonamiento o acción.
+                    pass
         overlay_directives: Dict[str, str] | None = None
         if self._reward_guided is not None:
             overlay_directives = self._reward_guided.directives(
@@ -752,7 +1034,16 @@ class ScenarioEpisodeRunner:
         if self.mci_active:
             mci_evidence = (reasoning.get("state") or {}).get("mci_commit_report")
             if isinstance(mci_evidence, dict):
-                acting_collector.set_mci_evidence(mci_evidence)
+                sealed_mci_evidence = dict(mci_evidence)
+                n4_evidence = getattr(
+                    self._hypothesis_provider, "last_evidence", None
+                )
+                if (
+                    self.family_profile == "mci_n4_closed_loop_v1"
+                    and isinstance(n4_evidence, dict)
+                ):
+                    sealed_mci_evidence["n4_evidence"] = n4_evidence
+                acting_collector.set_mci_evidence(sealed_mci_evidence)
         try:
             constraint_registry.export_jsonl(acting_collector.paths["constraints"])
             if core_report is not None:
@@ -1100,12 +1391,15 @@ class ScenarioEpisodeRunner:
                     committed_action=intervention,
                     logical_time=preaction_logical_time + 1,
                     reasoning_cost=reasoning_cost_from_trace(reasoning.get("trace") or []),
+                    decision_trace_sha256=(
+                        acting_trace.sealed_hash if acting_trace is not None else None
+                    ),
                 )
                 episode_result["mci_outcome"] = mci_outcome
                 self.storage.append_event(
                     event_type="mci.outcome",
                     run_id=self.run_id,
-                    source="mci_integrated_v1",
+                    source=self.family_profile,
                     payload={"episode_id": episode_id, **mci_outcome},
                 )
                 promoted_overlay = mci_outcome.get("promoted_overlay")
@@ -1113,9 +1407,91 @@ class ScenarioEpisodeRunner:
                     self.storage.append_event(
                         event_type="mci.overlay.promoted",
                         run_id=self.run_id,
-                        source="mci_integrated_v1",
+                        source=self.family_profile,
                         payload={"episode_id": episode_id, **promoted_overlay},
                     )
+                ledger_payload = mci_outcome.get("hypothesis_ledger")
+                if isinstance(ledger_payload, list):
+                    self.storage.append_event(
+                        event_type="mci.hypothesis.ledger",
+                        run_id=self.run_id,
+                        source=self.family_profile,
+                        payload={
+                            "episode_id": episode_id,
+                            "entries": ledger_payload,
+                            "logical_time": preaction_logical_time + 1,
+                        },
+                    )
+                if self._hypothesis_provider is not None:
+                    try:
+                        evaluation_payload = tuple(
+                            item
+                            for item in (
+                                mci_outcome.get("neural_hypotheses_evaluated") or ()
+                            )
+                            if isinstance(item, dict)
+                        )
+                        evaluations = relay_feedback(
+                            self._hypothesis_provider, evaluation_payload
+                        )
+                        if self.family_profile == "mci_n4_closed_loop_v1":
+                            mci_outcome["n4_calibration_reports"] = list(
+                                getattr(
+                                    self._hypothesis_provider,
+                                    "last_calibration_reports",
+                                    (),
+                                )
+                            )
+                            for report in mci_outcome["n4_calibration_reports"]:
+                                self.storage.append_event(
+                                    event_type="n4.calibration.updated",
+                                    run_id=self.run_id,
+                                    source="n4-causal-ranker",
+                                    payload={
+                                        "episode_id": episode_id,
+                                        **report,
+                                        "logical_time": preaction_logical_time + 1,
+                                    },
+                                )
+                            calibration = getattr(
+                                self._hypothesis_provider, "calibration", None
+                            )
+                            if calibration is not None:
+                                self.storage.append_event(
+                                    event_type="n4.calibration.snapshot",
+                                    run_id=self.run_id,
+                                    source="n4-causal-ranker",
+                                    payload={
+                                        "episode_id": episode_id,
+                                        "snapshot": calibration.snapshot(),
+                                        "logical_time": preaction_logical_time + 1,
+                                    },
+                                )
+                        for evaluation in evaluations:
+                            metadata = self._provider_hypothesis_metadata.get(
+                                evaluation.hypothesis_id, {}
+                            )
+                            self.storage.append_event(
+                                event_type="neural.hypothesis.evaluated",
+                                run_id=self.run_id,
+                                source="mci_hypothesis_provider",
+                                payload={
+                                    "episode_id": episode_id,
+                                    "provider": metadata.get("provider", "external"),
+                                    "model_ref": metadata.get(
+                                        "model_ref", "unavailable"
+                                    ),
+                                    **evaluation.to_dict(),
+                                    "logical_time": preaction_logical_time + 1,
+                                },
+                            )
+                            if evaluation.status != "pending":
+                                self._provider_hypothesis_metadata.pop(
+                                    evaluation.hypothesis_id, None
+                                )
+                    except Exception:
+                        # Feedback y telemetría son fail-open y no cambian el outcome.
+                        pass
             except (KeyError, OSError, RuntimeError, TypeError, ValueError):
                 episode_result["mci_outcome"] = {
                     "status": "persistence_degraded",

@@ -6,21 +6,39 @@ from typing import Any, Mapping
 
 from .causal_learning import CausalLearningEngine, TransitionEvidence
 from .compiler import TransitionCompiler
-from .contracts import CausalOverlay, Justification, MCICommitReport, TransitionSpec
+from .contracts import (
+    CausalOverlay,
+    Justification,
+    MCICommitReport,
+    NeuralHypothesis,
+    SMTPlanReport,
+    TransitionSpec,
+)
 from .jtms import TemporalAssumptionLedger
-from .planner import SMTPlanner
+from .planner import MCIPlanningConfig, SMTPlanner
 from .regime_detector import RegimeDetector
 from .self_model import IncrementalSelfModel
 
 
 class MCIRuntime:
-    def __init__(self, spec: TransitionSpec):
+    def __init__(
+        self,
+        spec: TransitionSpec,
+        *,
+        planning_config: MCIPlanningConfig | None = None,
+    ):
         self.base_spec = spec
+        self.planning_config = planning_config or MCIPlanningConfig()
         self.learner = CausalLearningEngine(spec)
         self.ledger = TemporalAssumptionLedger()
         self.self_model = IncrementalSelfModel()
         self.regime_detector = RegimeDetector()
         self._pending: dict[str, Any] | None = None
+
+    def ingest_neural_hypotheses(
+        self, hypotheses: list[NeuralHypothesis]
+    ) -> None:
+        self.learner.enqueue_hypotheses(hypotheses)
 
     def restore_overlay(self, payload: Mapping[str, Any]) -> None:
         self.learner.restore_overlay(
@@ -42,6 +60,11 @@ class MCIRuntime:
             )
         )
 
+    def restore_hypothesis_ledger(
+        self, payload: tuple[Mapping[str, Any], ...]
+    ) -> None:
+        self.learner.hypothesis_ledger.restore(payload)
+
     def propose(
         self,
         *,
@@ -49,9 +72,10 @@ class MCIRuntime:
         external_input: float,
         logical_time: int,
         regime: str,
+        replay_unit_id: str = "",
     ) -> dict[str, Any]:
         compiler = TransitionCompiler(self.learner.active_spec)
-        plan = SMTPlanner(compiler).plan(state, external_input=external_input)
+        plan = self._planner(compiler).plan(state, external_input=external_input)
         planned_action = plan.actions[0] if plan.actions else self.base_spec.safe_action
         self_report = self.self_model.predict(
             spec=self.learner.active_spec,
@@ -106,6 +130,7 @@ class MCIRuntime:
             "signature": self_report.signature,
             "plan_length": len(plan.actions),
             "report": report,
+            "replay_unit_id": str(replay_unit_id),
         }
         return {
             "mci_active": True,
@@ -115,6 +140,32 @@ class MCIRuntime:
             "mci_commit_report": report.to_dict(),
         }
 
+    def _planner(
+        self, compiler: TransitionCompiler | None = None
+    ) -> SMTPlanner:
+        config = self.planning_config
+        return SMTPlanner(
+            compiler or TransitionCompiler(self.learner.active_spec),
+            horizon=config.horizon,
+            exact_horizon=config.exact_horizon,
+            objective_mode=config.objective_mode,
+            effort_cost=config.effort_cost,
+            risk_cost=config.risk_cost,
+        )
+
+    def evaluate_plan_sequence(
+        self,
+        state: Mapping[str, Any],
+        *,
+        actions: tuple[str, ...],
+        external_input: float,
+    ) -> SMTPlanReport:
+        return self._planner().evaluate_sequence(
+            state,
+            actions=actions,
+            external_input=external_input,
+        )
+
     def observe_outcome(
         self,
         observed: Mapping[str, Any],
@@ -122,6 +173,7 @@ class MCIRuntime:
         committed_action: str,
         logical_time: int,
         reasoning_cost: float,
+        decision_trace_sha256: str | None = None,
     ) -> dict[str, Any]:
         if self._pending is None:
             return {"status": "no_pending_decision"}
@@ -161,10 +213,14 @@ class MCIRuntime:
                 external_input=pending["external_input"],
                 observed=dict(observed),
                 predicted=predicted,
+                replay_unit_id=pending["replay_unit_id"],
+                logical_time=logical_time,
+                decision_trace_sha256=decision_trace_sha256,
             )
         )
+        neural_evaluations = self.learner.last_neural_evaluations()
         self._pending = None
-        return {
+        outcome = {
             "status": "observed",
             "prediction_error": round(error, 9),
             "success": success,
@@ -173,5 +229,13 @@ class MCIRuntime:
             "promoted_overlay": overlay.to_dict() if overlay is not None else None,
             "causal_event": self.learner.last_event,
             "regime_change": regime_change,
+            "neural_hypotheses_evaluated": [
+                evaluation.to_dict() for evaluation in neural_evaluations
+            ],
             "logical_time": logical_time,
         }
+        if neural_evaluations:
+            outcome["hypothesis_ledger"] = list(
+                self.learner.hypothesis_ledger.snapshot()
+            )
+        return outcome
