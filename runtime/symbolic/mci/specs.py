@@ -177,6 +177,88 @@ def resource_spec(*, scarcity_threshold: float = 0.20, production_rate: float = 
     )
 
 
+def resource_with_energy_spec(
+    *,
+    scarcity_threshold: float = 0.20,
+    production_rate: float = 0.08,
+    production_energy_cost: float = 0.06,
+    recovery_rate: float = 0.01,
+    oracle_precondition: str | None = None,
+) -> TransitionSpec:
+    """IR epistémico; la guarda solo se incluye en el spec oráculo de tests."""
+    return TransitionSpec(
+        spec_id="transition/resource_with_energy",
+        version="1.0",
+        scenario="resource_with_energy",
+        variables=(
+            VariableSpec("stock_level", "real"),
+            VariableSpec("energy_level", "real"),
+            VariableSpec("production_active", "bool"),
+            VariableSpec("scarcity_alert", "bool"),
+        ),
+        parameters={
+            "scarcity_threshold": scarcity_threshold,
+            "production_rate": production_rate,
+        },
+        actions=(
+            ActionSpec("start_production", {"production_active": True}),
+            ActionSpec("stop_production", {"production_active": False}),
+        ),
+        equations=(
+            EquationSpec(
+                "stock_level",
+                (
+                    TermSpec("state.stock_level"),
+                    TermSpec("external_input", -1.0),
+                ),
+                (
+                    EffectSpec(
+                        "resource_energy/production",
+                        "start_production",
+                        1.0,
+                        "production_rate",
+                        oracle_precondition,
+                    ),
+                ),
+            ),
+            EquationSpec(
+                "energy_level",
+                (TermSpec("state.energy_level"),),
+                (
+                    EffectSpec(
+                        "resource_energy/production_cost",
+                        "start_production",
+                        -float(production_energy_cost),
+                    ),
+                    EffectSpec(
+                        "resource_energy/recovery",
+                        "stop_production",
+                        float(recovery_rate),
+                    ),
+                ),
+            ),
+        ),
+        alarm_variable="scarcity_alert",
+        alarm_source="stock_level",
+        alarm_operator="<=",
+        alarm_threshold_parameter="scarcity_threshold",
+        main_variable="stock_level",
+        optimization_direction="maximize",
+        safe_action="start_production",
+        invariants=(
+            InvariantSpec("stock_level", "bounds", "scarcity_threshold"),
+            InvariantSpec("energy_level", "bounds", "scarcity_threshold"),
+        ),
+    )
+
+
+def resource_with_energy_oracle_spec(**kwargs) -> TransitionSpec:
+    return resource_with_energy_spec(
+        **kwargs,
+        oracle_precondition="energy_level > 0.3",
+    )
+
+
 def deferred_load_spec(
     *,
     alarm_threshold: float = 0.85,

@@ -12,6 +12,7 @@ from .resource_scenario import ResourceScenario
 from .grid_thermal_scenario import GridThermalScenario
 from .deferred_load_scenario import DeferredLoadScenario
 from .thermal_battery_scenario import ThermalBatteryScenario
+from .resource_with_energy_scenario import ResourceWithEnergyScenario
 
 
 # Registro de escenarios disponibles
@@ -21,6 +22,7 @@ SCENARIO_REGISTRY: Dict[str, Type[CognitiveScenario]] = {
     "grid_thermal_5x5": GridThermalScenario,
     "deferred_load_trap": DeferredLoadScenario,
     "thermal_with_battery": ThermalBatteryScenario,
+    "resource_with_energy": ResourceWithEnergyScenario,
 }
 
 # Alias no canónicos (compatibilidad externa)

@@ -12,6 +12,28 @@ from .contracts import NeuralHypothesis, TransitionSpec
 from .evidence_mapper import map_external_evidence_refs
 from .hypothesis_mapping import HypothesisMappingRegistry
 from .provider_protocol import ExternalHypothesis
+from .transfer_package import TransferredHypothesis
+
+
+def adapt_transferred_hypothesis(
+    item: TransferredHypothesis,
+) -> NeuralHypothesis:
+    """Adapta transferencia sin darle autoridad distinta a otra hipótesis."""
+
+    return NeuralHypothesis(
+        hypothesis_id=item.hypothesis_id,
+        kind=item.kind,
+        target_id=item.target_id,
+        expression=item.expression,
+        proposed_value=item.proposed_value,
+        confidence=max(0.0, item.transfer_confidence - item.transfer_penalty),
+        evidence_refs=(),
+        provider="structural-transfer",
+        model_ref=item.morphism_id,
+        logical_time=item.logical_time,
+        submitted_evidence_refs=item.source_evidence_refs,
+        unresolved_evidence_refs=(),
+    )
 
 
 def adapt_hypotheses(

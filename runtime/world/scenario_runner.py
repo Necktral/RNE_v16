@@ -52,8 +52,10 @@ from runtime.symbolic.mci import (
     MCIPlanningConfig,
     deferred_load_spec,
     resource_spec,
+    resource_with_energy_spec,
     thermal_spec,
     thermal_battery_spec,
+    TransferredHypothesis,
 )
 from runtime.symbolic.mci.hypothesis_mapping import default_edge_mappings
 from runtime.symbolic.mci.feedback import relay_feedback
@@ -316,6 +318,15 @@ class ScenarioEpisodeRunner:
                     getattr(self.scenario, "_battery_charge_rate")
                 ),
             )
+        elif name == "resource_with_energy":
+            spec = resource_with_energy_spec(
+                scarcity_threshold=float(self.scenario.config.alarm_threshold),
+                production_rate=float(getattr(self.scenario, "_production_rate")),
+                production_energy_cost=float(
+                    getattr(self.scenario, "_production_energy_cost")
+                ),
+                recovery_rate=float(getattr(self.scenario, "_recovery_rate")),
+            )
         else:
             return None
         runtime = MCIRuntime(
@@ -347,6 +358,14 @@ class ScenarioEpisodeRunner:
                 runtime.restore_hypothesis_ledger(
                     tuple(dict(item) for item in ledger_payload)
                 )
+            transfer_events = self.storage.list_events(
+                limit=1,
+                event_types=["mci.transfer.ledger"],
+                run_id=self.run_id,
+            )
+            if transfer_events:
+                entries = (transfer_events[0].payload or {}).get("entries") or ()
+                runtime.restore_transfer_ledger(tuple(dict(item) for item in entries))
         except (KeyError, OSError, RuntimeError, TypeError, ValueError):
             pass
         return runtime
@@ -436,6 +455,21 @@ class ScenarioEpisodeRunner:
             return False
         self._mci_runtime.ingest_neural_hypotheses(hypotheses)
         return True
+
+    def ingest_transferred_hypotheses(
+        self, hypotheses: list[TransferredHypothesis]
+    ) -> bool:
+        """Encola conocimiento transferido como propuestas, nunca como autoridad."""
+        if self._mci_runtime is None:
+            return False
+        self._mci_runtime.ingest_transferred_hypotheses(hypotheses)
+        return True
+
+    def get_mci_active_overlay(self) -> dict[str, Any] | None:
+        """Snapshot público de solo lectura para empaquetado experimental."""
+        if self._mci_runtime is None or self._mci_runtime.learner.active_overlay is None:
+            return None
+        return self._mci_runtime.learner.active_overlay.to_dict()
 
     def set_hypothesis_provider(
         self,
@@ -1387,7 +1421,12 @@ class ScenarioEpisodeRunner:
         if self.mci_active and self._mci_runtime is not None:
             try:
                 mci_outcome = self._mci_runtime.observe_outcome(
-                    self.scenario.to_transition_dict(observed_transition),
+                    {
+                        **self.scenario.to_transition_dict(observed_transition),
+                        self._mci_runtime.base_spec.alarm_variable: bool(
+                            observed_transition.alarm
+                        ),
+                    },
                     committed_action=intervention,
                     logical_time=preaction_logical_time + 1,
                     reasoning_cost=reasoning_cost_from_trace(reasoning.get("trace") or []),
@@ -1419,6 +1458,18 @@ class ScenarioEpisodeRunner:
                         payload={
                             "episode_id": episode_id,
                             "entries": ledger_payload,
+                            "logical_time": preaction_logical_time + 1,
+                        },
+                    )
+                transfer_payload = mci_outcome.get("transfer_beliefs")
+                if isinstance(transfer_payload, list):
+                    self.storage.append_event(
+                        event_type="mci.transfer.ledger",
+                        run_id=self.run_id,
+                        source=self.family_profile,
+                        payload={
+                            "episode_id": episode_id,
+                            "entries": transfer_payload,
                             "logical_time": preaction_logical_time + 1,
                         },
                     )

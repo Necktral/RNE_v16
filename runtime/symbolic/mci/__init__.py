@@ -24,9 +24,17 @@ from .hypothesis_mapping import (
 from .provider_protocol import ExternalHypothesis, HypothesisProvider
 from .regime_detector import RegimeChangeDetected, RegimeDetector
 from .self_model import IncrementalSelfModel
+from .scales import ScaleTransform, normalize_range
+from .structural_morphism import StructuralMorphism
+from .known_mappings import thermal_battery_to_resource_energy
+from .overlay_translator import OverlayTranslator, translate_condition
+from .transfer_ledger import TransferBelief, TransferBeliefLedger
+from .transfer_package import TransferPackage, TransferredHypothesis
 from .specs import (
     deferred_load_spec,
     resource_spec,
+    resource_with_energy_spec,
+    resource_with_energy_oracle_spec,
     thermal_battery_spec,
     thermal_spec,
 )
@@ -51,6 +59,16 @@ __all__ = [
     "RegimeDetector",
     "SMTPlanReport",
     "SelfModelReport",
+    "ScaleTransform",
+    "normalize_range",
+    "StructuralMorphism",
+    "thermal_battery_to_resource_energy",
+    "OverlayTranslator",
+    "TransferBelief",
+    "TransferBeliefLedger",
+    "TransferPackage",
+    "TransferredHypothesis",
+    "translate_condition",
     "SMTPlanner",
     "TemporalAssumptionLedger",
     "TransitionEvidence",
@@ -58,6 +76,8 @@ __all__ = [
     "TransitionSpec",
     "deferred_load_spec",
     "resource_spec",
+    "resource_with_energy_spec",
+    "resource_with_energy_oracle_spec",
     "thermal_spec",
     "thermal_battery_spec",
 ]

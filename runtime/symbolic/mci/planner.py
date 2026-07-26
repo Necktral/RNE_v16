@@ -10,6 +10,7 @@ from z3 import Solver, sat
 
 from .compiler import TransitionCompiler
 from .contracts import SMTPlanReport
+from .scales import normalize_range
 
 
 @dataclass(frozen=True)
@@ -192,15 +193,13 @@ class SMTPlanner:
         variable = next(
             item for item in spec.variables if item.name == spec.main_variable
         )
-        width = float(variable.upper) - float(variable.lower)
-        if width <= 0.0:
-            raise ValueError("La variable principal debe tener bounds no degenerados")
         losses = []
         for state in states:
-            normalized = (
-                float(state[spec.main_variable]) - float(variable.lower)
-            ) / width
-            normalized = max(0.0, min(1.0, normalized))
+            normalized = normalize_range(
+                float(state[spec.main_variable]),
+                float(variable.lower),
+                float(variable.upper),
+            )
             losses.append(
                 normalized
                 if spec.optimization_direction == "minimize"

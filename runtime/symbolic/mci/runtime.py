@@ -18,6 +18,9 @@ from .jtms import TemporalAssumptionLedger
 from .planner import MCIPlanningConfig, SMTPlanner
 from .regime_detector import RegimeDetector
 from .self_model import IncrementalSelfModel
+from .provider_adapter import adapt_transferred_hypothesis
+from .transfer_ledger import TransferBeliefLedger
+from .transfer_package import TransferredHypothesis
 
 
 class MCIRuntime:
@@ -33,12 +36,27 @@ class MCIRuntime:
         self.ledger = TemporalAssumptionLedger()
         self.self_model = IncrementalSelfModel()
         self.regime_detector = RegimeDetector()
+        self.transfer_ledger = TransferBeliefLedger()
         self._pending: dict[str, Any] | None = None
 
     def ingest_neural_hypotheses(
         self, hypotheses: list[NeuralHypothesis]
     ) -> None:
         self.learner.enqueue_hypotheses(hypotheses)
+
+    def ingest_transferred_hypotheses(
+        self, hypotheses: list[TransferredHypothesis]
+    ) -> None:
+        for hypothesis in hypotheses:
+            self.transfer_ledger.propose(hypothesis)
+        self.ingest_neural_hypotheses(
+            [adapt_transferred_hypothesis(item) for item in hypotheses]
+        )
+
+    def restore_transfer_ledger(
+        self, payload: tuple[Mapping[str, Any], ...]
+    ) -> None:
+        self.transfer_ledger.restore(payload)
 
     def restore_overlay(self, payload: Mapping[str, Any]) -> None:
         self.learner.restore_overlay(
@@ -219,6 +237,8 @@ class MCIRuntime:
             )
         )
         neural_evaluations = self.learner.last_neural_evaluations()
+        for evaluation in neural_evaluations:
+            self.transfer_ledger.apply(evaluation)
         self._pending = None
         outcome = {
             "status": "observed",
@@ -238,4 +258,7 @@ class MCIRuntime:
             outcome["hypothesis_ledger"] = list(
                 self.learner.hypothesis_ledger.snapshot()
             )
+        transfer_beliefs = self.transfer_ledger.snapshot()
+        if transfer_beliefs:
+            outcome["transfer_beliefs"] = list(transfer_beliefs)
         return outcome

@@ -404,7 +404,11 @@ class CausalLearningEngine:
                 },
                 edge_updates=(),
                 evidence={
-                    "source": "neural",
+                    "source": (
+                        "transferred"
+                        if hypothesis.provider == "structural-transfer"
+                        else "neural"
+                    ),
                     "provider": hypothesis.provider,
                     "model_ref": hypothesis.model_ref,
                     "hypothesis_id": hypothesis.hypothesis_id,
