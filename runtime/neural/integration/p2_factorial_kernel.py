@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from runtime.neural.integration.contracts import canonical_json_bytes, canonical_sha256
+from runtime.neural.integration.n3_scoring import n3_adjusted_score
 from runtime.neural.integration.p2_arm_isolation import (
     ArmExecutionContext,
     UnitStateSnapshot,
@@ -308,12 +309,7 @@ def _signals(snapshot: UnitStateSnapshot, backend: str) -> tuple[dict[str, float
 
 
 def _adjusted_score(candidate: Mapping[str, Any], signals: Mapping[str, float]) -> float:
-    score = _canonical_score(candidate) * (
-        0.75 + 0.25 * float(signals[str(candidate["scale"])])
-    )
-    if not math.isfinite(score):
-        raise ValueError("p2_factorial_adjusted_score_nonfinite")
-    return score
+    return n3_adjusted_score(candidate, signals)
 
 
 def _membership_treatment(
