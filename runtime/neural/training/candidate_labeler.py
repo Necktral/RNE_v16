@@ -45,7 +45,7 @@ def label_candidate_counterfactually(
     proposed = TransitionCompiler(candidate_spec)
     before = _mae(baseline, labels, spec.main_variable)
     after = _mae(proposed, labels, spec.main_variable)
-    gain = (before - after) / max(before, 1e-9)
+    gain = (before - after) / max(before, after, 1e-9)
     risk = _invariant_risk(proposed, labels, candidate_spec)
     candidate_set_id = "n4-set-" + canonical_sha256(
         {

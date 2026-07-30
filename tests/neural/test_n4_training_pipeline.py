@@ -119,3 +119,22 @@ def test_labeler_uses_strictly_future_evidence():
             feature_evidence=rows[:12],
             label_evidence=rows[11:],
         )
+
+
+def test_labeler_mae_gain_is_bounded_for_harmful_candidate():
+    spec, rows = _rows()
+    candidate = next(
+        item
+        for item in StructuralHypothesisGenerator(beam_width=64).generate(
+            spec=spec, evidence=rows[:12]
+        )
+        if item.expression == "battery_level < 0.3"
+    )
+    label = label_candidate_counterfactually(
+        spec=spec,
+        candidate=candidate,
+        feature_evidence=rows[:12],
+        label_evidence=rows[12:],
+    )
+    assert -1.0 <= label.mae_gain <= 1.0
+    assert not label.valid
