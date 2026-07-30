@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import platform
+import random
 import subprocess
 import sys
 from collections import Counter
@@ -98,6 +99,21 @@ def _existing_dataset_state(path: Path) -> tuple[set[str], Counter[str]]:
     return result, counts
 
 
+def _scenario_kwargs(
+    scenario_name: str, rng: random.Random
+) -> dict[str, float]:
+    if scenario_name != "thermal_with_battery":
+        return {}
+    return {
+        "initial_temperature": round(rng.uniform(0.86, 0.94), 9),
+        "initial_battery": round(rng.uniform(0.45, 0.95), 9),
+    }
+
+
+def _episode_external_input(rng: random.Random) -> float:
+    return round(rng.uniform(0.025, 0.055), 9)
+
+
 def generate(
     *,
     scenario: str,
@@ -123,17 +139,14 @@ def generate(
     provenance = _git_provenance()
     if not provenance["working_tree_clean"] and not allow_dirty:
         raise RuntimeError("n4_dataset_requires_clean_working_tree")
+    probe_rng = random.Random(seeds[0])
     probe = build_isolated_runner(
         work_root=work_root,
         experiment="n4-dataset-probe",
         profile="mci_integrated_v1",
         seed=seeds[0],
         scenario=scenario_name,
-        scenario_kwargs=(
-            {"initial_temperature": 0.9, "initial_battery": 0.75}
-            if scenario_name == "thermal_with_battery"
-            else {}
-        ),
+        scenario_kwargs=_scenario_kwargs(scenario_name, probe_rng),
     )
     if probe._mci_runtime is None:
         raise RuntimeError(f"scenario_has_no_mci_runtime:{scenario_name}")
@@ -148,6 +161,9 @@ def generate(
         "split_policy": "whole_seed_groups_60_20_20",
         "anti_leakage": "features_at_or_before_cutoff_labels_after_cutoff",
         "transition_spec_hash": transition_spec_hash,
+        "trajectory_policy": (
+            "seeded_initial_state_and_external_input_uniform_v1"
+        ),
         "schema_version": "n4-dataset-manifest.v1",
         **provenance,
     }
@@ -171,17 +187,14 @@ def generate(
     started_at = str(manifest_state["started_at"])
     with output.open("ab") as dataset_handle:
         for seed in seeds:
+            rng = random.Random(seed)
             runner = build_isolated_runner(
                 work_root=work_root,
                 experiment="n4-dataset",
                 profile="mci_integrated_v1",
                 seed=seed,
                 scenario=scenario_name,
-                scenario_kwargs=(
-                    {"initial_temperature": 0.9, "initial_battery": 0.75}
-                    if scenario_name == "thermal_with_battery"
-                    else {}
-                ),
+                scenario_kwargs=_scenario_kwargs(scenario_name, rng),
             )
             if runner._mci_runtime is None:
                 raise RuntimeError(f"scenario_has_no_mci_runtime:{scenario_name}")
@@ -200,7 +213,7 @@ def generate(
             for episode in range(1, episodes + 1):
                 collector.set_context(episode=episode)
                 runner.run_episode(
-                    external_input=0.04,
+                    external_input=_episode_external_input(rng),
                     replay_unit_id=f"n4-dataset/{scenario_name}/{seed}/{episode}",
                 )
             generator = StructuralHypothesisGenerator(
