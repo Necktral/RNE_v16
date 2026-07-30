@@ -5,8 +5,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
+import subprocess
 import sys
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +33,41 @@ def _canonical(payload: dict[str, Any]) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _git_provenance() -> dict[str, Any]:
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+    ).strip()
+    dirty = bool(
+        subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+    )
+    try:
+        import torch
+
+        torch_version = torch.__version__
+        cuda_available = bool(torch.cuda.is_available())
+        device = torch.cuda.get_device_name(0) if cuda_available else "cpu"
+    except ImportError:
+        torch_version = None
+        cuda_available = False
+        device = "cpu"
+    return {
+        "git_commit": commit,
+        "working_tree_clean": not dirty,
+        "python_version": platform.python_version(),
+        "torch_version": torch_version,
+        "cuda_available": cuda_available,
+        "device": device,
+    }
 
 
 def _resolve_seeds(values: list[str]) -> tuple[int, ...]:
@@ -68,6 +106,7 @@ def generate(
     manifest: Path,
     max_candidates: int,
     counterfactuals_per_candidate: int,
+    allow_dirty: bool = False,
 ) -> dict[str, Any]:
     if len(seeds) < 3:
         raise ValueError("n4_dataset_requires_at_least_three_seeds")
@@ -79,6 +118,47 @@ def generate(
     split_by_seed = _split_seeds(seeds)
     scenario_name = (
         "thermal_with_battery" if scenario == "battery_boundary" else scenario
+    )
+    provenance = _git_provenance()
+    if not provenance["working_tree_clean"] and not allow_dirty:
+        raise RuntimeError("n4_dataset_requires_clean_working_tree")
+    probe = build_isolated_runner(
+        work_root=work_root,
+        experiment="n4-dataset-probe",
+        profile="mci_integrated_v1",
+        seed=seeds[0],
+        scenario=scenario_name,
+        scenario_kwargs=(
+            {"initial_temperature": 0.9, "initial_battery": 0.75}
+            if scenario_name == "thermal_with_battery"
+            else {}
+        ),
+    )
+    if probe._mci_runtime is None:
+        raise RuntimeError(f"scenario_has_no_mci_runtime:{scenario_name}")
+    transition_spec_hash = probe._mci_runtime.base_spec.sha256
+    configuration = {
+        "scenario": scenario_name,
+        "seeds": list(seeds),
+        "episodes_per_seed": episodes,
+        "total_episodes": len(seeds) * episodes,
+        "max_candidates": max_candidates,
+        "counterfactuals_per_candidate": counterfactuals_per_candidate,
+        "split_policy": "whole_seed_groups_60_20_20",
+        "anti_leakage": "features_at_or_before_cutoff_labels_after_cutoff",
+        "transition_spec_hash": transition_spec_hash,
+        "schema_version": "n4-dataset-manifest.v1",
+        **provenance,
+    }
+    campaign_id = "n4-campaign-" + hashlib.sha256(
+        _canonical(configuration)
+    ).hexdigest()[:24]
+    started_at = _prepare_manifest(
+        manifest=manifest,
+        configuration=configuration,
+        campaign_id=campaign_id,
+        output=output,
+        evidence_path=evidence_path,
     )
     with output.open("ab") as dataset_handle:
         for seed in seeds:
@@ -178,6 +258,11 @@ def generate(
     dataset_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
     payload = {
         "schema_version": "n4-dataset-manifest.v1",
+        "status": "complete",
+        "campaign_id": campaign_id,
+        "started_at": started_at,
+        "completed_at": _utc_now(),
+        "configuration": configuration,
         "scenario": scenario_name,
         "seeds": list(seeds),
         "episodes_per_seed": episodes,
@@ -187,10 +272,43 @@ def generate(
         "dataset_path": output.name,
         "evidence_path": evidence_path.name,
         "dataset_sha256": dataset_sha256,
+        "transition_spec_hash": transition_spec_hash,
+        "provenance": provenance,
+        "split_policy": "whole_seed_groups_60_20_20",
         "anti_leakage": "features_at_or_before_cutoff_labels_after_cutoff",
     }
     manifest.write_bytes(_canonical(payload) + b"\n")
     return payload
+
+
+def _prepare_manifest(
+    *,
+    manifest: Path,
+    configuration: dict[str, Any],
+    campaign_id: str,
+    output: Path,
+    evidence_path: Path,
+) -> str:
+    if manifest.exists():
+        try:
+            previous = json.loads(manifest.read_bytes())
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid_n4_existing_manifest") from exc
+        if previous.get("campaign_id") != campaign_id:
+            raise ValueError("n4_resume_configuration_mismatch")
+        return str(previous["started_at"])
+    started_at = _utc_now()
+    planned = {
+        "schema_version": "n4-dataset-manifest.v1",
+        "status": "running",
+        "campaign_id": campaign_id,
+        "started_at": started_at,
+        "configuration": configuration,
+        "dataset_path": output.name,
+        "evidence_path": evidence_path.name,
+    }
+    manifest.write_bytes(_canonical(planned) + b"\n")
+    return started_at
 
 
 def _split_seeds(seeds: tuple[int, ...]) -> dict[int, str]:
@@ -208,14 +326,31 @@ def _split_seeds(seeds: tuple[int, ...]) -> dict[int, str]:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Generate a leakage-safe N4 dataset; episodes are per seed."
+    )
     parser.add_argument("--scenario", default="battery_boundary")
-    parser.add_argument("--seeds", nargs="+", default=["3"])
-    parser.add_argument("--episodes", type=int, default=60)
+    parser.add_argument(
+        "--seeds",
+        nargs="+",
+        default=["3"],
+        help="One integer means seeds range(0, N); comma/space values are explicit seeds.",
+    )
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=60,
+        help="Episodes per seed, not total episodes.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--max-candidates", type=int, default=16)
     parser.add_argument("--counterfactuals-per-candidate", type=int, default=8)
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Allow generation from modified tracked files (not for scientific runs).",
+    )
     args = parser.parse_args()
     result = generate(
         scenario=args.scenario,
@@ -225,5 +360,6 @@ if __name__ == "__main__":
         manifest=args.manifest,
         max_candidates=args.max_candidates,
         counterfactuals_per_candidate=args.counterfactuals_per_candidate,
+        allow_dirty=args.allow_dirty,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
