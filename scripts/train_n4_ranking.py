@@ -16,7 +16,9 @@ if str(ROOT) not in sys.path:
 from runtime.neural.training.n4_ranking import (
     FEATURE_NAMES,
     N4TrainingSample,
+    load_candidate_sets,
     train_n4_ranking,
+    train_n4_ranking_v2,
 )
 
 
@@ -61,6 +63,22 @@ def load_samples(path: Path) -> tuple[N4TrainingSample, ...]:
     return tuple(samples)
 
 
+def load_rows(path: Path) -> tuple[dict, ...]:
+    rows = []
+    with path.open("rb") as handle:
+        for line_number, line in enumerate(handle, 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+                if row["schema_version"] != "n4-ranking-sample.v1":
+                    raise ValueError("schema")
+                rows.append(row)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"invalid_n4_training_line:{line_number}") from exc
+    return tuple(rows)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=Path, required=True)
@@ -69,6 +87,9 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("--patience", type=int, default=30)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument(
+        "--artifact-version", choices=("v1", "v2"), default="v1"
+    )
     args = parser.parse_args()
     if args.device == "cpu":
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -78,15 +99,27 @@ if __name__ == "__main__":
         if not torch.cuda.is_available():
             raise RuntimeError("n4_cuda_requested_but_unavailable")
     dataset_sha256 = hashlib.sha256(args.dataset.read_bytes()).hexdigest()
-    result = train_n4_ranking(
-        load_samples(args.dataset),
-        artifact_path=args.artifact,
-        seed=args.seed,
-        epochs=args.epochs,
-        patience=args.patience,
-        training_metadata={
-            "dataset_sha256": dataset_sha256,
-            "dataset_path": args.dataset.name,
-        },
-    )
+    metadata = {
+        "dataset_sha256": dataset_sha256,
+        "dataset_path": args.dataset.name,
+        "dataset_lineage": {"base_dataset_sha256": dataset_sha256},
+    }
+    if args.artifact_version == "v2":
+        result = train_n4_ranking_v2(
+            load_candidate_sets(load_rows(args.dataset)),
+            artifact_path=args.artifact,
+            seed=args.seed,
+            epochs=args.epochs,
+            patience=args.patience,
+            training_metadata=metadata,
+        )
+    else:
+        result = train_n4_ranking(
+            load_samples(args.dataset),
+            artifact_path=args.artifact,
+            seed=args.seed,
+            epochs=args.epochs,
+            patience=args.patience,
+            training_metadata=metadata,
+        )
     print(json.dumps(result, indent=2, sort_keys=True))

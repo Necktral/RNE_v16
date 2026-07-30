@@ -397,19 +397,39 @@ class ScenarioEpisodeRunner:
         if self._n4_artifact_path is not None:
             raw_bytes = self._n4_artifact_path.read_bytes()
             payload = json.loads(raw_bytes)
-            if payload.get("schema") != "n4-ranking-artifact.v1":
+            if payload.get("schema") not in {
+                "n4-ranking-artifact.v1",
+                "n4-ranking-artifact.v2",
+            }:
                 raise ValueError("n4_artifact_schema_invalid")
-            if payload.get("model_kind") != "trained":
+            schema = payload.get("schema")
+            expected_kind = (
+                "trained_multihead"
+                if schema == "n4-ranking-artifact.v2"
+                else "trained"
+            )
+            if payload.get("model_kind") != expected_kind:
                 raise ValueError("n4_artifact_must_be_trained")
-            if not bool(payload.get("promotable")):
+            promotable = (
+                (payload.get("gates") or {}).get("promotable")
+                if schema == "n4-ranking-artifact.v2"
+                else payload.get("promotable")
+            )
+            if not bool(promotable):
                 raise ValueError("n4_artifact_not_promotable")
             weights = payload
             trained = True
-            provenance = dict(payload.get("training") or {})
+            provenance = dict(
+                payload.get("training_provenance")
+                or payload.get("training")
+                or {}
+            )
             metrics = {
                 "scientific_gate_eligible": True,
-                "validation": payload.get("validation"),
-                "holdout": payload.get("holdout"),
+                "validation": payload.get("validation_metrics")
+                or payload.get("validation"),
+                "holdout": payload.get("holdout_metrics")
+                or payload.get("holdout"),
             }
             model_id = f"n4-trained-ranking-{hashlib.sha256(raw_bytes).hexdigest()[:12]}"
             artifact_path = self._n4_artifact_path.name
@@ -418,7 +438,11 @@ class ScenarioEpisodeRunner:
             organ="N4",
             capability="causal_hypothesis_ranking",
             model_id=model_id,
-            version="1",
+            version=(
+                "2"
+                if weights.get("schema") == "n4-ranking-artifact.v2"
+                else "1"
+            ),
             backend="python-deterministic",
             artifact_path=artifact_path,
             artifact_sha256=artifact_sha256,
@@ -428,7 +452,10 @@ class ScenarioEpisodeRunner:
         )
         provider = N4HypothesisProvider(
             runtime=NeuralRuntime(
-                backend=N4CausalRankingBackend(weights),
+                backend=N4CausalRankingBackend(
+                    weights,
+                    artifact_sha256=artifact_sha256,
+                ),
                 manifest=manifest,
                 mode=NeuralMode.EXPERIMENTAL,
             ),

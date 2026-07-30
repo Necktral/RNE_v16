@@ -7,7 +7,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 
 FEATURE_NAMES = (
@@ -18,6 +18,610 @@ FEATURE_NAMES = (
     "stability",
     "invariant_safety",
 )
+
+RISK_EPSILON = 1e-6
+GAIN_EPSILON = 1e-6
+V2_LOSS_WEIGHTS = {"rank": 1.0, "valid": 0.5, "gain": 0.3, "risk": 0.2}
+
+
+@dataclass(frozen=True)
+class N4CandidateRecord:
+    """Una alternativa dentro de un conjunto lógico de ranking."""
+
+    hypothesis_id: str
+    candidate_source: str
+    features: tuple[float, ...]
+    valid_label: bool
+    mae_gain_label: float
+    invariant_risk_label: float
+
+    def __post_init__(self) -> None:
+        if not self.hypothesis_id:
+            raise ValueError("n4_candidate_hypothesis_id_required")
+        if not self.candidate_source:
+            raise ValueError("n4_candidate_source_required")
+        if len(self.features) != len(FEATURE_NAMES):
+            raise ValueError("n4_candidate_feature_shape_invalid")
+        values = (
+            *self.features,
+            self.mae_gain_label,
+            self.invariant_risk_label,
+        )
+        if not all(math.isfinite(float(item)) for item in values):
+            raise ValueError("n4_candidate_values_must_be_finite")
+        if not -1.0 <= self.mae_gain_label <= 1.0:
+            raise ValueError("n4_candidate_gain_out_of_range")
+        if not 0.0 <= self.invariant_risk_label <= 1.0:
+            raise ValueError("n4_candidate_risk_out_of_range")
+
+
+@dataclass(frozen=True)
+class CandidateSetSample:
+    """Conjunto indivisible para entrenamiento, evaluación y particionado."""
+
+    candidate_set_id: str
+    scenario_id: str
+    seed: int
+    split: str
+    candidates: tuple[N4CandidateRecord, ...]
+
+    def __post_init__(self) -> None:
+        if not self.candidate_set_id or not self.scenario_id:
+            raise ValueError("n4_candidate_set_identity_required")
+        if self.split not in {"train", "validation", "holdout"}:
+            raise ValueError("n4_candidate_set_split_invalid")
+        if not self.candidates:
+            raise ValueError("n4_candidate_set_empty")
+        identifiers = [item.hypothesis_id for item in self.candidates]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("n4_candidate_set_duplicate_hypothesis")
+        if identifiers != sorted(identifiers):
+            raise ValueError("n4_candidate_set_order_invalid")
+
+    @property
+    def logical_hash(self) -> str:
+        payload = {
+            "candidate_set_id": self.candidate_set_id,
+            "scenario_id": self.scenario_id,
+            "seed": self.seed,
+            "split": self.split,
+            "candidates": [
+                {
+                    "hypothesis_id": item.hypothesis_id,
+                    "candidate_source": item.candidate_source,
+                    "features": list(item.features),
+                    "valid_label": item.valid_label,
+                    "mae_gain_label": item.mae_gain_label,
+                    "invariant_risk_label": item.invariant_risk_label,
+                }
+                for item in self.candidates
+            ],
+        }
+        encoded = json.dumps(
+            payload,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+
+@dataclass(frozen=True)
+class CandidateSetBatch:
+    features: Any
+    valid_labels: Any
+    gain_labels: Any
+    risk_labels: Any
+    candidate_mask: Any
+    candidate_set_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class N4ModelOutput:
+    rank_score: Any
+    validity_logit: Any
+    expected_mae_gain: Any
+    risk_logit: Any
+
+
+def load_candidate_sets(
+    rows: Iterable[Mapping[str, Any]],
+) -> tuple[CandidateSetSample, ...]:
+    """Agrupa filas JSONL v1 en conjuntos deterministas y split-exclusivos."""
+    grouped: dict[str, list[N4CandidateRecord]] = {}
+    metadata: dict[str, tuple[str, int, str]] = {}
+    for row in rows:
+        try:
+            candidate_set_id = str(row["candidate_set_id"])
+            scenario_id = str(row["scenario"])
+            seed = int(row["seed"])
+            split = str(row["split"])
+            feature_map = row["features"]
+            record = N4CandidateRecord(
+                hypothesis_id=str(row["hypothesis_id"]),
+                candidate_source=str(row["source"]),
+                features=tuple(float(feature_map[name]) for name in FEATURE_NAMES),
+                valid_label=bool(row["valid"]),
+                mae_gain_label=float(row["mae_gain"]),
+                invariant_risk_label=float(row["invariant_risk"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("n4_candidate_row_invalid") from exc
+        identity = (scenario_id, seed, split)
+        previous = metadata.setdefault(candidate_set_id, identity)
+        if previous != identity:
+            if previous[2] != split:
+                raise ValueError("n4_candidate_set_crosses_splits")
+            raise ValueError("n4_candidate_set_metadata_conflict")
+        grouped.setdefault(candidate_set_id, []).append(record)
+    if not grouped:
+        raise ValueError("n4_dataset_has_no_candidate_sets")
+    return tuple(
+        CandidateSetSample(
+            candidate_set_id=candidate_set_id,
+            scenario_id=metadata[candidate_set_id][0],
+            seed=metadata[candidate_set_id][1],
+            split=metadata[candidate_set_id][2],
+            candidates=tuple(
+                sorted(
+                    grouped[candidate_set_id],
+                    key=lambda item: item.hypothesis_id,
+                )
+            ),
+        )
+        for candidate_set_id in sorted(grouped)
+    )
+
+
+def collate_candidate_sets(
+    samples: Sequence[CandidateSetSample],
+    *,
+    device: Any = None,
+) -> CandidateSetBatch:
+    """Rellena conjuntos variables sin convertir padding en candidatos reales."""
+    if not samples:
+        raise ValueError("n4_candidate_batch_empty")
+    import torch
+
+    max_candidates = max(len(item.candidates) for item in samples)
+    shape = (len(samples), max_candidates)
+    features = torch.zeros((*shape, len(FEATURE_NAMES)), dtype=torch.float32)
+    valid = torch.zeros(shape, dtype=torch.float32)
+    gain = torch.zeros(shape, dtype=torch.float32)
+    risk = torch.zeros(shape, dtype=torch.float32)
+    mask = torch.zeros(shape, dtype=torch.bool)
+    for set_index, sample in enumerate(samples):
+        for candidate_index, candidate in enumerate(sample.candidates):
+            features[set_index, candidate_index] = torch.tensor(candidate.features)
+            valid[set_index, candidate_index] = float(candidate.valid_label)
+            gain[set_index, candidate_index] = candidate.mae_gain_label
+            risk[set_index, candidate_index] = candidate.invariant_risk_label
+            mask[set_index, candidate_index] = True
+    return CandidateSetBatch(
+        features=features.to(device=device),
+        valid_labels=valid.to(device=device),
+        gain_labels=gain.to(device=device),
+        risk_labels=risk.to(device=device),
+        candidate_mask=mask.to(device=device),
+        candidate_set_ids=tuple(item.candidate_set_id for item in samples),
+    )
+
+
+def compare_candidates(a: N4CandidateRecord, b: N4CandidateRecord) -> int:
+    """Preferencia seguridad > validez > ganancia, sin inventar empates."""
+    if a.invariant_risk_label + RISK_EPSILON < b.invariant_risk_label:
+        return 1
+    if b.invariant_risk_label + RISK_EPSILON < a.invariant_risk_label:
+        return -1
+    if a.valid_label != b.valid_label:
+        return 1 if a.valid_label else -1
+    if a.valid_label and b.valid_label:
+        if a.mae_gain_label > b.mae_gain_label + GAIN_EPSILON:
+            return 1
+        if b.mae_gain_label > a.mae_gain_label + GAIN_EPSILON:
+            return -1
+    return 0
+
+
+def informative_pairs(
+    sample: CandidateSetSample,
+) -> tuple[tuple[int, int], ...]:
+    """Devuelve una sola orientación (preferido, no preferido) por par."""
+    pairs: list[tuple[int, int]] = []
+    for left in range(len(sample.candidates)):
+        for right in range(left + 1, len(sample.candidates)):
+            preference = compare_candidates(
+                sample.candidates[left], sample.candidates[right]
+            )
+            if preference > 0:
+                pairs.append((left, right))
+            elif preference < 0:
+                pairs.append((right, left))
+    return tuple(pairs)
+
+
+def create_n4_ranker_v2(torch, *, hidden_dim: int = 16):
+    """Construye el modelo exportable sin cargar torch al importar el módulo."""
+    if hidden_dim < 1:
+        raise ValueError("n4_v2_hidden_dim_invalid")
+
+    class N4RankerV2(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.trunk = torch.nn.Sequential(
+                torch.nn.Linear(len(FEATURE_NAMES), hidden_dim),
+                torch.nn.ReLU(),
+            )
+            self.rank_head = torch.nn.Linear(hidden_dim, 1)
+            self.validity_head = torch.nn.Linear(hidden_dim, 1)
+            self.gain_head = torch.nn.Linear(hidden_dim, 1)
+            self.risk_head = torch.nn.Linear(hidden_dim, 1)
+
+        def forward(self, features):
+            hidden = self.trunk(features)
+            return N4ModelOutput(
+                rank_score=self.rank_head(hidden).squeeze(-1),
+                validity_logit=self.validity_head(hidden).squeeze(-1),
+                expected_mae_gain=torch.tanh(
+                    self.gain_head(hidden).squeeze(-1)
+                ),
+                risk_logit=self.risk_head(hidden).squeeze(-1),
+            )
+
+    return N4RankerV2()
+
+
+def n4_multitask_loss(
+    torch,
+    output: N4ModelOutput,
+    batch: CandidateSetBatch,
+    samples: Sequence[CandidateSetSample],
+    *,
+    loss_weights: Mapping[str, float] = V2_LOSS_WEIGHTS,
+):
+    """Pérdida v2: primero normaliza pares por set, luego pointwise por máscara."""
+    if len(samples) != len(batch.candidate_set_ids):
+        raise ValueError("n4_candidate_batch_sample_mismatch")
+    set_losses = []
+    for set_index, sample in enumerate(samples):
+        pairs = informative_pairs(sample)
+        if pairs:
+            differences = torch.stack(
+                [
+                    output.rank_score[set_index, preferred]
+                    - output.rank_score[set_index, other]
+                    for preferred, other in pairs
+                ]
+            )
+            set_losses.append(torch.nn.functional.softplus(-differences).mean())
+    zero = output.rank_score.sum() * 0.0
+    pair_loss = torch.stack(set_losses).mean() if set_losses else zero
+    mask = batch.candidate_mask
+    valid_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+        output.validity_logit[mask],
+        batch.valid_labels[mask],
+    )
+    positive_mask = mask & batch.valid_labels.bool()
+    gain_loss = (
+        torch.nn.functional.smooth_l1_loss(
+            output.expected_mae_gain[positive_mask],
+            batch.gain_labels[positive_mask],
+        )
+        if bool(positive_mask.any())
+        else zero
+    )
+    risk_loss = torch.nn.functional.smooth_l1_loss(
+        torch.sigmoid(output.risk_logit[mask]),
+        batch.risk_labels[mask],
+    )
+    components = {
+        "rank": pair_loss,
+        "valid": valid_loss,
+        "gain": gain_loss,
+        "risk": risk_loss,
+    }
+    total = sum(
+        float(loss_weights[name]) * component
+        for name, component in components.items()
+    )
+    if not bool(torch.isfinite(total)):
+        raise FloatingPointError("n4_multitask_loss_nonfinite")
+    return total, components
+
+
+def train_n4_ranking_v2(
+    samples: Sequence[CandidateSetSample],
+    *,
+    artifact_path: Path,
+    seed: int = 42,
+    epochs: int = 300,
+    patience: int = 30,
+    training_metadata: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Entrena por conjunto y exporta un artefacto multihead reproducible."""
+    import torch
+
+    split_sets = {
+        split: tuple(item for item in samples if item.split == split)
+        for split in ("train", "validation", "holdout")
+    }
+    if any(not rows for rows in split_sets.values()):
+        raise ValueError("n4_v2_requires_nonempty_explicit_splits")
+    ids = [item.candidate_set_id for item in samples]
+    if len(ids) != len(set(ids)):
+        raise ValueError("n4_v2_candidate_set_ids_must_be_unique")
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = create_n4_ranker_v2(torch).to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-3, weight_decay=1e-4)
+    train_batch = collate_candidate_sets(split_sets["train"], device=device)
+    validation_batch = collate_candidate_sets(
+        split_sets["validation"], device=device
+    )
+    best_state = None
+    best_key = None
+    stale = 0
+    epochs_completed = 0
+    for epoch in range(epochs):
+        epochs_completed = epoch + 1
+        model.train()
+        output = model(train_batch.features)
+        loss, _ = n4_multitask_loss(
+            torch, output, train_batch, split_sets["train"]
+        )
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        validation_metrics = _candidate_set_metrics_v2(
+            torch,
+            model,
+            validation_batch,
+            split_sets["validation"],
+            calibration=(1.0, 0.0),
+        )
+        feasible = (
+            validation_metrics["brier"] < 0.10
+            and validation_metrics["ece"] < 0.05
+            and validation_metrics["risk_mae"] <= 0.10
+        )
+        key = (
+            int(feasible),
+            validation_metrics["recall_at_2"],
+            validation_metrics["mrr"],
+            validation_metrics["ndcg_at_2"],
+            validation_metrics["recall_at_1"],
+            -validation_metrics["top2_risk"],
+        )
+        if best_key is None or key > best_key:
+            best_key = key
+            best_state = {
+                name: value.detach().cpu().clone()
+                for name, value in model.state_dict().items()
+            }
+            stale = 0
+        else:
+            stale += 1
+            if stale >= patience:
+                break
+    if best_state is None:
+        raise RuntimeError("n4_v2_training_failed_to_select_model")
+    model.load_state_dict(best_state)
+    calibration = _calibrate_platt_v2(
+        torch, model, validation_batch, device
+    )
+    validation_metrics = _candidate_set_metrics_v2(
+        torch,
+        model,
+        validation_batch,
+        split_sets["validation"],
+        calibration=calibration,
+    )
+    holdout_batch = collate_candidate_sets(
+        split_sets["holdout"], device=device
+    )
+    holdout_metrics = _candidate_set_metrics_v2(
+        torch,
+        model,
+        holdout_batch,
+        split_sets["holdout"],
+        calibration=calibration,
+    )
+    state = model.state_dict()
+    trunk = state["trunk.0.weight"]
+    artifact_quality = all(
+        bool(torch.isfinite(value).all()) for value in state.values()
+    )
+    calibration_gate = (
+        validation_metrics["brier"] < 0.10
+        and validation_metrics["ece"] < 0.05
+    )
+    risk_values = [
+        candidate.invariant_risk_label
+        for item in samples
+        for candidate in item.candidates
+    ]
+    risk_target_informative = max(risk_values) > min(risk_values)
+    gates = {
+        "artifact_quality": artifact_quality,
+        "calibration": calibration_gate,
+        "risk_target_informative": risk_target_informative,
+        "scientific_holdout": False,
+        "promotable": False,
+    }
+    artifact = {
+        "schema": "n4-ranking-artifact.v2",
+        "model_kind": "trained_multihead",
+        "ranking_objective": "pairwise_constrained_v1",
+        "dtype": "float32",
+        "feature_order": list(FEATURE_NAMES),
+        "feature_transform": {"kind": "identity"},
+        "model": {
+            "trunk": {
+                "layers": [
+                    {
+                        "input_dim": len(FEATURE_NAMES),
+                        "output_dim": int(trunk.shape[0]),
+                        "activation": "relu",
+                        "weights": _tensor_list(trunk),
+                        "bias": _tensor_list(state["trunk.0.bias"]),
+                    }
+                ]
+            },
+            "heads": {
+                name: {
+                    "weights": _tensor_list(state[f"{name}_head.weight"][0]),
+                    "bias": float(state[f"{name}_head.bias"][0]),
+                }
+                for name in ("rank", "validity", "gain", "risk")
+            },
+        },
+        "calibration": {
+            "kind": "platt",
+            "target": "validity_logit",
+            "a": calibration[0],
+            "b": calibration[1],
+            "fit_split": "validation",
+        },
+        "dataset_lineage": dict(
+            (training_metadata or {}).get("dataset_lineage") or {}
+        ),
+        "training_provenance": {
+            "seed": seed,
+            "epochs": epochs_completed,
+            "patience": patience,
+            "loss_weights": dict(V2_LOSS_WEIGHTS),
+            **{
+                key: value
+                for key, value in dict(training_metadata or {}).items()
+                if key != "dataset_lineage"
+            },
+        },
+        "validation_metrics": validation_metrics,
+        "holdout_metrics": holdout_metrics,
+        "gates": gates,
+    }
+    encoded = json.dumps(
+        artifact,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_bytes(encoded + b"\n")
+    artifact["artifact_sha256"] = hashlib.sha256(encoded + b"\n").hexdigest()
+    return artifact
+
+
+def _tensor_list(tensor):
+    return tensor.detach().cpu().to(dtype=__import__("torch").float32).tolist()
+
+
+def _calibrate_platt_v2(torch, model, batch, device):
+    model.eval()
+    with torch.no_grad():
+        logits = model(batch.features).validity_logit[
+            batch.candidate_mask
+        ].detach()
+        labels = batch.valid_labels[batch.candidate_mask]
+    log_a = torch.zeros((), device=device, requires_grad=True)
+    b = torch.zeros((), device=device, requires_grad=True)
+    optimizer = torch.optim.LBFGS((log_a, b), max_iter=50)
+
+    def closure():
+        optimizer.zero_grad()
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            logits * torch.exp(log_a) + b, labels
+        )
+        loss.backward()
+        return loss
+
+    optimizer.step(closure)
+    return (
+        round(float(torch.exp(log_a).detach().cpu()), 12),
+        round(float(b.detach().cpu()), 12),
+    )
+
+
+def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
+    model.eval()
+    with torch.inference_mode():
+        output = model(batch.features)
+        probabilities = torch.sigmoid(
+            output.validity_logit * calibration[0] + calibration[1]
+        )
+        predicted_risk = torch.sigmoid(output.risk_logit)
+    mask = batch.candidate_mask
+    probability_values = probabilities[mask].cpu().tolist()
+    label_values = batch.valid_labels[mask].cpu().tolist()
+    brier = sum(
+        (prediction - label) ** 2
+        for prediction, label in zip(probability_values, label_values)
+    ) / len(label_values)
+    bins = [[] for _ in range(10)]
+    for prediction, label in zip(probability_values, label_values):
+        bins[min(9, int(prediction * 10))].append((prediction, label))
+    ece = sum(
+        len(bucket) / len(label_values)
+        * abs(
+            sum(item[0] for item in bucket) / len(bucket)
+            - sum(item[1] for item in bucket) / len(bucket)
+        )
+        for bucket in bins
+        if bucket
+    )
+    recalls_1, recalls_2, reciprocal, ndcg, top2_risks = [], [], [], [], []
+    available = 0
+    for index, sample in enumerate(samples):
+        safe_valid = {
+            position
+            for position, candidate in enumerate(sample.candidates)
+            if candidate.valid_label
+            and candidate.invariant_risk_label <= RISK_EPSILON
+        }
+        order = sorted(
+            range(len(sample.candidates)),
+            key=lambda position: (
+                -float(output.rank_score[index, position]),
+                sample.candidates[position].hypothesis_id,
+            ),
+        )
+        top2_risks.append(
+            sum(float(predicted_risk[index, position]) for position in order[:2])
+            / min(2, len(order))
+        )
+        if not safe_valid:
+            continue
+        available += 1
+        recalls_1.append(float(bool(safe_valid & set(order[:1]))))
+        recalls_2.append(float(bool(safe_valid & set(order[:2]))))
+        first = next(
+            (rank for rank, position in enumerate(order, 1) if position in safe_valid),
+            0,
+        )
+        reciprocal.append(1.0 / first if first else 0.0)
+        gains = [1.0 if position in safe_valid else 0.0 for position in order[:2]]
+        dcg = sum(value / math.log2(rank + 1) for rank, value in enumerate(gains, 1))
+        ideal_count = min(2, len(safe_valid))
+        ideal = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_count + 1))
+        ndcg.append(dcg / ideal)
+    risk_mae = torch.abs(predicted_risk[mask] - batch.risk_labels[mask]).mean()
+    mean = lambda values: sum(values) / len(values) if values else 0.0
+    return {
+        "brier": round(brier, 9),
+        "ece": round(ece, 9),
+        "recall_at_1": round(mean(recalls_1), 9),
+        "recall_at_2": round(mean(recalls_2), 9),
+        "mrr": round(mean(reciprocal), 9),
+        "ndcg_at_2": round(mean(ndcg), 9),
+        "top2_risk": round(mean(top2_risks), 9),
+        "risk_mae": round(float(risk_mae.cpu()), 9),
+        "candidate_availability_rate": round(available / len(samples), 9),
+        "candidate_set_count": len(samples),
+    }
 
 
 def score_n4_validity(
@@ -34,6 +638,44 @@ def score_n4_validity(
     )
     temperature = max(float(artifact.get("temperature", 1.0)), 1e-6)
     return 1.0 / (1.0 + math.exp(-logit / temperature))
+
+
+def score_n4_artifact_v2(
+    features: Sequence[float], artifact: Mapping[str, Any]
+) -> dict[str, float]:
+    """Referencia offline independiente para comprobar paridad del runtime."""
+    import torch
+
+    if len(features) != len(FEATURE_NAMES):
+        raise ValueError("n4_training_feature_shape_invalid")
+    layer = artifact["model"]["trunk"]["layers"][0]
+    values = torch.tensor(features, dtype=torch.float32)
+    weights = torch.tensor(layer["weights"], dtype=torch.float32)
+    bias = torch.tensor(layer["bias"], dtype=torch.float32)
+    hidden = torch.relu(weights @ values + bias)
+    outputs = {}
+    for name, head in artifact["model"]["heads"].items():
+        outputs[name] = float(
+            torch.tensor(head["weights"], dtype=torch.float32) @ hidden
+            + float(head["bias"])
+        )
+    calibration = artifact["calibration"]
+    return {
+        "rank_score": outputs["rank"],
+        "validity_logit": outputs["validity"],
+        "validity_probability": 1.0
+        / (
+            1.0
+            + math.exp(
+                -(
+                    float(calibration["a"]) * outputs["validity"]
+                    + float(calibration["b"])
+                )
+            )
+        ),
+        "expected_mae_gain": math.tanh(outputs["gain"]),
+        "invariant_risk": 1.0 / (1.0 + math.exp(-outputs["risk"])),
+    }
 
 
 @dataclass(frozen=True)
