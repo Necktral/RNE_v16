@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -113,7 +114,7 @@ def generate(
     output.parent.mkdir(parents=True, exist_ok=True)
     manifest.parent.mkdir(parents=True, exist_ok=True)
     evidence_path = output.with_name(f"{output.stem}.evidence.jsonl")
-    work_root = output.parent / ".n4-work"
+    work_root = output.parent / ".n4-work" / f"attempt-{os.getpid()}"
     seen, counts = _existing_dataset_state(output)
     split_by_seed = _split_seeds(seeds)
     scenario_name = (
@@ -153,13 +154,21 @@ def generate(
     campaign_id = "n4-campaign-" + hashlib.sha256(
         _canonical(configuration)
     ).hexdigest()[:24]
-    started_at = _prepare_manifest(
+    manifest_state = _prepare_manifest(
         manifest=manifest,
         configuration=configuration,
         campaign_id=campaign_id,
         output=output,
         evidence_path=evidence_path,
     )
+    if manifest_state.get("status") == "complete":
+        if not output.exists():
+            raise ValueError("n4_complete_manifest_dataset_missing")
+        actual_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+        if actual_hash != manifest_state.get("dataset_sha256"):
+            raise ValueError("n4_complete_manifest_dataset_hash_mismatch")
+        return manifest_state
+    started_at = str(manifest_state["started_at"])
     with output.open("ab") as dataset_handle:
         for seed in seeds:
             runner = build_isolated_runner(
@@ -288,7 +297,7 @@ def _prepare_manifest(
     campaign_id: str,
     output: Path,
     evidence_path: Path,
-) -> str:
+) -> dict[str, Any]:
     if manifest.exists():
         try:
             previous = json.loads(manifest.read_bytes())
@@ -296,7 +305,7 @@ def _prepare_manifest(
             raise ValueError("invalid_n4_existing_manifest") from exc
         if previous.get("campaign_id") != campaign_id:
             raise ValueError("n4_resume_configuration_mismatch")
-        return str(previous["started_at"])
+        return previous
     started_at = _utc_now()
     planned = {
         "schema_version": "n4-dataset-manifest.v1",
@@ -308,7 +317,7 @@ def _prepare_manifest(
         "evidence_path": evidence_path.name,
     }
     manifest.write_bytes(_canonical(planned) + b"\n")
-    return started_at
+    return planned
 
 
 def _split_seeds(seeds: tuple[int, ...]) -> dict[int, str]:
