@@ -24,6 +24,18 @@ from .hypothesis_mapping import (
 )
 from .provider_protocol import ExternalHypothesis, HypothesisProvider
 from .regime_detector import RegimeChangeDetected, RegimeDetector
+from .rollout_engine import (
+    CandidateRiskReport,
+    RolloutStep,
+    rollout_contrafactual,
+    simulate_rollout,
+    thermal_battery_oracle,
+)
+from .safety_contracts import (
+    SafetyEvent,
+    evaluate_safety,
+    thermal_battery_safety_config,
+)
 from .self_model import IncrementalSelfModel
 from .scales import ScaleTransform, normalize_range
 from .structural_morphism import StructuralMorphism
@@ -45,6 +57,7 @@ __all__ = [
     "BeliefNode",
     "CausalOverlay",
     "CausalLearningEngine",
+    "CandidateRiskReport",
     "IncrementalSelfModel",
     "Justification",
     "NeuralHypothesis",
@@ -60,12 +73,16 @@ __all__ = [
     "HypothesisProvider",
     "RegimeChangeDetected",
     "RegimeDetector",
+    "RolloutStep",
+    "SafetyEvent",
     "SMTPlanReport",
     "SelfModelReport",
     "ScaleTransform",
     "normalize_range",
     "StructuralMorphism",
     "thermal_battery_to_resource_energy",
+    "thermal_battery_oracle",
+    "thermal_battery_safety_config",
     "OverlayTranslator",
     "TransferBelief",
     "TransferBeliefLedger",
@@ -77,6 +94,9 @@ __all__ = [
     "TransitionEvidence",
     "TransitionCompiler",
     "TransitionSpec",
+    "evaluate_safety",
+    "rollout_contrafactual",
+    "simulate_rollout",
     "deferred_load_spec",
     "resource_spec",
     "resource_with_energy_spec",
