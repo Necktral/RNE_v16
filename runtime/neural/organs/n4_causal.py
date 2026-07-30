@@ -79,7 +79,11 @@ class N4CausalRankingBackend:
             calibration = payload.get("calibration") or {}
             self.platt_a = float(calibration.get("a", 1.0))
             self.platt_b = float(calibration.get("b", 0.0))
-            if self.platt_a <= 0.0:
+            if (
+                not math.isfinite(self.platt_a)
+                or not math.isfinite(self.platt_b)
+                or self.platt_a <= 0.0
+            ):
                 raise ValueError("n4_v2_calibration_scale_invalid")
 
     def infer(self, request: NeuralInferenceRequest) -> BackendOutput:
@@ -209,4 +213,11 @@ def _linear_head(values, head):
 
 
 def _sigmoid(value):
-    return 1.0 / (1.0 + math.exp(-max(-60.0, min(60.0, value))))
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError("n4_sigmoid_input_nonfinite")
+    if value >= 0.0:
+        tail = math.exp(-value)
+        return 1.0 / (1.0 + tail)
+    head = math.exp(value)
+    return head / (1.0 + head)

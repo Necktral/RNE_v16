@@ -4,6 +4,7 @@ import hashlib
 import json
 
 import pytest
+import scripts.orchestrate_n4_safe_training as orchestrator
 
 from runtime.neural.contracts import canonical_sha256
 from runtime.neural.training.n4_campaign import (
@@ -288,3 +289,58 @@ def test_synthetic_grid_executes_exactly_twelve_runs_reproducibly(tmp_path):
         "selected_artifact_sha256"
     ]
     assert len(list((tmp_path / "grid-first").glob("J*-seed-*"))) == 12
+
+
+def test_grid_records_failed_run_and_continues_all_twelve(tmp_path, monkeypatch):
+    manifest = _composite(tmp_path)
+    calls = []
+
+    def fake_train(samples, *, artifact_path, seed, **kwargs):
+        calls.append((kwargs["training_metadata"]["configuration_id"], seed))
+        if calls == [("J1", 41)]:
+            raise OverflowError("SAFE-002 observed failure")
+        artifact_path.write_bytes(b"artifact\n")
+        artifact_sha = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+        return {
+            "artifact_sha256": artifact_sha,
+            "training_provenance": {
+                "validation_dataset_sha256": kwargs["training_metadata"][
+                    "validation_dataset_sha256"
+                ],
+                "loss_weights": kwargs["loss_weights"],
+                "epoch_history_sha256": "history",
+            },
+            "validation_metrics": {
+                "recall_at_2": 0.8,
+                "mrr": 0.8,
+                "ndcg_at_2": 0.8,
+                "recall_at_1": 0.8,
+                "top2_risk": 0.0,
+                "risk_mae": 0.1,
+                "risk_constant_predictor_mae": 0.2,
+                "risk_spearman": 0.5,
+            },
+            "gates": {
+                "artifact_quality": True,
+                "calibration": True,
+                "risk_target_informative": True,
+            },
+        }
+
+    monkeypatch.setattr(orchestrator, "train_n4_ranking_v2", fake_train)
+    monkeypatch.setattr(orchestrator, "_runtime_parity", lambda *args: True)
+    result = orchestrator.run_training_grid(
+        composite_manifest_path=manifest,
+        output_dir=tmp_path / "grid",
+        code_checkpoint="test",
+        campaign_protocol_version="synthetic",
+        epochs=1,
+        patience=1,
+        synthetic_smoke=True,
+    )
+    assert len(calls) == 12
+    assert result["selected_configuration_id"] != "J1"
+    runs = json.loads((tmp_path / "grid" / "grid_runs.json").read_bytes())
+    failed = [item for item in runs["runs"] if not item["valid"]]
+    assert len(failed) == 1
+    assert failed[0]["failure"]["type"] == "OverflowError"

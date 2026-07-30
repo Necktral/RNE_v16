@@ -523,7 +523,7 @@ def train_n4_ranking_v2(
             model,
             validation_batch,
             split_sets["validation"],
-            calibration=(1.0, 0.0),
+            calibration={"a": 1.0, "b": 0.0},
         )
         feasible = (
             validation_metrics["brier"] < 0.10
@@ -597,7 +597,7 @@ def train_n4_ranking_v2(
         model,
         validation_batch,
         split_sets["validation"],
-        calibration=(1.0, 0.0),
+        calibration={"a": 1.0, "b": 0.0},
     )
     calibration = _calibrate_platt_v2(
         torch, model, validation_batch, device
@@ -656,8 +656,12 @@ def train_n4_ranking_v2(
         "calibration": {
             "kind": "platt",
             "target": "validity_logit",
-            "a": calibration[0],
-            "b": calibration[1],
+            "a": calibration["a"],
+            "b": calibration["b"],
+            "status": calibration["status"],
+            "fallback_reason": calibration["fallback_reason"],
+            "fitted_a": calibration["fitted_a"],
+            "fitted_b": calibration["fitted_b"],
             "fit_split": "validation",
             "sample_count": sum(
                 len(item.candidates) for item in split_sets["validation"]
@@ -777,9 +781,9 @@ def _calibrate_platt_v2(torch, model, batch, device):
         return loss
 
     optimizer.step(closure)
-    return (
-        round(float(torch.exp(log_a).detach().cpu()), 12),
-        round(float(b.detach().cpu()), 12),
+    return _validated_platt_calibration(
+        float(torch.exp(log_a).detach().cpu()),
+        float(b.detach().cpu()),
     )
 
 
@@ -788,7 +792,7 @@ def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
     with torch.inference_mode():
         output = model(batch.features)
         probabilities = torch.sigmoid(
-            output.validity_logit * calibration[0] + calibration[1]
+            output.validity_logit * calibration["a"] + calibration["b"]
         )
         predicted_risk = torch.sigmoid(output.risk_logit)
     mask = batch.candidate_mask
@@ -1012,19 +1016,57 @@ def score_n4_artifact_v2(
     return {
         "rank_score": outputs["rank"],
         "validity_logit": outputs["validity"],
-        "validity_probability": 1.0
-        / (
-            1.0
-            + math.exp(
-                -(
-                    float(calibration["a"]) * outputs["validity"]
-                    + float(calibration["b"])
-                )
-            )
+        "validity_probability": _stable_sigmoid(
+            float(calibration["a"]) * outputs["validity"]
+            + float(calibration["b"])
         ),
         "expected_mae_gain": math.tanh(outputs["gain"]),
-        "invariant_risk": 1.0 / (1.0 + math.exp(-outputs["risk"])),
+        "invariant_risk": _stable_sigmoid(outputs["risk"]),
     }
+
+
+def _validated_platt_calibration(a: float, b: float) -> dict[str, Any]:
+    """Valida Platt y aplica el fallback preinscrito sin usar los targets."""
+    a = float(a)
+    b = float(b)
+    reason = None
+    if not math.isfinite(a) or not math.isfinite(b):
+        reason = "nonfinite_coefficients"
+    elif a < 1e-6:
+        reason = "scale_below_minimum"
+    elif a > 1e6:
+        reason = "scale_above_maximum"
+    elif abs(b) > 1e6:
+        reason = "intercept_out_of_range"
+    if reason is not None:
+        return {
+            "a": 1.0,
+            "b": 0.0,
+            "status": "identity_fallback",
+            "fallback_reason": reason,
+            "fitted_a": a if math.isfinite(a) else None,
+            "fitted_b": b if math.isfinite(b) else None,
+        }
+    return {
+        "a": round(a, 12),
+        "b": round(b, 12),
+        "status": "fitted",
+        "fallback_reason": None,
+        "fitted_a": round(a, 12),
+        "fitted_b": round(b, 12),
+    }
+
+
+def _stable_sigmoid(value: float) -> float:
+    """Sigmoide estable para logits finitos de cualquier magnitud."""
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError("n4_sigmoid_input_nonfinite")
+    if value >= 0.0:
+        tail = math.exp(-value)
+        return 1.0 / (1.0 + tail)
+    head = math.exp(value)
+    return head / (1.0 + head)
 
 
 @dataclass(frozen=True)

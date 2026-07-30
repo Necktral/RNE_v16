@@ -1,4 +1,4 @@
-"""Orquestador determinista J1–J4 para N4 SAFE-002."""
+"""Orquestador determinista y tolerante a fallos para campañas N4 SAFE."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import sys
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,39 +68,76 @@ def run_training_grid(
             run_dir.mkdir()
             artifact_path = run_dir / "artifact.json"
             history_path = run_dir / "epoch_history.jsonl"
-            artifact = train_n4_ranking_v2(
-                composite.train + composite.validation,
-                artifact_path=artifact_path,
-                seed=model_seed,
-                epochs=epochs,
-                patience=patience,
-                loss_weights={
-                    "rank": 1.0,
-                    "valid": 0.5,
-                    "gain": 0.3,
-                    "risk": configuration["lambda_risk"],
-                },
-                sampling_policy=configuration["sampling_policy"],
-                epoch_history_path=history_path,
-                training_metadata={
-                    "campaign_protocol_version": campaign_protocol_version,
-                    "code_checkpoint": code_checkpoint,
+            validation_sha256 = next(
+                item["dataset_sha256"]
+                for item in composite.component_stats
+                if item["role"] == "validation"
+            )
+            try:
+                artifact = train_n4_ranking_v2(
+                    composite.train + composite.validation,
+                    artifact_path=artifact_path,
+                    seed=model_seed,
+                    epochs=epochs,
+                    patience=patience,
+                    loss_weights={
+                        "rank": 1.0,
+                        "valid": 0.5,
+                        "gain": 0.3,
+                        "risk": configuration["lambda_risk"],
+                    },
+                    sampling_policy=configuration["sampling_policy"],
+                    epoch_history_path=history_path,
+                    training_metadata={
+                        "campaign_protocol_version": campaign_protocol_version,
+                        "code_checkpoint": code_checkpoint,
+                        "configuration_id": configuration_id,
+                        "model_seed": model_seed,
+                        "composite_manifest_sha256": (
+                            composite.manifest_sha256
+                        ),
+                        "validation_dataset_sha256": validation_sha256,
+                        "dataset_lineage": {
+                            item["role"]: item["dataset_sha256"]
+                            for item in composite.component_stats
+                        },
+                    },
+                )
+            except Exception as error:
+                run = {
                     "configuration_id": configuration_id,
                     "model_seed": model_seed,
-                    "composite_manifest_sha256": (
-                        composite.manifest_sha256
-                    ),
-                    "validation_dataset_sha256": next(
-                        item["dataset_sha256"]
-                        for item in composite.component_stats
-                        if item["role"] == "validation"
-                    ),
-                    "dataset_lineage": {
-                        item["role"]: item["dataset_sha256"]
-                        for item in composite.component_stats
+                    "sampling_policy": configuration["sampling_policy"],
+                    "loss_weights": {
+                        "rank": 1.0,
+                        "valid": 0.5,
+                        "gain": 0.3,
+                        "risk": configuration["lambda_risk"],
                     },
-                },
-            )
+                    "composite_manifest_sha256": composite.manifest_sha256,
+                    "validation_dataset_sha256": validation_sha256,
+                    "artifact_path": None,
+                    "artifact_sha256": None,
+                    "epoch_history_sha256": (
+                        hashlib.sha256(history_path.read_bytes()).hexdigest()
+                        if history_path.is_file()
+                        else None
+                    ),
+                    "validation_metrics": None,
+                    "runtime_parity_result": False,
+                    "valid": False,
+                    "failure": {
+                        "type": type(error).__name__,
+                        "message": str(error),
+                        "traceback": traceback.format_exc(),
+                    },
+                }
+                (run_dir / "run_result.json").write_bytes(
+                    _canonical(run) + b"\n"
+                )
+                runs.append(run)
+                validation_hashes.add(validation_sha256)
+                continue
             validation_hashes.add(
                 artifact["training_provenance"][
                     "validation_dataset_sha256"
@@ -149,6 +187,18 @@ def run_training_grid(
             runs.append(run)
     if len(runs) != 12 or len(validation_hashes) != 1:
         raise RuntimeError("n4_grid_run_or_validation_count_invalid")
+    (output_dir / "grid_runs.json").write_bytes(
+        _canonical(
+            {
+                "schema": "n4-grid-runs.v1",
+                "campaign_protocol_version": campaign_protocol_version,
+                "code_checkpoint": code_checkpoint,
+                "run_count": len(runs),
+                "runs": runs,
+            }
+        )
+        + b"\n"
+    )
     decision = select_configuration_and_median_run(
         runs,
         reference_metrics=None if synthetic_smoke else reference_metrics,

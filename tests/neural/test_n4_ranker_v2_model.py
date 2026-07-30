@@ -16,6 +16,7 @@ from runtime.neural.training.n4_ranking import (
     n4_multitask_loss,
     score_n4_artifact_v2,
     train_n4_ranking_v2,
+    _validated_platt_calibration,
 )
 from runtime.neural.contracts import NeuralInferenceRequest
 from runtime.neural.organs import N4CausalRankingBackend
@@ -338,6 +339,70 @@ def test_v2_training_exports_full_model_and_diagnostic_gates(tmp_path):
         "invariant_risk",
     ):
         assert runtime[name] == pytest.approx(offline[name], abs=1e-6)
+
+
+def test_real_safe002_degenerate_platt_uses_identity_fallback():
+    calibration = _validated_platt_calibration(0.0, -687198528.0)
+    assert calibration == {
+        "a": 1.0,
+        "b": 0.0,
+        "status": "identity_fallback",
+        "fallback_reason": "scale_below_minimum",
+        "fitted_a": 0.0,
+        "fitted_b": -687198528.0,
+    }
+
+
+def test_extreme_logits_have_overflow_free_offline_runtime_parity():
+    artifact = {
+        "schema": "n4-ranking-artifact.v2",
+        "model_kind": "trained_multihead",
+        "ranking_objective": "pairwise_constrained_v1",
+        "feature_order": [
+            "empirical_gain",
+            "holdout_support",
+            "coverage",
+            "simplicity",
+            "stability",
+            "invariant_safety",
+        ],
+        "feature_transform": {"kind": "identity"},
+        "model": {
+            "trunk": {
+                "layers": [{
+                    "activation": "relu",
+                    "weights": [[0.0] * 6],
+                    "bias": [1.0],
+                }]
+            },
+            "heads": {
+                "rank": {"weights": [0.0], "bias": 0.0},
+                "validity": {"weights": [0.0], "bias": 1e9},
+                "gain": {"weights": [0.0], "bias": 0.0},
+                "risk": {"weights": [0.0], "bias": -1e9},
+            },
+        },
+        "calibration": {"a": 1.0, "b": 0.0},
+    }
+    features = (0.0,) * 6
+    offline = score_n4_artifact_v2(features, artifact)
+    runtime = N4CausalRankingBackend(artifact).infer(
+        NeuralInferenceRequest(
+            inference_id="extreme",
+            run_id="extreme",
+            logical_time=1,
+            payload={
+                "candidates": [{
+                    "hypothesis_id": "h",
+                    **dict(zip(artifact["feature_order"], features)),
+                }]
+            },
+        )
+    ).candidate_output["rankings"][0]
+    assert offline["validity_probability"] == 1.0
+    assert offline["invariant_risk"] == 0.0
+    assert runtime["validity_probability"] == 1.0
+    assert runtime["invariant_risk"] == 0.0
 
 
 def test_development_trainer_rejects_holdout_and_invalid_weights(tmp_path):
