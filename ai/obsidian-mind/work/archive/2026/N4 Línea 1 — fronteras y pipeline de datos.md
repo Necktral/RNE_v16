@@ -36,8 +36,22 @@ exportado y el backend Python del runtime.
 ## Validación
 
 - 10 pruebas del detector de fronteras.
-- 83 pruebas en `tests/neural`, `tests/symbolic` y `tests/experiments`.
+- 90 pruebas en `tests/neural`, `tests/symbolic` y `tests/experiments`.
 - Smoke completo: 60 evidencias, 237 muestras y artefacto N4 exportado.
+
+## Campaña científica
+
+La campaña inicial en seeds 0–99 produjo un artefacto no promotable por ECE de
+holdout (`0.1055`). El resultado quedó sellado y ese holdout no se reutilizó.
+
+Una calibración Platt ajustada solo con validation se validó en seeds descartables
+1000–1005. La campaña v2 usó seeds nuevos 100–199 y produjo 3,000 evidencias,
+30,399 muestras y un artefacto promotable (`Brier=0.0586`, `ECE=0.00863` en su
+única consulta de holdout).
+
+La ablación congelada se ejecutó sobre seeds independientes 200–229. El brazo
+entrenado mejoró Recall@1 y MAE gain top-1, pero empeoró Recall@2, MRR y NDCG.
+El gate científico final no pasó; Línea 1 no debe declararse cerrada todavía.
 
 ## Related
 
