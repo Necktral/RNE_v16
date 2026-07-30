@@ -38,6 +38,19 @@ def _candidate(
     )
 
 
+def _historical(name, *, valid=False, gain=0.0):
+    return N4CandidateRecord(
+        hypothesis_id=name,
+        candidate_source="historical",
+        features=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6),
+        valid_label=valid,
+        mae_gain_label=gain,
+        invariant_risk_label=None,
+        risk_label_available=False,
+        risk_label_version=None,
+    )
+
+
 def _sample(name, candidates):
     return CandidateSetSample(
         candidate_set_id=name,
@@ -180,6 +193,36 @@ def test_loss_is_reproducible_for_same_seed():
         torch, second(batch.features), batch, samples
     )
     assert first_loss.item() == second_loss.item()
+
+
+def test_historical_batch_has_finite_zero_risk_loss():
+    samples = (
+        _sample(
+            "historical",
+            [
+                _historical("a", valid=True, gain=0.5),
+                _historical("b", valid=False),
+            ],
+        ),
+    )
+    batch = collate_candidate_sets(samples)
+    model = create_n4_ranker_v2(torch)
+    total, components = n4_multitask_loss(
+        torch, model(batch.features), batch, samples
+    )
+    total.backward()
+    assert torch.isfinite(total)
+    assert components["risk"].item() == 0.0
+    assert not batch.risk_label_mask.any()
+
+
+def test_historical_preference_ignores_risk_and_uses_validity_gain():
+    valid = _historical("a", valid=True, gain=-0.5)
+    invalid = _historical("b", valid=False, gain=1.0)
+    assert compare_candidates(valid, invalid) == 1
+    higher = _historical("a", valid=True, gain=0.5)
+    lower = _historical("b", valid=True, gain=0.1)
+    assert compare_candidates(higher, lower) == 1
 
 
 def test_continuous_risk_uses_sigmoid_huber_not_binary_target():

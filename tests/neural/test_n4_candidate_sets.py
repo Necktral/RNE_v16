@@ -5,6 +5,7 @@ import copy
 import pytest
 import torch
 
+from runtime.neural.contracts import canonical_sha256
 from runtime.neural.training.n4_ranking import (
     FEATURE_NAMES,
     collate_candidate_sets,
@@ -35,6 +36,23 @@ def _row(
         "mae_gain": 0.25,
         "invariant_risk": 0.1,
     }
+
+
+def _supervised(row, risk=0.25, version="n4-risk-label.multistep.v1"):
+    report = {"target_version": "n4-candidate-risk.v1", "invariant_risk": risk}
+    row.update(
+        {
+            "risk_label": risk,
+            "risk_label_available": True,
+            "risk_label_version": version,
+            "risk_report": report,
+            "risk_report_sha256": canonical_sha256(report),
+            "safety_contract_version": "thermal_with_battery.safety.v1",
+            "rollout_horizon": 3,
+            "risk_components": {"missed_hazard_rate": risk},
+        }
+    )
+    return row
 
 
 def test_loader_groups_and_orders_candidate_sets_deterministically():
@@ -102,8 +120,7 @@ def test_loader_rejects_feature_shape_and_nonfinite_values():
 
 
 def test_loader_rejects_out_of_range_continuous_labels():
-    risk = _row("set-a", "h-1")
-    risk["invariant_risk"] = 1.1
+    risk = _supervised(_row("set-a", "h-1"), risk=1.1)
     with pytest.raises(ValueError, match="row_invalid"):
         load_candidate_sets([risk])
 
@@ -126,7 +143,44 @@ def test_loader_accepts_variable_set_sizes_and_continuous_risk():
         _row("set-a", "h-3"),
         _row("set-b", "h-4"),
     ]
-    rows[0]["invariant_risk"] = 0.375
     samples = load_candidate_sets(rows)
     assert [len(item.candidates) for item in samples] == [3, 1]
-    assert samples[0].candidates[0].invariant_risk_label == 0.375
+    assert samples[0].candidates[0].invariant_risk_label is None
+    assert samples[0].candidates[0].risk_label_available is False
+
+
+def test_loader_accepts_fully_supervised_candidate_set():
+    rows = [
+        _supervised(_row("set-a", "h-1"), 0.125),
+        _supervised(_row("set-a", "h-2"), 0.5),
+    ]
+    sample = load_candidate_sets(rows)[0]
+    assert all(item.risk_label_available for item in sample.candidates)
+    assert [item.invariant_risk_label for item in sample.candidates] == [
+        0.125,
+        0.5,
+    ]
+
+
+def test_loader_rejects_partial_and_mixed_version_sets():
+    with pytest.raises(ValueError, match="supervision_incomplete"):
+        load_candidate_sets(
+            [
+                _supervised(_row("set-a", "h-1")),
+                _row("set-a", "h-2"),
+            ]
+        )
+    mixed = [
+        _supervised(_row("set-a", "h-1")),
+        _supervised(_row("set-a", "h-2")),
+    ]
+    mixed[1]["risk_label_version"] = "unknown"
+    with pytest.raises(ValueError, match="row_invalid"):
+        load_candidate_sets(mixed)
+
+
+def test_loader_rejects_inconsistent_risk_report_hash():
+    row = _supervised(_row("set-a", "h-1"))
+    row["risk_report_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="row_invalid"):
+        load_candidate_sets([row])

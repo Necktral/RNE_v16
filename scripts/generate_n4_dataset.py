@@ -11,6 +11,7 @@ import random
 import subprocess
 import sys
 from collections import Counter
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -114,6 +115,66 @@ def _scenario_kwargs(
     }
 
 
+def _validate_candidate_set_risk_labels(labels) -> None:
+    if not labels:
+        return
+    availability = {item.risk_label_available for item in labels}
+    if len(availability) != 1:
+        raise ValueError("candidate_set_risk_supervision_incomplete")
+    versions = {item.risk_label_version for item in labels}
+    if len(versions) != 1:
+        raise ValueError("candidate_set_mixed_risk_versions")
+
+
+def summarize_risk_informativeness(rows) -> dict[str, Any]:
+    rows = tuple(rows)
+    supervised = [
+        row for row in rows if bool(row.get("risk_label_available", False))
+    ]
+    values = [float(row["risk_label"]) for row in supervised]
+    grouped: dict[str, list[float]] = {}
+    event_ids = set()
+    severities = set()
+    post_first_step = False
+    for row in supervised:
+        grouped.setdefault(str(row["candidate_set_id"]), []).append(
+            float(row["risk_label"])
+        )
+        report = row.get("risk_report") or {}
+        for key in ("oracle_events", "candidate_events"):
+            for event in report.get(key, ()):
+                event_ids.add(str(event["predicate_id"]).split(":", 1)[0])
+                severities.add(round(float(event["severity"]), 9))
+                post_first_step = post_first_step or int(event["step"]) > 1
+    intra_set_variable_count = sum(
+        max(items) > min(items) for items in grouped.values() if len(items) > 1
+    )
+    coverage = len(supervised) / len(rows) if rows else 0.0
+    checks = {
+        "coverage_100_percent": bool(rows) and coverage == 1.0,
+        "global_variance": len(set(values)) > 1,
+        "positive_targets": any(value > 0.0 for value in values),
+        "zero_targets": any(value == 0.0 for value in values),
+        "multiple_severity_levels": len(severities) > 1,
+        "post_first_step_events": post_first_step,
+        "multiple_event_families": len(event_ids) > 1,
+        "intra_candidate_set_variance": intra_set_variable_count > 0,
+    }
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "sample_count": len(rows),
+        "supervised_sample_count": len(supervised),
+        "risk_label_coverage": round(coverage, 9),
+        "distinct_risk_labels": len(set(values)),
+        "risk_min": min(values) if values else None,
+        "risk_max": max(values) if values else None,
+        "distinct_severity_levels": len(severities),
+        "event_families": sorted(event_ids),
+        "intra_candidate_set_variable_count": intra_set_variable_count,
+    }
+
+
 def _episode_external_input(rng: random.Random) -> float:
     return round(rng.uniform(0.025, 0.055), 9)
 
@@ -127,6 +188,8 @@ def generate(
     manifest: Path,
     max_candidates: int,
     counterfactuals_per_candidate: int,
+    risk_label_version: str | None = None,
+    rollout_horizon: int = 3,
     allow_dirty: bool = False,
 ) -> dict[str, Any]:
     if len(seeds) < 3:
@@ -162,6 +225,10 @@ def generate(
         "total_episodes": len(seeds) * episodes,
         "max_candidates": max_candidates,
         "counterfactuals_per_candidate": counterfactuals_per_candidate,
+        "risk_label_version": risk_label_version,
+        "rollout_horizon": (
+            rollout_horizon if risk_label_version is not None else None
+        ),
         "split_policy": "whole_seed_groups_60_20_20",
         "anti_leakage": "features_at_or_before_cutoff_labels_after_cutoff",
         "transition_spec_hash": transition_spec_hash,
@@ -232,15 +299,27 @@ def generate(
                 )
                 if not future:
                     continue
-                for candidate in generator.generate(
+                candidates = generator.generate(
                     spec=spec, evidence=feature_rows
-                )[:max_candidates]:
-                    label = label_candidate_counterfactually(
-                        spec=spec,
-                        candidate=candidate,
-                        feature_evidence=feature_rows,
-                        label_evidence=future,
+                )[:max_candidates]
+                labeled = [
+                    (
+                        candidate,
+                        label_candidate_counterfactually(
+                            spec=spec,
+                            candidate=candidate,
+                            feature_evidence=feature_rows,
+                            label_evidence=future,
+                            risk_label_version=risk_label_version,
+                            rollout_horizon=rollout_horizon,
+                        ),
                     )
+                    for candidate in candidates
+                ]
+                _validate_candidate_set_risk_labels(
+                    [label for _, label in labeled]
+                )
+                for candidate, label in labeled:
                     candidate_set_id = "n4-set-" + hashlib.sha256(
                         (
                             f"{scenario_name}|{seed}|"
@@ -273,6 +352,20 @@ def generate(
                         "valid": label.valid,
                         "mae_gain": label.mae_gain,
                         "invariant_risk": label.invariant_risk,
+                        "risk_label": label.risk_label,
+                        "risk_label_available": label.risk_label_available,
+                        "risk_label_version": label.risk_label_version,
+                        "risk_report_sha256": label.risk_report_sha256,
+                        "safety_contract_version": (
+                            label.safety_contract_version
+                        ),
+                        "rollout_horizon": label.rollout_horizon,
+                        "risk_components": label.risk_components,
+                        "risk_report": (
+                            asdict(label.risk_report)
+                            if label.risk_report is not None
+                            else None
+                        ),
                         "evaluation_count": label.evaluation_count,
                     }
                     dataset_handle.write(_canonical(record) + b"\n")
@@ -281,7 +374,22 @@ def generate(
                     counts[f"split:{split_by_seed[seed]}"] += 1
                     counts[f"source:{candidate.source}"] += 1
                     counts[f"seed:{seed}"] += 1
+                    counts[
+                        "risk_supervised"
+                        if label.risk_label_available
+                        else "risk_unsupervised"
+                    ] += 1
     dataset_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
+    generated_rows = [
+        json.loads(line)
+        for line in output.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    risk_informativeness = (
+        summarize_risk_informativeness(generated_rows)
+        if risk_label_version is not None
+        else None
+    )
     payload = {
         "schema_version": "n4-dataset-manifest.v1",
         "status": "complete",
@@ -302,6 +410,14 @@ def generate(
         "provenance": provenance,
         "split_policy": "whole_seed_groups_60_20_20",
         "anti_leakage": "features_at_or_before_cutoff_labels_after_cutoff",
+        "risk_supervised_sample_count": counts["risk_supervised"],
+        "risk_label_coverage": round(
+            counts["risk_supervised"] / max(len(seen), 1), 9
+        ),
+        "risk_label_versions": (
+            [risk_label_version] if risk_label_version is not None else []
+        ),
+        "risk_informativeness": risk_informativeness,
     }
     manifest.write_bytes(_canonical(payload) + b"\n")
     return payload
@@ -379,6 +495,11 @@ if __name__ == "__main__":
     parser.add_argument("--max-candidates", type=int, default=16)
     parser.add_argument("--counterfactuals-per-candidate", type=int, default=8)
     parser.add_argument(
+        "--risk-label-version",
+        choices=("n4-risk-label.multistep.v1",),
+    )
+    parser.add_argument("--rollout-horizon", type=int, default=3)
+    parser.add_argument(
         "--allow-dirty",
         action="store_true",
         help="Allow generation from modified tracked files (not for scientific runs).",
@@ -392,6 +513,8 @@ if __name__ == "__main__":
         manifest=args.manifest,
         max_candidates=args.max_candidates,
         counterfactuals_per_candidate=args.counterfactuals_per_candidate,
+        risk_label_version=args.risk_label_version,
+        rollout_horizon=args.rollout_horizon,
         allow_dirty=args.allow_dirty,
     )
     print(json.dumps(result, indent=2, sort_keys=True))

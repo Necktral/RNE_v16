@@ -22,6 +22,7 @@ FEATURE_NAMES = (
 RISK_EPSILON = 1e-6
 GAIN_EPSILON = 1e-6
 V2_LOSS_WEIGHTS = {"rank": 1.0, "valid": 0.5, "gain": 0.3, "risk": 0.2}
+RISK_LABEL_VERSION = "n4-risk-label.multistep.v1"
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,13 @@ class N4CandidateRecord:
     features: tuple[float, ...]
     valid_label: bool
     mae_gain_label: float
-    invariant_risk_label: float
+    invariant_risk_label: float | None
+    risk_label_available: bool = True
+    risk_label_version: str | None = RISK_LABEL_VERSION
+    risk_report_sha256: str | None = None
+    safety_contract_version: str | None = None
+    rollout_horizon: int | None = None
+    risk_components: Mapping[str, float] | None = None
 
     def __post_init__(self) -> None:
         if not self.hypothesis_id:
@@ -45,14 +52,34 @@ class N4CandidateRecord:
         values = (
             *self.features,
             self.mae_gain_label,
-            self.invariant_risk_label,
         )
         if not all(math.isfinite(float(item)) for item in values):
             raise ValueError("n4_candidate_values_must_be_finite")
         if not -1.0 <= self.mae_gain_label <= 1.0:
             raise ValueError("n4_candidate_gain_out_of_range")
-        if not 0.0 <= self.invariant_risk_label <= 1.0:
-            raise ValueError("n4_candidate_risk_out_of_range")
+        if not self.risk_label_available:
+            if any(
+                item is not None
+                for item in (
+                    self.invariant_risk_label,
+                    self.risk_label_version,
+                    self.risk_report_sha256,
+                    self.safety_contract_version,
+                    self.rollout_horizon,
+                )
+            ):
+                raise ValueError("n4_unavailable_risk_metadata_must_be_null")
+        else:
+            if self.invariant_risk_label is None or not math.isfinite(
+                float(self.invariant_risk_label)
+            ):
+                raise ValueError("n4_available_risk_label_must_be_finite")
+            if not 0.0 <= float(self.invariant_risk_label) <= 1.0:
+                raise ValueError("n4_candidate_risk_out_of_range")
+            if self.risk_label_version != RISK_LABEL_VERSION:
+                raise ValueError("n4_candidate_risk_version_unknown")
+            if self.rollout_horizon is not None and self.rollout_horizon < 1:
+                raise ValueError("n4_candidate_rollout_horizon_invalid")
 
 
 @dataclass(frozen=True)
@@ -77,6 +104,12 @@ class CandidateSetSample:
             raise ValueError("n4_candidate_set_duplicate_hypothesis")
         if identifiers != sorted(identifiers):
             raise ValueError("n4_candidate_set_order_invalid")
+        availability = {item.risk_label_available for item in self.candidates}
+        if len(availability) != 1:
+            raise ValueError("candidate_set_risk_supervision_incomplete")
+        versions = {item.risk_label_version for item in self.candidates}
+        if len(versions) != 1:
+            raise ValueError("candidate_set_mixed_risk_versions")
 
     @property
     def logical_hash(self) -> str:
@@ -92,7 +125,12 @@ class CandidateSetSample:
                     "features": list(item.features),
                     "valid_label": item.valid_label,
                     "mae_gain_label": item.mae_gain_label,
-                    "invariant_risk_label": item.invariant_risk_label,
+                    "risk_label": item.invariant_risk_label,
+                    "risk_label_available": item.risk_label_available,
+                    "risk_label_version": item.risk_label_version,
+                    "risk_report_sha256": item.risk_report_sha256,
+                    "safety_contract_version": item.safety_contract_version,
+                    "rollout_horizon": item.rollout_horizon,
                 }
                 for item in self.candidates
             ],
@@ -113,6 +151,7 @@ class CandidateSetBatch:
     valid_labels: Any
     gain_labels: Any
     risk_labels: Any
+    risk_label_mask: Any
     candidate_mask: Any
     candidate_set_ids: tuple[str, ...]
 
@@ -138,13 +177,42 @@ def load_candidate_sets(
             seed = int(row["seed"])
             split = str(row["split"])
             feature_map = row["features"]
+            risk_available = bool(
+                row.get("risk_label_available", False)
+            )
+            risk_report = row.get("risk_report")
+            risk_report_sha256 = row.get("risk_report_sha256")
+            if risk_available:
+                if risk_report is None or risk_report_sha256 is None:
+                    raise ValueError("risk_report_required")
+                encoded_report = json.dumps(
+                    risk_report,
+                    ensure_ascii=False,
+                    allow_nan=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+                if hashlib.sha256(encoded_report).hexdigest() != str(
+                    risk_report_sha256
+                ):
+                    raise ValueError("risk_report_hash_mismatch")
             record = N4CandidateRecord(
                 hypothesis_id=str(row["hypothesis_id"]),
                 candidate_source=str(row["source"]),
                 features=tuple(float(feature_map[name]) for name in FEATURE_NAMES),
                 valid_label=bool(row["valid"]),
                 mae_gain_label=float(row["mae_gain"]),
-                invariant_risk_label=float(row["invariant_risk"]),
+                invariant_risk_label=(
+                    float(row["risk_label"])
+                    if risk_available
+                    else None
+                ),
+                risk_label_available=risk_available,
+                risk_label_version=row.get("risk_label_version"),
+                risk_report_sha256=risk_report_sha256,
+                safety_contract_version=row.get("safety_contract_version"),
+                rollout_horizon=row.get("rollout_horizon"),
+                risk_components=row.get("risk_components"),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError("n4_candidate_row_invalid") from exc
@@ -190,19 +258,25 @@ def collate_candidate_sets(
     valid = torch.zeros(shape, dtype=torch.float32)
     gain = torch.zeros(shape, dtype=torch.float32)
     risk = torch.zeros(shape, dtype=torch.float32)
+    risk_mask = torch.zeros(shape, dtype=torch.bool)
     mask = torch.zeros(shape, dtype=torch.bool)
     for set_index, sample in enumerate(samples):
         for candidate_index, candidate in enumerate(sample.candidates):
             features[set_index, candidate_index] = torch.tensor(candidate.features)
             valid[set_index, candidate_index] = float(candidate.valid_label)
             gain[set_index, candidate_index] = candidate.mae_gain_label
-            risk[set_index, candidate_index] = candidate.invariant_risk_label
+            if candidate.risk_label_available:
+                risk[set_index, candidate_index] = float(
+                    candidate.invariant_risk_label
+                )
+                risk_mask[set_index, candidate_index] = True
             mask[set_index, candidate_index] = True
     return CandidateSetBatch(
         features=features.to(device=device),
         valid_labels=valid.to(device=device),
         gain_labels=gain.to(device=device),
         risk_labels=risk.to(device=device),
+        risk_label_mask=risk_mask.to(device=device),
         candidate_mask=mask.to(device=device),
         candidate_set_ids=tuple(item.candidate_set_id for item in samples),
     )
@@ -210,10 +284,19 @@ def collate_candidate_sets(
 
 def compare_candidates(a: N4CandidateRecord, b: N4CandidateRecord) -> int:
     """Preferencia seguridad > validez > ganancia, sin inventar empates."""
-    if a.invariant_risk_label + RISK_EPSILON < b.invariant_risk_label:
-        return 1
-    if b.invariant_risk_label + RISK_EPSILON < a.invariant_risk_label:
-        return -1
+    if a.risk_label_available != b.risk_label_available:
+        raise ValueError("n4_pair_mixed_risk_availability")
+    if a.risk_label_available:
+        if (
+            float(a.invariant_risk_label) + RISK_EPSILON
+            < float(b.invariant_risk_label)
+        ):
+            return 1
+        if (
+            float(b.invariant_risk_label) + RISK_EPSILON
+            < float(a.invariant_risk_label)
+        ):
+            return -1
     if a.valid_label != b.valid_label:
         return 1 if a.valid_label else -1
     if a.valid_label and b.valid_label:
@@ -311,9 +394,14 @@ def n4_multitask_loss(
         if bool(positive_mask.any())
         else zero
     )
-    risk_loss = torch.nn.functional.smooth_l1_loss(
-        torch.sigmoid(output.risk_logit[mask]),
-        batch.risk_labels[mask],
+    risk_mask = mask & batch.risk_label_mask
+    risk_loss = (
+        torch.nn.functional.smooth_l1_loss(
+            torch.sigmoid(output.risk_logit[risk_mask]),
+            batch.risk_labels[risk_mask],
+        )
+        if bool(risk_mask.any())
+        else zero
     )
     components = {
         "rank": pair_loss,
@@ -439,11 +527,26 @@ def train_n4_ranking_v2(
         and validation_metrics["ece"] < 0.05
     )
     risk_values = [
-        candidate.invariant_risk_label
+        float(candidate.invariant_risk_label)
         for item in samples
         for candidate in item.candidates
+        if candidate.risk_label_available
     ]
-    risk_target_informative = max(risk_values) > min(risk_values)
+    supervised_sets = [
+        item
+        for item in samples
+        if item.candidates[0].risk_label_available
+    ]
+    intra_set_informative = any(
+        max(float(item.invariant_risk_label) for item in sample.candidates)
+        > min(float(item.invariant_risk_label) for item in sample.candidates)
+        for sample in supervised_sets
+    )
+    risk_target_informative = (
+        bool(risk_values)
+        and max(risk_values) > min(risk_values)
+        and intra_set_informative
+    )
     gates = {
         "artifact_quality": artifact_quality,
         "calibration": calibration_gate,
@@ -498,6 +601,20 @@ def train_n4_ranking_v2(
                 for key, value in dict(training_metadata or {}).items()
                 if key != "dataset_lineage"
             },
+            "risk_supervised_sample_count": len(risk_values),
+            "risk_supervised_candidate_set_count": len(supervised_sets),
+            "risk_label_versions": sorted(
+                {
+                    candidate.risk_label_version
+                    for sample in supervised_sets
+                    for candidate in sample.candidates
+                }
+            ),
+            "risk_label_coverage": round(
+                len(risk_values)
+                / sum(len(item.candidates) for item in samples),
+                9,
+            ),
         },
         "validation_metrics": validation_metrics,
         "holdout_metrics": holdout_metrics,
@@ -580,7 +697,10 @@ def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
             position
             for position, candidate in enumerate(sample.candidates)
             if candidate.valid_label
-            and candidate.invariant_risk_label <= RISK_EPSILON
+            and (
+                not candidate.risk_label_available
+                or float(candidate.invariant_risk_label) <= RISK_EPSILON
+            )
         }
         order = sorted(
             range(len(sample.candidates)),
@@ -608,7 +728,14 @@ def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
         ideal_count = min(2, len(safe_valid))
         ideal = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_count + 1))
         ndcg.append(dcg / ideal)
-    risk_mae = torch.abs(predicted_risk[mask] - batch.risk_labels[mask]).mean()
+    risk_mask = mask & batch.risk_label_mask
+    risk_mae = (
+        torch.abs(
+            predicted_risk[risk_mask] - batch.risk_labels[risk_mask]
+        ).mean()
+        if bool(risk_mask.any())
+        else predicted_risk.sum() * 0.0
+    )
     mean = lambda values: sum(values) / len(values) if values else 0.0
     return {
         "brier": round(brier, 9),
@@ -688,6 +815,13 @@ class N4TrainingSample:
     seed: int
     logical_time: int
     split: str | None = None
+    risk_label: float | None = None
+    risk_label_available: bool = False
+    risk_label_version: str | None = None
+    risk_report_sha256: str | None = None
+    safety_contract_version: str | None = None
+    rollout_horizon: int | None = None
+    risk_components: Mapping[str, float] | None = None
 
     def __post_init__(self) -> None:
         if len(self.features) != len(FEATURE_NAMES):
@@ -695,6 +829,25 @@ class N4TrainingSample:
         values = (*self.features, self.mae_gain, self.invariant_risk)
         if not all(math.isfinite(float(item)) for item in values):
             raise ValueError("n4_training_values_must_be_finite")
+        if not self.risk_label_available:
+            if any(
+                item is not None
+                for item in (
+                    self.risk_label,
+                    self.risk_label_version,
+                    self.risk_report_sha256,
+                    self.safety_contract_version,
+                    self.rollout_horizon,
+                )
+            ):
+                raise ValueError("n4_unavailable_risk_metadata_must_be_null")
+        else:
+            if self.risk_label is None or not math.isfinite(self.risk_label):
+                raise ValueError("n4_available_risk_label_must_be_finite")
+            if not 0.0 <= self.risk_label <= 1.0:
+                raise ValueError("n4_training_risk_label_out_of_range")
+            if self.risk_label_version != RISK_LABEL_VERSION:
+                raise ValueError("n4_training_risk_version_unknown")
 
 
 def train_n4_ranking(

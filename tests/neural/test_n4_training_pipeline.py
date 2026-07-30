@@ -138,3 +138,84 @@ def test_labeler_mae_gain_is_bounded_for_harmful_candidate():
     )
     assert -1.0 <= label.mae_gain <= 1.0
     assert not label.valid
+
+
+def test_multistep_label_is_versioned_hashed_and_candidate_conditioned():
+    spec, rows = _rows()
+    candidates = StructuralHypothesisGenerator(beam_width=64).generate(
+        spec=spec, evidence=rows[:12]
+    )
+    correct = next(
+        item
+        for item in candidates
+        if item.expression == "battery_level > 0.3"
+    )
+    wrong = next(
+        item
+        for item in candidates
+        if item.expression == "battery_level < 0.3"
+    )
+    arguments = {
+        "spec": spec,
+        "feature_evidence": rows[:12],
+        "label_evidence": rows[12:],
+        "risk_label_version": "n4-risk-label.multistep.v1",
+        "rollout_horizon": 3,
+    }
+    correct_label = label_candidate_counterfactually(
+        candidate=correct, **arguments
+    )
+    wrong_label = label_candidate_counterfactually(
+        candidate=wrong, **arguments
+    )
+    assert correct_label.risk_label_available
+    assert correct_label.risk_label_version == "n4-risk-label.multistep.v1"
+    assert correct_label.risk_report_sha256
+    assert correct_label.safety_contract_version
+    assert correct_label.rollout_horizon == 3
+    assert correct_label.risk_components
+    assert wrong_label.risk_label != correct_label.risk_label
+    assert any(
+        event.step >= 2 for event in wrong_label.risk_report.oracle_events
+    )
+
+
+def test_legacy_label_explicitly_marks_risk_unknown():
+    spec, rows = _rows()
+    candidate = StructuralHypothesisGenerator(beam_width=64).generate(
+        spec=spec, evidence=rows[:12]
+    )[0]
+    label = label_candidate_counterfactually(
+        spec=spec,
+        candidate=candidate,
+        feature_evidence=rows[:12],
+        label_evidence=rows[12:],
+    )
+    assert label.risk_label_available is False
+    assert label.risk_label is None
+    assert label.risk_label_version is None
+    assert label.risk_report_sha256 is None
+
+
+def test_labeler_rejects_unknown_risk_version_and_short_horizon():
+    spec, rows = _rows()
+    candidate = StructuralHypothesisGenerator(beam_width=64).generate(
+        spec=spec, evidence=rows[:12]
+    )[0]
+    with pytest.raises(ValueError, match="version_unknown"):
+        label_candidate_counterfactually(
+            spec=spec,
+            candidate=candidate,
+            feature_evidence=rows[:12],
+            label_evidence=rows[12:],
+            risk_label_version="unknown",
+        )
+    with pytest.raises(ValueError, match="horizon_unavailable"):
+        label_candidate_counterfactually(
+            spec=spec,
+            candidate=candidate,
+            feature_evidence=rows[:12],
+            label_evidence=rows[12:13],
+            risk_label_version="n4-risk-label.multistep.v1",
+            rollout_horizon=3,
+        )
