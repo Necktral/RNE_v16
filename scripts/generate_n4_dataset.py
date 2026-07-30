@@ -72,10 +72,14 @@ def _git_provenance() -> dict[str, Any]:
     }
 
 
-def _resolve_seeds(values: list[str]) -> tuple[int, ...]:
+def _resolve_seeds(
+    values: list[str], *, seed_start: int = 0
+) -> tuple[int, ...]:
     tokens = [item for value in values for item in value.split(",") if item]
     if len(tokens) == 1 and tokens[0].isdigit():
-        return tuple(range(int(tokens[0])))
+        return tuple(range(seed_start, seed_start + int(tokens[0])))
+    if seed_start != 0:
+        raise ValueError("seed_start_requires_seed_count")
     return tuple(sorted({int(item) for item in tokens}))
 
 
@@ -364,6 +368,12 @@ if __name__ == "__main__":
         default=60,
         help="Episodes per seed, not total episodes.",
     )
+    parser.add_argument(
+        "--seed-start",
+        type=int,
+        default=0,
+        help="First seed when --seeds is a single count.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--max-candidates", type=int, default=16)
@@ -376,7 +386,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     result = generate(
         scenario=args.scenario,
-        seeds=_resolve_seeds(args.seeds),
+        seeds=_resolve_seeds(args.seeds, seed_start=args.seed_start),
         episodes=args.episodes,
         output=args.output,
         manifest=args.manifest,

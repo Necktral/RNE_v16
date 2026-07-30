@@ -4,6 +4,7 @@ import random
 
 from scripts.generate_n4_dataset import (
     _episode_external_input,
+    _resolve_seeds,
     _scenario_kwargs,
 )
 
@@ -41,3 +42,7 @@ def test_seeded_thermal_ranges_cover_safe_preflight_domain():
             0.025 <= _episode_external_input(rng) <= 0.055
             for _ in range(30)
         )
+
+
+def test_seed_count_can_start_at_reserved_offset():
+    assert _resolve_seeds(["4"], seed_start=100) == (100, 101, 102, 103)
