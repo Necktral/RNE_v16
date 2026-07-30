@@ -297,7 +297,10 @@ def generate(
                         cutoff + 1 : cutoff + 1 + counterfactuals_per_candidate
                     ]
                 )
-                if not future:
+                if not future or (
+                    risk_label_version is not None
+                    and len(future) < rollout_horizon
+                ):
                     continue
                 candidates = generator.generate(
                     spec=spec, evidence=feature_rows
