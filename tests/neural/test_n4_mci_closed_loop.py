@@ -249,6 +249,9 @@ def test_offline_training_exports_deterministic_runtime_artifact(tmp_path: Path)
     )
     assert artifact["schema"] == "n4-ranking-artifact.v1"
     assert len(artifact["ranking_weights"]) == 6
+    assert artifact["calibration"]["kind"] == "platt_positive_scale"
+    assert artifact["calibration"]["fit_split"] == "validation"
+    assert 1 <= artifact["training"]["epochs_completed"] <= 12
     assert (tmp_path / "n4.json").read_bytes().endswith(b"\n")
     features = samples[0].features
     expected = score_n4_validity(features, artifact)

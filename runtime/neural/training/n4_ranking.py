@@ -97,7 +97,9 @@ def train_n4_ranking(
     best_state = None
     best_loss = float("inf")
     stale = 0
-    for _ in range(epochs):
+    epochs_completed = 0
+    for epoch in range(epochs):
+        epochs_completed = epoch + 1
         model.train()
         x, valid, gain, risk = _tensors(torch, train, device)
         logits, gain_prediction, risk_prediction = model(x)
@@ -122,7 +124,8 @@ def train_n4_ranking(
     if best_state is None:
         raise RuntimeError("n4_training_failed_to_select_model")
     model.load_state_dict(best_state)
-    temperature = _calibrate_temperature(torch, model, validation, device)
+    calibration = _calibrate_platt(torch, model, validation, device)
+    temperature = 1.0
     validation_metrics = _metrics(torch, model, validation, device, temperature)
     holdout_metrics = _metrics(torch, model, holdout, device, temperature)
     validity = model.validity
@@ -139,13 +142,14 @@ def train_n4_ranking(
         "training": {
             "seed": seed,
             "optimizer": "AdamW",
-            "epochs_completed": epochs - max(0, patience - stale),
+            "epochs_completed": epochs_completed,
             "split": "grouped_scenario_seed_60_20_20",
             "sample_count": len(ordered),
             **dict(training_metadata or {}),
         },
         "validation": validation_metrics,
         "holdout": holdout_metrics,
+        "calibration": calibration,
         "promotable": bool(
             holdout_metrics["brier"] < 0.15
             and holdout_metrics["ece"] <= 0.10
@@ -236,20 +240,44 @@ def _loss(torch, model, rows, device):
         )
 
 
-def _calibrate_temperature(torch, model, rows, device) -> float:
+def _calibrate_platt(torch, model, rows, device) -> dict[str, float | str]:
     x, valid, _, _ = _tensors(torch, rows, device)
     model.eval()
-    with torch.inference_mode():
+    with torch.no_grad():
         logits, _, _ = model(x)
-        choices = (0.5, 0.65, 0.8, 1.0, 1.25, 1.5, 2.0, 3.0)
-        return min(
-            choices,
-            key=lambda value: float(
-                torch.nn.functional.binary_cross_entropy_with_logits(
-                    logits / value, valid
-                ).cpu()
-            ),
+    logits = logits.detach()
+    log_scale = torch.zeros((), device=device, requires_grad=True)
+    offset = torch.zeros((), device=device, requires_grad=True)
+    optimizer = torch.optim.LBFGS(
+        (log_scale, offset),
+        lr=0.25,
+        max_iter=100,
+        tolerance_grad=1e-10,
+        tolerance_change=1e-12,
+        line_search_fn="strong_wolfe",
+    )
+
+    def closure():
+        optimizer.zero_grad()
+        calibrated = logits * torch.exp(log_scale) + offset
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            calibrated, valid
         )
+        loss.backward()
+        return loss
+
+    optimizer.step(closure)
+    scale = float(torch.exp(log_scale).detach().cpu())
+    intercept = float(offset.detach().cpu())
+    with torch.no_grad():
+        model.validity.weight.mul_(scale)
+        model.validity.bias.mul_(scale).add_(intercept)
+    return {
+        "kind": "platt_positive_scale",
+        "scale": round(scale, 12),
+        "intercept": round(intercept, 12),
+        "fit_split": "validation",
+    }
 
 
 def _metrics(torch, model, rows, device, temperature):
