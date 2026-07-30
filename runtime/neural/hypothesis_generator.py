@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from runtime.neural.contracts import canonical_sha256
+from runtime.symbolic.mci.boundary_detector import detect_transition_boundaries
 from runtime.symbolic.mci.causal_learning import TransitionEvidence
 from runtime.symbolic.mci.compiler import TransitionCompiler
 from runtime.symbolic.mci.contracts import TransitionSpec
@@ -23,6 +24,7 @@ class StructuralCandidate:
     proposed_value: float | None
     evidence_refs: tuple[str, ...]
     features: Mapping[str, float]
+    source: str = "quantile"
 
     def ranking_payload(self) -> dict[str, Any]:
         return {"hypothesis_id": self.hypothesis_id, **dict(self.features)}
@@ -157,8 +159,37 @@ class StructuralHypothesisGenerator:
                         proposed_value=None,
                         rows=action_rows,
                         features=features,
+                        source="quantile",
                     )
                 )
+            for variable in numeric_variables:
+                for boundary in detect_transition_boundaries(
+                    action_rows,
+                    variable=variable,
+                    action=effect.action,
+                    min_support=2,
+                ):
+                    expression = boundary.expression
+                    try:
+                        candidate_spec = with_overlay(
+                            spec, {}, {effect.effect_id: expression}
+                        )
+                    except ValueError:
+                        continue
+                    features = self._features(
+                        spec, candidate_spec, action_rows, complexity=1
+                    )
+                    result.append(
+                        self._candidate(
+                            kind="precondition",
+                            target_id=effect.effect_id,
+                            expression=expression,
+                            proposed_value=None,
+                            rows=action_rows,
+                            features=features,
+                            source="change_boundary",
+                        )
+                    )
         return result
 
     def _features(
@@ -187,14 +218,38 @@ class StructuralHypothesisGenerator:
             for row in rows
         ]
         stability = 1.0 / (1.0 + statistics.pstdev(errors)) if len(errors) > 1 else 1.0
+        invariant_safety = self._invariant_safety(candidate, rows)
         return {
             "empirical_gain": round(train_gain, 9),
             "holdout_support": round(holdout_gain, 9),
             "coverage": round(min(1.0, len(rows) / 32.0), 9),
             "simplicity": round(1.0 / complexity, 9),
             "stability": round(stability, 9),
-            "invariant_safety": 1.0,
+            "invariant_safety": round(invariant_safety, 9),
         }
+
+    @staticmethod
+    def _invariant_safety(
+        spec: TransitionSpec, rows: Sequence[TransitionEvidence]
+    ) -> float:
+        bounded = {
+            item.variable for item in spec.invariants if item.operator == "bounds"
+        }
+        if not bounded or not rows:
+            return 1.0
+        compiler = TransitionCompiler(spec)
+        violations = 0.0
+        for row in rows:
+            predicted = compiler.execute(
+                row.state,
+                action=row.action,
+                external_input=row.external_input,
+            )
+            for variable in bounded:
+                value = float(predicted[variable])
+                violations += min(1.0, max(0.0, -value, value - 1.0))
+        risk = violations / (len(rows) * len(bounded))
+        return max(0.0, 1.0 - risk)
 
     @staticmethod
     def _mae(
@@ -226,6 +281,7 @@ class StructuralHypothesisGenerator:
         proposed_value: float | None,
         rows: Sequence[TransitionEvidence],
         features: Mapping[str, float],
+        source: str = "parameter_grid",
     ) -> StructuralCandidate:
         evidence_refs = tuple(sorted(row.evidence_id for row in rows))
         payload = {
@@ -242,6 +298,7 @@ class StructuralHypothesisGenerator:
             proposed_value=proposed_value,
             evidence_refs=evidence_refs,
             features=features,
+            source=source,
         )
 
     @staticmethod

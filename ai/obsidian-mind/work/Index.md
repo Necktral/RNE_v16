@@ -33,7 +33,7 @@ Incident docs live in `work/incidents/`. See `Incidents.base` for overview.
 ## Completed
 
 ### Current Quarter
--
+- [[N4 Línea 1 — fronteras y pipeline de datos]]
 
 ### Previous Quarters
 -

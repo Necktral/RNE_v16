@@ -7,7 +7,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 
 FEATURE_NAMES = (
@@ -20,6 +20,22 @@ FEATURE_NAMES = (
 )
 
 
+def score_n4_validity(
+    features: Sequence[float], artifact: dict[str, Any]
+) -> float:
+    """Puntuación pura usada para comprobar paridad de exportación/runtime."""
+    if len(features) != len(FEATURE_NAMES):
+        raise ValueError("n4_training_feature_shape_invalid")
+    weights = tuple(float(item) for item in artifact["ranking_weights"])
+    if len(weights) != len(FEATURE_NAMES):
+        raise ValueError("n4_ranking_weight_shape_invalid")
+    logit = float(artifact.get("bias", 0.0)) + sum(
+        weight * float(value) for weight, value in zip(weights, features)
+    )
+    temperature = max(float(artifact.get("temperature", 1.0)), 1e-6)
+    return 1.0 / (1.0 + math.exp(-logit / temperature))
+
+
 @dataclass(frozen=True)
 class N4TrainingSample:
     features: tuple[float, ...]
@@ -29,6 +45,7 @@ class N4TrainingSample:
     scenario: str
     seed: int
     logical_time: int
+    split: str | None = None
 
     def __post_init__(self) -> None:
         if len(self.features) != len(FEATURE_NAMES):
@@ -45,6 +62,7 @@ def train_n4_ranking(
     seed: int = 42,
     epochs: int = 300,
     patience: int = 30,
+    training_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Entrena heads multitarea; particiona por escenario/seed/tiempo."""
     if len(samples) < 30:
@@ -122,8 +140,9 @@ def train_n4_ranking(
             "seed": seed,
             "optimizer": "AdamW",
             "epochs_completed": epochs - max(0, patience - stale),
-            "split": "grouped_scenario_seed_temporal_60_20_20",
+            "split": "grouped_scenario_seed_60_20_20",
             "sample_count": len(ordered),
+            **dict(training_metadata or {}),
         },
         "validation": validation_metrics,
         "holdout": holdout_metrics,
@@ -150,14 +169,45 @@ def _grouped_split(samples):
     groups: dict[tuple[str, int], list[Any]] = {}
     for sample in samples:
         groups.setdefault((sample.scenario, sample.seed), []).append(sample)
-    train, validation, holdout = [], [], []
-    for key in sorted(groups):
-        rows = groups[key]
-        first = max(1, int(len(rows) * 0.60))
-        second = max(first + 1, int(len(rows) * 0.80))
-        train.extend(rows[:first])
-        validation.extend(rows[first:second])
-        holdout.extend(rows[second:])
+    keys = sorted(groups)
+    explicit = {item.split for item in samples}
+    if explicit != {None}:
+        if None in explicit or not explicit <= {"train", "validation", "holdout"}:
+            raise ValueError("n4_training_split_labels_invalid")
+        assignment: dict[tuple[str, int], str] = {}
+        for key, rows in groups.items():
+            labels = {item.split for item in rows}
+            if len(labels) != 1:
+                raise ValueError("n4_training_seed_group_crosses_splits")
+            assignment[key] = str(next(iter(labels)))
+        train = [
+            row for key in keys if assignment[key] == "train" for row in groups[key]
+        ]
+        validation = [
+            row
+            for key in keys
+            if assignment[key] == "validation"
+            for row in groups[key]
+        ]
+        holdout = [
+            row for key in keys if assignment[key] == "holdout" for row in groups[key]
+        ]
+        if not train or not validation or not holdout:
+            raise ValueError("n4_training_split_requires_nonempty_groups")
+        return train, validation, holdout
+    if len(keys) < 3:
+        raise ValueError("n4_training_split_requires_at_least_three_seed_groups")
+    first = max(1, int(len(keys) * 0.60))
+    second = max(first + 1, int(len(keys) * 0.80))
+    second = min(second, len(keys) - 1)
+    train_keys = set(keys[:first])
+    validation_keys = set(keys[first:second])
+    holdout_keys = set(keys[second:])
+    train = [row for key in keys if key in train_keys for row in groups[key]]
+    validation = [
+        row for key in keys if key in validation_keys for row in groups[key]
+    ]
+    holdout = [row for key in keys if key in holdout_keys for row in groups[key]]
     if not validation or not holdout:
         raise ValueError("n4_training_split_requires_multiple_temporal_samples")
     return train, validation, holdout

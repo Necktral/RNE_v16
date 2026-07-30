@@ -6,7 +6,7 @@ import math
 import statistics
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from runtime.symbolic.schemas import _freeze, sealed_sha256
 
@@ -65,6 +65,20 @@ class CausalLearningEngine:
         self._queued_neural_evaluations: list[NeuralHypothesisEvaluation] = []
         self._last_neural_evaluations: tuple[NeuralHypothesisEvaluation, ...] = ()
         self.hypothesis_ledger = HypothesisLedger()
+        self._evidence_observers: list[Callable[[TransitionEvidence], None]] = []
+
+    def add_evidence_observer(
+        self, observer: Callable[[TransitionEvidence], None]
+    ) -> None:
+        """Registra un observador append-only sin exponer el buffer mutable."""
+        if observer not in self._evidence_observers:
+            self._evidence_observers.append(observer)
+
+    def remove_evidence_observer(
+        self, observer: Callable[[TransitionEvidence], None]
+    ) -> None:
+        if observer in self._evidence_observers:
+            self._evidence_observers.remove(observer)
 
     def segment_regime(self, *, logical_time: int) -> None:
         if self._buffer:
@@ -175,6 +189,8 @@ class CausalLearningEngine:
         evaluations = list(self._queued_neural_evaluations)
         self._queued_neural_evaluations.clear()
         self._buffer.append(evidence)
+        for observer in tuple(self._evidence_observers):
+            observer(evidence)
         if self.active_overlay is not None:
             parent = self._overlays.get(self.active_overlay.parent_overlay_id or "")
             parent_updates = dict(parent.parameter_updates) if parent is not None else {}

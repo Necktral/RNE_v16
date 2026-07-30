@@ -15,7 +15,11 @@ from runtime.neural.calibration import N4ProviderCalibration
 from runtime.neural.hypothesis_generator import StructuralHypothesisGenerator
 from runtime.neural.integration import MCIToN4GraphBuilder
 from runtime.neural.organs import N4CausalRankingBackend
-from runtime.neural.training import N4TrainingSample, train_n4_ranking
+from runtime.neural.training import (
+    N4TrainingSample,
+    score_n4_validity,
+    train_n4_ranking,
+)
 from runtime.symbolic.mci.causal_learning import TransitionEvidence
 from runtime.symbolic.mci.compiler import TransitionCompiler
 from runtime.symbolic.mci.contracts import NeuralHypothesisEvaluation
@@ -93,6 +97,45 @@ def test_graph_and_candidate_generation_are_deterministic():
     )
     with pytest.raises(ValueError, match="future_evidence"):
         builder.build(**{**kwargs, "logical_time": rows[-1].logical_time})
+
+
+def test_hybrid_generator_marks_change_boundary_source():
+    spec, _ = _evidence()
+    actual = with_overlay(
+        spec, {}, {"thermal_battery/cooling": "battery_level > 0.3"}
+    )
+    rows = []
+    for index, battery in enumerate(
+        (0.28, 0.32, 0.29, 0.31, 0.295, 0.305, 0.299, 0.301)
+    ):
+        state = {
+            "temperature": 0.9,
+            "battery_level": battery,
+            "cooling_active": False,
+            "alarm": True,
+        }
+        rows.append(
+            TransitionEvidence(
+                state=state,
+                action="activate_cooling",
+                external_input=0.0,
+                predicted=TransitionCompiler(spec).execute(
+                    state, action="activate_cooling", external_input=0.0
+                ),
+                observed=TransitionCompiler(actual).execute(
+                    state, action="activate_cooling", external_input=0.0
+                ),
+                logical_time=index + 1,
+            )
+        )
+    candidates = StructuralHypothesisGenerator(beam_width=64).generate(
+        spec=spec, evidence=rows
+    )
+    assert any(
+        item.expression == "battery_level > 0.3"
+        and item.source == "change_boundary"
+        for item in candidates
+    )
 
 
 def test_runtime_is_fail_open_and_resource_guarded():
@@ -207,6 +250,26 @@ def test_offline_training_exports_deterministic_runtime_artifact(tmp_path: Path)
     assert artifact["schema"] == "n4-ranking-artifact.v1"
     assert len(artifact["ranking_weights"]) == 6
     assert (tmp_path / "n4.json").read_bytes().endswith(b"\n")
+    features = samples[0].features
+    expected = score_n4_validity(features, artifact)
+    backend = N4CausalRankingBackend(artifact)
+    output = backend.infer(
+        NeuralInferenceRequest(
+            inference_id="parity",
+            run_id="parity",
+            logical_time=1,
+            payload={
+                "candidates": [
+                    {
+                        "hypothesis_id": "candidate",
+                        **dict(zip(artifact["feature_names"], features)),
+                    }
+                ]
+            },
+        )
+    )
+    observed = output.candidate_output["rankings"][0]["probability_valid"]
+    assert abs(expected - observed) < 1e-8
 
 
 def test_hypothesis_ledger_is_idempotent_and_rejects_collision():

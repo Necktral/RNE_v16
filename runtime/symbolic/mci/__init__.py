@@ -1,5 +1,6 @@
 """Módulo de Cognición Integrada."""
 
+from .boundary_detector import BoundaryCandidate, detect_transition_boundaries
 from .compiler import TransitionCompiler
 from .causal_learning import CausalLearningEngine, TransitionEvidence
 from .contracts import (
@@ -40,6 +41,7 @@ from .specs import (
 )
 
 __all__ = [
+    "BoundaryCandidate",
     "BeliefNode",
     "CausalOverlay",
     "CausalLearningEngine",
@@ -54,6 +56,7 @@ __all__ = [
     "ExternalHypothesis",
     "HypothesisMappingRegistry",
     "default_edge_mappings",
+    "detect_transition_boundaries",
     "HypothesisProvider",
     "RegimeChangeDetected",
     "RegimeDetector",
