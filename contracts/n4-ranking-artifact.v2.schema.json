@@ -15,7 +15,6 @@
     "dataset_lineage",
     "training_provenance",
     "validation_metrics",
-    "holdout_metrics",
     "gates"
   ],
   "properties": {
@@ -79,7 +78,6 @@
     "dataset_lineage": {"type": "object"},
     "training_provenance": {"type": "object"},
     "validation_metrics": {"type": "object"},
-    "holdout_metrics": {"type": "object"},
     "gates": {
       "type": "object",
       "required": [

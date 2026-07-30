@@ -41,6 +41,8 @@ class N4CandidateRecord:
     safety_contract_version: str | None = None
     rollout_horizon: int | None = None
     risk_components: Mapping[str, float] | None = None
+    risk_event_families: tuple[str, ...] = ()
+    risk_hazard_first_step: int | None = None
 
     def __post_init__(self) -> None:
         if not self.hypothesis_id:
@@ -131,6 +133,8 @@ class CandidateSetSample:
                     "risk_report_sha256": item.risk_report_sha256,
                     "safety_contract_version": item.safety_contract_version,
                     "rollout_horizon": item.rollout_horizon,
+                    "risk_event_families": list(item.risk_event_families),
+                    "risk_hazard_first_step": item.risk_hazard_first_step,
                 }
                 for item in self.candidates
             ],
@@ -196,6 +200,11 @@ def load_candidate_sets(
                     risk_report_sha256
                 ):
                     raise ValueError("risk_report_hash_mismatch")
+            risk_events = (
+                tuple((risk_report or {}).get("oracle_events", ()))
+                if risk_available
+                else ()
+            )
             record = N4CandidateRecord(
                 hypothesis_id=str(row["hypothesis_id"]),
                 candidate_source=str(row["source"]),
@@ -213,6 +222,19 @@ def load_candidate_sets(
                 safety_contract_version=row.get("safety_contract_version"),
                 rollout_horizon=row.get("rollout_horizon"),
                 risk_components=row.get("risk_components"),
+                risk_event_families=tuple(
+                    sorted(
+                        {
+                            str(event["predicate_id"]).split(":", 1)[0]
+                            for event in risk_events
+                        }
+                    )
+                ),
+                risk_hazard_first_step=(
+                    min(int(event["step"]) for event in risk_events)
+                    if risk_events
+                    else None
+                ),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError("n4_candidate_row_invalid") from exc
@@ -425,14 +447,22 @@ def train_n4_ranking_v2(
     seed: int = 42,
     epochs: int = 300,
     patience: int = 30,
+    loss_weights: Mapping[str, float] = V2_LOSS_WEIGHTS,
+    sampling_policy: str = "natural",
+    epoch_history_path: Path | None = None,
     training_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Entrena por conjunto y exporta un artefacto multihead reproducible."""
+    """Entrenamiento de desarrollo: train+validation, nunca holdout."""
     import torch
 
+    from .n4_campaign import sample_candidate_sets_for_epoch
+
+    effective_weights = _validated_loss_weights(loss_weights)
+    if any(item.split == "holdout" for item in samples):
+        raise ValueError("n4_development_trainer_rejects_holdout")
     split_sets = {
         split: tuple(item for item in samples if item.split == split)
-        for split in ("train", "validation", "holdout")
+        for split in ("train", "validation")
     }
     if any(not rows for rows in split_sets.values()):
         raise ValueError("n4_v2_requires_nonempty_explicit_splits")
@@ -445,20 +475,45 @@ def train_n4_ranking_v2(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = create_n4_ranker_v2(torch).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-3, weight_decay=1e-4)
-    train_batch = collate_candidate_sets(split_sets["train"], device=device)
     validation_batch = collate_candidate_sets(
         split_sets["validation"], device=device
     )
+    risk_values = _supervised_risk_values(split_sets["train"])
+    supervised_sets = [
+        item
+        for item in split_sets["train"]
+        if item.candidates[0].risk_label_available
+    ]
+    risk_target_informative = _risk_target_is_informative(supervised_sets)
+    history_path = epoch_history_path or artifact_path.with_suffix(
+        ".history.jsonl"
+    )
+    if history_path.exists():
+        raise FileExistsError("n4_epoch_history_must_be_new")
+    history_path.parent.mkdir(parents=True, exist_ok=True)
     best_state = None
     best_key = None
+    best_epoch = None
     stale = 0
     epochs_completed = 0
+    history_records = []
     for epoch in range(epochs):
         epochs_completed = epoch + 1
+        epoch_samples, sampling_report = sample_candidate_sets_for_epoch(
+            split_sets["train"],
+            policy=sampling_policy,
+            model_seed=seed,
+            epoch=epoch + 1,
+        )
+        train_batch = collate_candidate_sets(epoch_samples, device=device)
         model.train()
         output = model(train_batch.features)
-        loss, _ = n4_multitask_loss(
-            torch, output, train_batch, split_sets["train"]
+        loss, components = n4_multitask_loss(
+            torch,
+            output,
+            train_batch,
+            epoch_samples,
+            loss_weights=effective_weights,
         )
         optimizer.zero_grad()
         loss.backward()
@@ -473,8 +528,47 @@ def train_n4_ranking_v2(
         feasible = (
             validation_metrics["brier"] < 0.10
             and validation_metrics["ece"] < 0.05
-            and validation_metrics["risk_mae"] <= 0.10
+            and risk_target_informative
+            and all(
+                math.isfinite(float(value))
+                for value in validation_metrics.values()
+                if isinstance(value, (int, float))
+            )
         )
+        history_record = {
+            "epoch": epoch + 1,
+            "train_total_loss": float(loss.detach().cpu()),
+            "train_pair_loss": float(components["rank"].detach().cpu()),
+            "train_validity_loss": float(
+                components["valid"].detach().cpu()
+            ),
+            "train_gain_loss": float(components["gain"].detach().cpu()),
+            "train_risk_loss": float(components["risk"].detach().cpu()),
+            "validation_recall_at_1": validation_metrics["recall_at_1"],
+            "validation_recall_at_2": validation_metrics["recall_at_2"],
+            "validation_mrr": validation_metrics["mrr"],
+            "validation_ndcg_at_2": validation_metrics["ndcg_at_2"],
+            "validation_brier": validation_metrics["brier"],
+            "validation_ece": validation_metrics["ece"],
+            "validation_risk_at_2": validation_metrics["top2_risk"],
+            "validation_risk_mae": validation_metrics["risk_mae"],
+            "validation_false_safe_rate": validation_metrics[
+                "false_safe_rate"
+            ],
+            "checkpoint_feasible": feasible,
+            "sampling": sampling_report,
+        }
+        history_records.append(history_record)
+        with history_path.open("ab") as handle:
+            handle.write(
+                json.dumps(
+                    history_record,
+                    allow_nan=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+                + b"\n"
+            )
         key = (
             int(feasible),
             validation_metrics["recall_at_2"],
@@ -489,6 +583,7 @@ def train_n4_ranking_v2(
                 name: value.detach().cpu().clone()
                 for name, value in model.state_dict().items()
             }
+            best_epoch = epoch + 1
             stale = 0
         else:
             stale += 1
@@ -497,6 +592,13 @@ def train_n4_ranking_v2(
     if best_state is None:
         raise RuntimeError("n4_v2_training_failed_to_select_model")
     model.load_state_dict(best_state)
+    before_calibration = _candidate_set_metrics_v2(
+        torch,
+        model,
+        validation_batch,
+        split_sets["validation"],
+        calibration=(1.0, 0.0),
+    )
     calibration = _calibrate_platt_v2(
         torch, model, validation_batch, device
     )
@@ -505,16 +607,6 @@ def train_n4_ranking_v2(
         model,
         validation_batch,
         split_sets["validation"],
-        calibration=calibration,
-    )
-    holdout_batch = collate_candidate_sets(
-        split_sets["holdout"], device=device
-    )
-    holdout_metrics = _candidate_set_metrics_v2(
-        torch,
-        model,
-        holdout_batch,
-        split_sets["holdout"],
         calibration=calibration,
     )
     state = model.state_dict()
@@ -526,27 +618,7 @@ def train_n4_ranking_v2(
         validation_metrics["brier"] < 0.10
         and validation_metrics["ece"] < 0.05
     )
-    risk_values = [
-        float(candidate.invariant_risk_label)
-        for item in samples
-        for candidate in item.candidates
-        if candidate.risk_label_available
-    ]
-    supervised_sets = [
-        item
-        for item in samples
-        if item.candidates[0].risk_label_available
-    ]
-    intra_set_informative = any(
-        max(float(item.invariant_risk_label) for item in sample.candidates)
-        > min(float(item.invariant_risk_label) for item in sample.candidates)
-        for sample in supervised_sets
-    )
-    risk_target_informative = (
-        bool(risk_values)
-        and max(risk_values) > min(risk_values)
-        and intra_set_informative
-    )
+    history_sha256 = hashlib.sha256(history_path.read_bytes()).hexdigest()
     gates = {
         "artifact_quality": artifact_quality,
         "calibration": calibration_gate,
@@ -587,6 +659,17 @@ def train_n4_ranking_v2(
             "a": calibration[0],
             "b": calibration[1],
             "fit_split": "validation",
+            "sample_count": sum(
+                len(item.candidates) for item in split_sets["validation"]
+            ),
+            "metrics_before": {
+                "brier": before_calibration["brier"],
+                "ece": before_calibration["ece"],
+            },
+            "metrics_after": {
+                "brier": validation_metrics["brier"],
+                "ece": validation_metrics["ece"],
+            },
         },
         "dataset_lineage": dict(
             (training_metadata or {}).get("dataset_lineage") or {}
@@ -594,8 +677,12 @@ def train_n4_ranking_v2(
         "training_provenance": {
             "seed": seed,
             "epochs": epochs_completed,
+            "selected_epoch": best_epoch,
             "patience": patience,
-            "loss_weights": dict(V2_LOSS_WEIGHTS),
+            "loss_weights": effective_weights,
+            "sampling_policy": sampling_policy,
+            "epoch_history_sha256": history_sha256,
+            "epoch_history_path": history_path.name,
             **{
                 key: value
                 for key, value in dict(training_metadata or {}).items()
@@ -612,12 +699,11 @@ def train_n4_ranking_v2(
             ),
             "risk_label_coverage": round(
                 len(risk_values)
-                / sum(len(item.candidates) for item in samples),
+                / sum(len(item.candidates) for item in split_sets["train"]),
                 9,
             ),
         },
         "validation_metrics": validation_metrics,
-        "holdout_metrics": holdout_metrics,
         "gates": gates,
     }
     encoded = json.dumps(
@@ -631,6 +717,40 @@ def train_n4_ranking_v2(
     artifact_path.write_bytes(encoded + b"\n")
     artifact["artifact_sha256"] = hashlib.sha256(encoded + b"\n").hexdigest()
     return artifact
+
+
+def _validated_loss_weights(
+    weights: Mapping[str, float],
+) -> dict[str, float]:
+    if set(weights) != {"rank", "valid", "gain", "risk"}:
+        raise ValueError("n4_loss_weights_invalid")
+    result = {name: float(value) for name, value in weights.items()}
+    if any(
+        not math.isfinite(value) or value < 0.0
+        for value in result.values()
+    ):
+        raise ValueError("n4_loss_weights_invalid")
+    if result["rank"] <= 0.0:
+        raise ValueError("n4_rank_loss_weight_must_be_positive")
+    return result
+
+
+def _supervised_risk_values(samples):
+    return [
+        float(candidate.invariant_risk_label)
+        for item in samples
+        for candidate in item.candidates
+        if candidate.risk_label_available
+    ]
+
+
+def _risk_target_is_informative(samples):
+    values = _supervised_risk_values(samples)
+    return bool(values) and max(values) > min(values) and any(
+        max(float(item.invariant_risk_label) for item in sample.candidates)
+        > min(float(item.invariant_risk_label) for item in sample.candidates)
+        for sample in samples
+    )
 
 
 def _tensor_list(tensor):
@@ -709,9 +829,15 @@ def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
                 sample.candidates[position].hypothesis_id,
             ),
         )
+        observed_top2_risks = [
+            float(sample.candidates[position].invariant_risk_label)
+            for position in order[:2]
+            if sample.candidates[position].risk_label_available
+        ]
         top2_risks.append(
-            sum(float(predicted_risk[index, position]) for position in order[:2])
-            / min(2, len(order))
+            sum(observed_top2_risks) / len(observed_top2_risks)
+            if observed_top2_risks
+            else 0.0
         )
         if not safe_valid:
             continue
@@ -729,6 +855,8 @@ def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
         ideal = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_count + 1))
         ndcg.append(dcg / ideal)
     risk_mask = mask & batch.risk_label_mask
+    risk_predictions = predicted_risk[risk_mask].cpu().tolist()
+    risk_targets = batch.risk_labels[risk_mask].cpu().tolist()
     risk_mae = (
         torch.abs(
             predicted_risk[risk_mask] - batch.risk_labels[risk_mask]
@@ -736,6 +864,50 @@ def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
         if bool(risk_mask.any())
         else predicted_risk.sum() * 0.0
     )
+    absolute_errors = sorted(
+        abs(prediction - target)
+        for prediction, target in zip(risk_predictions, risk_targets)
+    )
+    risk_median_error = (
+        absolute_errors[len(absolute_errors) // 2]
+        if absolute_errors
+        else 0.0
+    )
+    constant = (
+        sum(risk_targets) / len(risk_targets) if risk_targets else 0.0
+    )
+    constant_mae = (
+        sum(abs(target - constant) for target in risk_targets)
+        / len(risk_targets)
+        if risk_targets
+        else 0.0
+    )
+    false_safe_denominator = sum(target >= 0.1 for target in risk_targets)
+    false_safe_rate = (
+        sum(
+            target >= 0.1 and prediction < 0.1
+            for prediction, target in zip(risk_predictions, risk_targets)
+        )
+        / false_safe_denominator
+        if false_safe_denominator
+        else 0.0
+    )
+    family_errors: dict[str, list[float]] = {}
+    horizon_errors: dict[int, list[float]] = {}
+    for set_index, sample in enumerate(samples):
+        for candidate_index, candidate in enumerate(sample.candidates):
+            if not candidate.risk_label_available:
+                continue
+            error = abs(
+                float(predicted_risk[set_index, candidate_index])
+                - float(candidate.invariant_risk_label)
+            )
+            for family in candidate.risk_event_families:
+                family_errors.setdefault(family, []).append(error)
+            if candidate.risk_hazard_first_step is not None:
+                horizon_errors.setdefault(
+                    candidate.risk_hazard_first_step, []
+                ).append(error)
     mean = lambda values: sum(values) / len(values) if values else 0.0
     return {
         "brier": round(brier, 9),
@@ -746,9 +918,59 @@ def _candidate_set_metrics_v2(torch, model, batch, samples, calibration):
         "ndcg_at_2": round(mean(ndcg), 9),
         "top2_risk": round(mean(top2_risks), 9),
         "risk_mae": round(float(risk_mae.cpu()), 9),
+        "risk_median_error": round(risk_median_error, 9),
+        "risk_constant_predictor_mae": round(constant_mae, 9),
+        "risk_spearman": round(
+            _spearman(risk_predictions, risk_targets), 9
+        ),
+        "false_safe_rate": round(false_safe_rate, 9),
+        "risk_mae_by_event_family": {
+            name: round(sum(values) / len(values), 9)
+            for name, values in sorted(family_errors.items())
+        },
+        "risk_mae_by_hazard_first_step": {
+            str(step): round(sum(values) / len(values), 9)
+            for step, values in sorted(horizon_errors.items())
+        },
         "candidate_availability_rate": round(available / len(samples), 9),
         "candidate_set_count": len(samples),
     }
+
+
+def _spearman(left, right):
+    if len(left) < 2 or len(set(left)) < 2 or len(set(right)) < 2:
+        return 0.0
+    left_ranks = _average_ranks(left)
+    right_ranks = _average_ranks(right)
+    left_mean = sum(left_ranks) / len(left_ranks)
+    right_mean = sum(right_ranks) / len(right_ranks)
+    numerator = sum(
+        (a - left_mean) * (b - right_mean)
+        for a, b in zip(left_ranks, right_ranks)
+    )
+    denominator = math.sqrt(
+        sum((a - left_mean) ** 2 for a in left_ranks)
+        * sum((b - right_mean) ** 2 for b in right_ranks)
+    )
+    return numerator / denominator if denominator else 0.0
+
+
+def _average_ranks(values):
+    ordered = sorted(range(len(values)), key=lambda index: values[index])
+    result = [0.0] * len(values)
+    start = 0
+    while start < len(ordered):
+        end = start + 1
+        while (
+            end < len(ordered)
+            and values[ordered[end]] == values[ordered[start]]
+        ):
+            end += 1
+        rank = (start + 1 + end) / 2.0
+        for index in ordered[start:end]:
+            result[index] = rank
+        start = end
+    return result
 
 
 def score_n4_validity(

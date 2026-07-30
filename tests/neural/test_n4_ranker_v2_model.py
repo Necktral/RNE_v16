@@ -237,9 +237,31 @@ def test_continuous_risk_uses_sigmoid_huber_not_binary_target():
     assert components["risk"].item() == pytest.approx(expected.item())
 
 
+def test_configurable_risk_weight_changes_total_loss():
+    samples = (_sample("set", [_candidate("a", risk=0.25)]),)
+    batch = collate_candidate_sets(samples)
+    zeros = torch.zeros((1, 1), requires_grad=True)
+    output = N4ModelOutput(zeros, zeros, zeros, zeros)
+    low, _ = n4_multitask_loss(
+        torch,
+        output,
+        batch,
+        samples,
+        loss_weights={"rank": 1.0, "valid": 0.5, "gain": 0.3, "risk": 0.2},
+    )
+    high, _ = n4_multitask_loss(
+        torch,
+        output,
+        batch,
+        samples,
+        loss_weights={"rank": 1.0, "valid": 0.5, "gain": 0.3, "risk": 0.5},
+    )
+    assert high.item() > low.item()
+
+
 def test_v2_training_exports_full_model_and_diagnostic_gates(tmp_path):
     samples = []
-    for split_index, split in enumerate(("train", "validation", "holdout")):
+    for split_index, split in enumerate(("train", "validation")):
         for set_index in range(3):
             samples.append(
                 _sample(
@@ -264,6 +286,12 @@ def test_v2_training_exports_full_model_and_diagnostic_gates(tmp_path):
         artifact_path=path,
         epochs=3,
         patience=2,
+        loss_weights={
+            "rank": 1.0,
+            "valid": 0.5,
+            "gain": 0.3,
+            "risk": 0.5,
+        },
     )
     assert artifact["schema"] == "n4-ranking-artifact.v2"
     assert artifact["model"]["trunk"]["layers"][0]["weights"]
@@ -272,6 +300,8 @@ def test_v2_training_exports_full_model_and_diagnostic_gates(tmp_path):
     assert artifact["calibration"]["target"] == "validity_logit"
     assert artifact["gates"]["risk_target_informative"] is False
     assert artifact["gates"]["promotable"] is False
+    assert "holdout_metrics" not in artifact
+    assert artifact["training_provenance"]["loss_weights"]["risk"] == 0.5
     assert path.read_bytes().endswith(b"\n")
     features = samples[0].candidates[0].features
     offline = score_n4_artifact_v2(features, artifact)
@@ -308,3 +338,54 @@ def test_v2_training_exports_full_model_and_diagnostic_gates(tmp_path):
         "invariant_risk",
     ):
         assert runtime[name] == pytest.approx(offline[name], abs=1e-6)
+
+
+def test_development_trainer_rejects_holdout_and_invalid_weights(tmp_path):
+    train = CandidateSetSample(
+        candidate_set_id="train",
+        scenario_id="scenario",
+        seed=1,
+        split="train",
+        candidates=(
+            _candidate("a", valid=True, risk=0.1),
+            _candidate("b", valid=False, risk=0.4),
+        ),
+    )
+    validation = CandidateSetSample(
+        candidate_set_id="validation",
+        scenario_id="scenario",
+        seed=2,
+        split="validation",
+        candidates=(
+            _candidate("a", valid=True, risk=0.1),
+            _candidate("b", valid=False, risk=0.4),
+        ),
+    )
+    holdout = CandidateSetSample(
+        candidate_set_id="holdout",
+        scenario_id="scenario",
+        seed=3,
+        split="holdout",
+        candidates=(
+            _candidate("a", valid=True, risk=0.1),
+            _candidate("b", valid=False, risk=0.4),
+        ),
+    )
+    with pytest.raises(ValueError, match="rejects_holdout"):
+        train_n4_ranking_v2(
+            (train, validation, holdout),
+            artifact_path=tmp_path / "holdout.json",
+            epochs=1,
+        )
+    with pytest.raises(ValueError, match="loss_weights_invalid"):
+        train_n4_ranking_v2(
+            (train, validation),
+            artifact_path=tmp_path / "bad.json",
+            epochs=1,
+            loss_weights={
+                "rank": 1.0,
+                "valid": 0.5,
+                "gain": 0.3,
+                "risk": -0.1,
+            },
+        )

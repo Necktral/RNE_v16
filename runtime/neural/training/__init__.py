@@ -11,6 +11,12 @@ from .n4_ranking import (
     train_n4_ranking,
     train_n4_ranking_v2,
 )
+from .n4_campaign import (
+    LoadedCompositeDataset,
+    load_composite_manifest,
+    sample_candidate_sets_for_epoch,
+    select_configuration_and_median_run,
+)
 
 __all__ = [
     "CandidateLabel",
@@ -18,8 +24,12 @@ __all__ = [
     "CandidateSetSample",
     "N4CandidateRecord",
     "N4TrainingSample",
+    "LoadedCompositeDataset",
     "label_candidate_counterfactually",
     "load_candidate_sets",
+    "load_composite_manifest",
+    "sample_candidate_sets_for_epoch",
+    "select_configuration_and_median_run",
     "score_n4_validity",
     "train_n4_ranking",
     "train_n4_ranking_v2",

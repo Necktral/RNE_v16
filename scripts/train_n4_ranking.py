@@ -20,6 +20,7 @@ from runtime.neural.training.n4_ranking import (
     train_n4_ranking,
     train_n4_ranking_v2,
 )
+from runtime.neural.training.n4_campaign import load_composite_manifest
 
 
 def load_samples(path: Path) -> tuple[N4TrainingSample, ...]:
@@ -81,7 +82,8 @@ def load_rows(path: Path) -> tuple[dict, ...]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=Path, required=True)
+    parser.add_argument("--dataset", type=Path)
+    parser.add_argument("--composite-manifest", type=Path)
     parser.add_argument("--artifact", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--epochs", type=int, default=300)
@@ -90,6 +92,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--artifact-version", choices=("v1", "v2"), default="v1"
     )
+    parser.add_argument("--lambda-rank", type=float, default=1.0)
+    parser.add_argument("--lambda-valid", type=float, default=0.5)
+    parser.add_argument("--lambda-gain", type=float, default=0.3)
+    parser.add_argument("--lambda-risk", type=float, default=0.2)
+    parser.add_argument(
+        "--sampling-policy",
+        choices=("natural", "stratified_50_50"),
+        default="natural",
+    )
+    parser.add_argument("--epoch-history", type=Path)
     args = parser.parse_args()
     if args.device == "cpu":
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -98,22 +110,51 @@ if __name__ == "__main__":
 
         if not torch.cuda.is_available():
             raise RuntimeError("n4_cuda_requested_but_unavailable")
-    dataset_sha256 = hashlib.sha256(args.dataset.read_bytes()).hexdigest()
-    metadata = {
-        "dataset_sha256": dataset_sha256,
-        "dataset_path": args.dataset.name,
-        "dataset_lineage": {"base_dataset_sha256": dataset_sha256},
-    }
     if args.artifact_version == "v2":
+        if args.composite_manifest is None or args.dataset is not None:
+            raise ValueError("n4_v2_requires_only_composite_manifest")
+        composite = load_composite_manifest(args.composite_manifest)
+        metadata = {
+            "composite_manifest_sha256": composite.manifest_sha256,
+            "validation_dataset_sha256": next(
+                item["dataset_sha256"]
+                for item in composite.component_stats
+                if item["role"] == "validation"
+            ),
+            "campaign_protocol_version": composite.manifest.get(
+                "campaign_protocol_version"
+            ),
+            "code_checkpoint": composite.manifest.get("code_checkpoint"),
+            "dataset_lineage": {
+                item["role"]: item["dataset_sha256"]
+                for item in composite.component_stats
+            },
+        }
         result = train_n4_ranking_v2(
-            load_candidate_sets(load_rows(args.dataset)),
+            composite.train + composite.validation,
             artifact_path=args.artifact,
             seed=args.seed,
             epochs=args.epochs,
             patience=args.patience,
+            loss_weights={
+                "rank": args.lambda_rank,
+                "valid": args.lambda_valid,
+                "gain": args.lambda_gain,
+                "risk": args.lambda_risk,
+            },
+            sampling_policy=args.sampling_policy,
+            epoch_history_path=args.epoch_history,
             training_metadata=metadata,
         )
     else:
+        if args.dataset is None or args.composite_manifest is not None:
+            raise ValueError("n4_v1_requires_only_dataset")
+        dataset_sha256 = hashlib.sha256(args.dataset.read_bytes()).hexdigest()
+        metadata = {
+            "dataset_sha256": dataset_sha256,
+            "dataset_path": args.dataset.name,
+            "dataset_lineage": {"base_dataset_sha256": dataset_sha256},
+        }
         result = train_n4_ranking(
             load_samples(args.dataset),
             artifact_path=args.artifact,
