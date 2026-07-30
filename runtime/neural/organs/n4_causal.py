@@ -115,6 +115,14 @@ class N4CausalRankingBackend:
         ranked.sort(
             key=lambda item: (-item[order_field], item["hypothesis_id"])
         )
+        if self._v2:
+            candidate_set_id = str(
+                request.payload.get("candidate_set_id", request.inference_id)
+            )
+            for position, item in enumerate(ranked, 1):
+                item["candidate_set_id"] = candidate_set_id
+                item["rank_position"] = position
+                item["within_top2_budget"] = position <= 2
         confidence = (
             sum(item["probability_valid"] for item in ranked) / len(ranked)
             if ranked
@@ -163,6 +171,9 @@ class N4CausalRankingBackend:
         uncertainty = min(1.0, max(0.0, 1.0 - abs(probability - 0.5) * 2.0))
         return {
             "hypothesis_id": str(raw["hypothesis_id"]),
+            "candidate_source": str(
+                raw.get("candidate_source", raw.get("source", "unknown"))
+            ),
             "rank_score": round(rank_score, 9),
             "priority": round(rank_score, 9),
             "validity_logit": round(validity_logit, 9),

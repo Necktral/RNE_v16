@@ -86,6 +86,10 @@ def test_v2_exposes_trace_and_separately_calibrated_outputs():
     item = result["rankings"][0]
     assert result["artifact_schema"] == "n4-ranking-artifact.v2"
     assert result["artifact_sha256"] == "a" * 64
+    assert item["candidate_set_id"] == "test"
+    assert item["candidate_source"] == "unknown"
+    assert item["rank_position"] == 1
+    assert item["within_top2_budget"] is True
     assert item["validity_logit"] == pytest.approx(1.0)
     assert item["validity_probability"] == pytest.approx(0.731058579)
     assert item["expected_mae_gain"] == pytest.approx(0.462117157)
