@@ -21,7 +21,12 @@ from .contracts import (
 )
 from .registry import LazyBackendRegistry
 from .resources import select_device, should_unload
-from .observability import BufferedTraceEvent, TraceHealthSnapshot, TracePersistenceMonitor
+from .observability import (
+    BufferedTraceEvent,
+    TraceHealthSnapshot,
+    TracePersistenceMonitor,
+    observed_span,
+)
 
 
 AdmissionGate = Callable[[Any, NeuralInferenceRequest], AdmissionDecision]
@@ -43,6 +48,7 @@ class NeuralRuntime:
             max_buffered_events=config.trace_buffer_size,
         )
 
+    @observed_span("neural_candidate_inference")
     def infer(
         self,
         *,
@@ -274,6 +280,7 @@ class NeuralRuntime:
             )
         return result
 
+    @observed_span("neural_candidate_inference")
     def infer_reference(
         self,
         *,
@@ -664,6 +671,7 @@ class NeuralRuntime:
             run_id=request.run_id,
         )
 
+    @observed_span("postgres_event_persistence")
     def _persist_event(
         self,
         event_type: str,
