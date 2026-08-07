@@ -32,6 +32,14 @@ from runtime.life import LifeKernel, LifeKernelConfig
 from runtime.control.msrc.host_sampler import HostResourceSampler, build_resource_snapshot
 from runtime.control.msrc.vram_sampler import NvidiaVRAMSampler
 from runtime.neural import ImpactObservation, OrganismImpactVector, build_impact_report
+from runtime.neural.observability import (
+    ShadowSpanCollector,
+    build_shadow_observation,
+    latency_attribution,
+    shadow_observability_enabled,
+    shadow_observation_scope,
+    validate_shadow_observation,
+)
 from runtime.neural.p1_metrics import (
     P1_REPORT_SCHEMA_VERSION,
     bootstrap_mean_ci95,
@@ -1581,7 +1589,38 @@ def _run_life_lane(
             else 0.04 + ((seed + index * 7) % 11) / 100.0
             for index in range(steps)
         ]
-        rows = [kernel.step(external_input=value).to_dict() for value in external_inputs]
+        rows = []
+        shadow_observations: list[dict[str, Any]] = []
+        shadow_latency_spans: list[dict[str, Any]] = []
+        for value in external_inputs:
+            expected_step = len(rows) + 1
+            collector = ShadowSpanCollector(
+                trace_parent=f"{run_id}:step:{expected_step}"
+            )
+            with shadow_observation_scope(collector):
+                row = kernel.step(external_input=value).to_dict()
+            rows.append(row)
+            if shadow_observability_enabled():
+                spans = collector.spans()
+                observation = build_shadow_observation(
+                    run_id=run_id,
+                    lane=lane,
+                    seed=seed,
+                    row=row,
+                    spans=spans,
+                )
+                shadow_observations.append(observation)
+                for span in spans:
+                    span.update(
+                        {
+                            "run_id": run_id,
+                            "lane": lane,
+                            "seed": seed,
+                            "step_index": observation["step_index"],
+                            "pair_id": observation["pair_id"],
+                        }
+                    )
+                    shadow_latency_spans.append(span)
     elapsed = time.monotonic() - started
     closure_evidence = _collect_episode_closure_evidence(
         storage,
@@ -1650,6 +1689,8 @@ def _run_life_lane(
         "primary": primary,
         "vector": vector,
         "rows": rows,
+        "shadow_observations": shadow_observations,
+        "shadow_latency_spans": shadow_latency_spans,
     }
 
 
@@ -2459,15 +2500,131 @@ def _agent_runtime_report(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _atomic_write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = "".join(
+        json.dumps(dict(row), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        + "\n"
+        for row in rows
+    )
+    lowered = payload.lower()
+    forbidden = ("postgresql://", "authorization:", "api_key", "password=")
+    if any(token in lowered for token in forbidden):
+        raise CampaignError("shadow_observability_secret_detected")
+    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    temporary.write_text(payload, encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def _write_shadow_observability(
+    ctx: RuntimeContext,
+    *,
+    phase: str,
+    observations: Sequence[Mapping[str, Any]],
+    spans: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    root = ctx.state.root / "shadow_observability" / phase
+    for observation in observations:
+        validate_shadow_observation(observation)
+    by_pair: dict[str, dict[str, Mapping[str, Any]]] = {}
+    for observation in observations:
+        by_pair.setdefault(str(observation["pair_id"]), {})[
+            str(observation["lane"])
+        ] = observation
+    pairs = []
+    for pair_id, lanes in sorted(by_pair.items()):
+        off = lanes.get("off")
+        shadow = lanes.get("shadow")
+        pairs.append(
+            {
+                "pair_id": pair_id,
+                "pair_complete": off is not None and shadow is not None,
+                "external_input_match": bool(
+                    off and shadow and off["external_input_hash"] == shadow["external_input_hash"]
+                ),
+                "behavior_match": bool(
+                    off and shadow and off["behavior_hash"] == shadow["behavior_hash"]
+                ),
+                "effective_output_match": bool(
+                    off and shadow and off["effective_output_hash"] == shadow["effective_output_hash"]
+                ),
+                "candidate_output_differs": bool(
+                    off and shadow and off["candidate_output_hash"] != shadow["candidate_output_hash"]
+                ),
+                "action_match": bool(off and shadow and off["action_hash"] == shadow["action_hash"]),
+                "outcome_match": bool(off and shadow and off["outcome_hash"] == shadow["outcome_hash"]),
+                "resource_cost_differs": bool(
+                    off and shadow and off["resource_cost_hash"] != shadow["resource_cost_hash"]
+                ),
+                "candidate_applied_count": int(
+                    (off or {}).get("candidate_applied_count", 0)
+                )
+                + int((shadow or {}).get("candidate_applied_count", 0)),
+            }
+        )
+    attribution = latency_attribution(list(spans))
+    summary = {
+        "schema_version": "neural.shadow_pair_summary.v1",
+        "phase": phase,
+        "pair_count": len(pairs),
+        "complete_pairs": sum(bool(row["pair_complete"]) for row in pairs),
+        "all_external_inputs_match": all(bool(row["external_input_match"]) for row in pairs),
+        "all_behaviors_match": all(bool(row["behavior_match"]) for row in pairs),
+        "all_actions_match": all(bool(row["action_match"]) for row in pairs),
+        "all_outcomes_match": all(bool(row["outcome_match"]) for row in pairs),
+        "candidate_difference_pairs": sum(bool(row["candidate_output_differs"]) for row in pairs),
+        "resource_cost_difference_pairs": sum(bool(row["resource_cost_differs"]) for row in pairs),
+        "candidate_applied_count": sum(int(row["candidate_applied_count"]) for row in pairs),
+        "pairs": pairs,
+    }
+    integrity = {
+        "schema_version": "neural.shadow_integrity_report.v1",
+        "phase": phase,
+        "passed": bool(
+            pairs
+            and summary["complete_pairs"] == summary["pair_count"]
+            and summary["all_external_inputs_match"]
+            and summary["all_behaviors_match"]
+            and summary["all_actions_match"]
+            and summary["all_outcomes_match"]
+            and summary["candidate_applied_count"] == 0
+            and attribution["reconciled"]
+        ),
+        "authority_effect": "none",
+        "decision_influence": "none",
+        "admission_not_evaluated_due_to_shadow": all(
+            observation["admission_status"] == "not_evaluated"
+            and observation["admission_reason"] == "shadow_authority_mode"
+            for observation in observations
+            if observation["lane"] == "shadow"
+        ),
+        "latency_coverage": attribution["coverage"],
+        "uninstrumented_remainder_ns": attribution["uninstrumented_remainder_ns"],
+        "secret_scan_passed": True,
+    }
+    _atomic_write_jsonl(root / "shadow_observations.jsonl", observations)
+    _atomic_write_jsonl(root / "shadow_latency_spans.jsonl", spans)
+    atomic_write_json(root / "shadow_pair_summary.json", summary)
+    atomic_write_json(root / "shadow_latency_attribution.json", attribution)
+    atomic_write_json(root / "shadow_integrity_report.json", integrity)
+    return {"root": str(root), "summary": summary, "attribution": attribution, "integrity": integrity}
+
+
 def _paired_life(ctx: RuntimeContext, *, phase: str, steps: int) -> dict[str, Any]:
     observations = []
     lanes = []
     shadow_rows: list[Mapping[str, Any]] = []
+    causal_observations: list[Mapping[str, Any]] = []
+    latency_spans: list[Mapping[str, Any]] = []
     for seed in (811001, 811101, 811201):
         baseline = _run_life_lane(ctx, phase=phase, lane="off", seed=seed, steps=steps)
         candidate = _run_life_lane(ctx, phase=phase, lane="shadow", seed=seed, steps=steps)
         lanes.extend((baseline, candidate))
         shadow_rows.extend(candidate["rows"])
+        causal_observations.extend(baseline.get("shadow_observations") or ())
+        causal_observations.extend(candidate.get("shadow_observations") or ())
+        latency_spans.extend(baseline.get("shadow_latency_spans") or ())
+        latency_spans.extend(candidate.get("shadow_latency_spans") or ())
         observations.append(
             ImpactObservation(
                 seed=seed,
@@ -2504,6 +2661,16 @@ def _paired_life(ctx: RuntimeContext, *, phase: str, steps: int) -> dict[str, An
     agent_path = ctx.state.root / "agents" / f"{phase}.json"
     atomic_write_json(agent_path, agent_report)
     _register_report(ctx, agent_path, kind="neural_agent_qualification", run_id=ctx.state.campaign_id)
+    shadow_observability = (
+        _write_shadow_observability(
+            ctx,
+            phase=phase,
+            observations=causal_observations,
+            spans=latency_spans,
+        )
+        if shadow_observability_enabled()
+        else None
+    )
     return {
         "passed": agent_report["passed"]
         and all(summary["safety_violations"] == 0 for summary in runtime_organs.values()),
@@ -2511,12 +2678,23 @@ def _paired_life(ctx: RuntimeContext, *, phase: str, steps: int) -> dict[str, An
         "steps_per_lane": steps,
         "pairs": len(observations),
         "lane_reports": [
-            {key: value for key, value in lane.items() if key not in {"rows", "vector"}}
+            {
+                key: value
+                for key, value in lane.items()
+                if key
+                not in {
+                    "rows",
+                    "vector",
+                    "shadow_observations",
+                    "shadow_latency_spans",
+                }
+            }
             for lane in lanes
         ],
         "impact_report": impact.to_dict(),
         "runtime_organs": runtime_organs,
         "agents": agent_report,
+        "shadow_observability": shadow_observability,
     }
 
 

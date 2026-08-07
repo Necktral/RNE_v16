@@ -40,6 +40,11 @@ from .persistence import OrganismPersistence
 from .serialization import lineage_from_payload, organism_from_payload
 from .supervisor import AutonomySupervisor, AutonomySupervisorConfig
 from .vitals import VitalSignsService
+from runtime.neural.observability import (
+    finish_shadow_span,
+    observed_span,
+    start_shadow_span,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -173,10 +178,12 @@ class LifeKernel:
                 time.sleep(self.config.interval_s)
         return results
 
+    @observed_span("life_step_total")
     def step(self, external_input: float | None = None) -> LifeStepResult:
         assert self.organism_state is not None
         assert self.lineage is not None
 
+        pre_neural_span = start_shadow_span("pre_neural_decision")
         scenario = self._current_scenario()
         input_value = (
             float(external_input)
@@ -228,6 +235,7 @@ class LifeKernel:
         # decision_id que originó el episodio. Aditivo y GATED (RNFE_CAUSAL_CONTEXT):
         # None ⇒ nada se inyecta ⇒ byte-idéntico con la feature ausente.
         causal = self._mint_causal_context(decision)
+        finish_shadow_span(pre_neural_span)
 
         if decision.action in NON_EPISODE_ACTIONS:
             return self._handle_non_acting_decision(
@@ -296,7 +304,9 @@ class LifeKernel:
         # B41: el sobre de correlación viaja al runner (episodio/trazas). None ⇒ no-op.
         runner.set_causal_context(causal.to_dict() if causal is not None else None)
         runner.set_experience_lessons(self._experience_lessons)
+        neural_coordination_span = start_shadow_span("neural_coordination")
         episode_result = runner.run_episode(external_input=input_value)
+        finish_shadow_span(neural_coordination_span)
         self._neural_state = runner.export_neural_state()
         self._consecutive_quarantine = 0  # actuó sano ⇒ ya no está atascado
         # Reflexión continua (E2): el maestro reflexiona si el episodio hirió, o cada
@@ -319,6 +329,7 @@ class LifeKernel:
         self.organism_state = runner.organism_state
         self.lineage = runner.lineage
 
+        post_neural_span = start_shadow_span("post_neural_vital_signs")
         vitals = self.vitals_service.from_state(
             run_id=self.run_id,
             organism_state=self.organism_state,
@@ -332,6 +343,7 @@ class LifeKernel:
             episode_result=episode_result,
             vitals=vitals,
         )
+        finish_shadow_span(post_neural_span)
 
         self.total_steps += 1
         self.scenario_episode_index += 1
@@ -342,11 +354,13 @@ class LifeKernel:
             self._runner_key = None
 
         self.last_vitals = vitals
+        checkpoint_span = start_shadow_span("checkpoint_or_state_persistence")
         checkpoint = self._checkpoint_if_due(
             vitals=vitals,
             decision=decision,
             reason="step_completed",
         )
+        finish_shadow_span(checkpoint_span)
         step_payload: Dict[str, Any] = {
             "step_index": self.total_steps,
             "scenario": scenario,
@@ -360,12 +374,14 @@ class LifeKernel:
         }
         if causal is not None:
             step_payload["causal_context"] = causal.to_dict()
+        persistence_span = start_shadow_span("postgres_event_persistence")
         self.storage.append_event(
             event_type="life.step.completed",
             run_id=self.run_id,
             source="life_kernel",
             payload=step_payload,
         )
+        finish_shadow_span(persistence_span)
         return LifeStepResult(
             run_id=self.run_id,
             step_index=self.total_steps,

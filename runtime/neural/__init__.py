@@ -22,7 +22,17 @@ from .contracts import (
 )
 from .registry import BackendRegistryError, LazyBackendRegistry
 from .runtime import NeuralRuntime
-from .observability import TraceHealthSnapshot, TracePersistenceMonitor
+from .observability import (
+    SHADOW_OBSERVATION_SCHEMA_VERSION,
+    ShadowSpanCollector,
+    TraceHealthSnapshot,
+    TracePersistenceMonitor,
+    build_shadow_observation,
+    latency_attribution,
+    shadow_observation_scope,
+    shadow_pair_id,
+    validate_shadow_observation,
+)
 
 __all__ = [
     "AdmissionDecision",
@@ -46,8 +56,15 @@ __all__ = [
     "OrganismImpactReport",
     "OrganismImpactVector",
     "ResourceSnapshot",
+    "SHADOW_OBSERVATION_SCHEMA_VERSION",
+    "ShadowSpanCollector",
     "TraceHealthSnapshot",
     "TracePersistenceMonitor",
     "build_impact_report",
+    "build_shadow_observation",
     "expected_calibration_error",
+    "latency_attribution",
+    "shadow_observation_scope",
+    "shadow_pair_id",
+    "validate_shadow_observation",
 ]

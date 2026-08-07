@@ -43,6 +43,7 @@ from runtime.neural.contracts import (
 )
 from runtime.neural.registry import LazyBackendRegistry
 from runtime.neural.runtime import NeuralRuntime
+from runtime.neural.observability import observed_span
 
 from .adapters import N3Adapter, N4Adapter, canonical_adapter_registry
 from .contracts import (
@@ -473,6 +474,7 @@ class SymbioticNeuralCoordinator:
         )
         return self.certification_block(episode_id)
 
+    @observed_span("agent_connectome_processing")
     def certification_block(self, episode_id: str) -> dict[str, Any]:
         session = self._session(episode_id)
         connectome_activity = self._refresh_connectome(session)
@@ -689,6 +691,7 @@ class SymbioticNeuralCoordinator:
         payload["trace_health"] = asdict(self.runtime.trace_health)
         return payload
 
+    @observed_span("integration_receipts")
     def record_consumer_receipt(
         self,
         *,
