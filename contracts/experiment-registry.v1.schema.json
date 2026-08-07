@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rnfe.local/contracts/experiment-registry.v1.schema.json",
+  "title": "RNFE Experiment Registry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "snapshot_date", "development_root", "policy", "summary", "entries"],
+  "properties": {
+    "schema_version": {"const": "experiment-registry.v1"},
+    "snapshot_date": {"type": "string", "format": "date"},
+    "development_root": {"const": "development://"},
+    "policy": {
+      "type": "object",
+      "required": ["artifact_bodies_published", "directory_hash_scope", "external_teacher", "local_7b_role", "sensitive_fields_excluded"],
+      "additionalProperties": false,
+      "properties": {
+        "artifact_bodies_published": {"const": false},
+        "directory_hash_scope": {"type": "string"},
+        "external_teacher": {"const": "Codex/frontier"},
+        "local_7b_role": {"type": "string"},
+        "sensitive_fields_excluded": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entries", "by_family", "by_status"],
+      "properties": {
+        "entries": {"type": "integer", "minimum": 0},
+        "by_family": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "by_status": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "sha256", "size_bytes", "parse_status"],
+      "properties": {
+        "kind": {"type": "string"},
+        "path": {"type": "string", "not": {"pattern": "^/"}},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "parse_status": {"enum": ["valid", "invalid"]},
+        "metadata": {"type": "object"}
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "family", "logical_path", "branch", "commit", "status", "file_count", "size_bytes", "types", "sha256", "hash_scope", "evidence", "github"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "family": {"enum": ["worktree", "integral_campaign", "rnfe_artifact_root", "data_artifact_run", "local_work_family", "analysis"]},
+        "logical_path": {"type": "string", "pattern": "^development://", "not": {"pattern": "/home/|[A-Za-z]:\\\\"}},
+        "branch": {"type": ["string", "null"]},
+        "commit": {"type": ["string", "null"], "pattern": "^[a-f0-9]{7,64}$"},
+        "status": {"enum": ["archived", "clean", "completed", "dirty", "discovered", "failed", "failed_closed", "incomplete", "invalid", "running", "stale_running"]},
+        "file_count": {"type": "integer", "minimum": 0},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "types": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "hash_scope": {"enum": ["file_content", "normalized_inventory_and_selected_evidence", "tracked_file_inventory"]},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "github": {"type": ["string", "null"], "format": "uri"}
+      }
+    }
+  }
+}

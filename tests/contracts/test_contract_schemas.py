@@ -28,6 +28,7 @@ CONTRACT_FILES = [
     # B19: los dos msrc_* existian en contracts/ pero no estaban cubiertos por el test.
     "msrc_scale_decision.schema.json",
     "msrc_transition_event.schema.json",
+    "experiment-registry.v1.schema.json",
 ]
 
 #: B19: dialecto unico para todos los contratos. Los msrc_* venian en draft-07 mientras
