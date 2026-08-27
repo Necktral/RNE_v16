@@ -1,0 +1,189 @@
+{
+  "corpus_version": "v1",
+  "db_path": "/home/wis/Desarrollo/RNE_v16/aeon_event_log.db",
+  "db_sha256_note": "la DB se abre read-only; no se hashea entera (635 MB)",
+  "repo_root": "/home/wis/Desarrollo/RNE_v16_worktrees/neural-substrate",
+  "repo_commit": "refs/heads/feat/neural-substrate",
+  "val_fraction": 0.15,
+  "split_salt": "rnfe-hnet-chunker-v1",
+  "split_policy": {
+    "db": "hash(run_id) — compartido entre las 4 tablas; events lo extrae del payload",
+    "repo": "hash(path relativo) — límite: archivos casi idénticos pueden separarse"
+  },
+  "dedup": "sha256 del contenido utf-8, dentro de cada fuente",
+  "mixture": "NO DEFINIDA. Es un parámetro: ver MixtureSpec / evaluate.py",
+  "shards": [
+    {
+      "path": "db_events.train.jsonl",
+      "source": "db:events.payload",
+      "table": "events",
+      "column": "payload",
+      "content_kind": "json",
+      "split": "train",
+      "n_records": 28690,
+      "n_bytes": 246235459,
+      "n_run_ids": 571,
+      "file_sha256": "0d7b95d9190dd5d50921af81292d7f080aac0a967dae5e07aefd0dd0eee42393"
+    },
+    {
+      "path": "db_events.val.jsonl",
+      "source": "db:events.payload",
+      "table": "events",
+      "column": "payload",
+      "content_kind": "json",
+      "split": "val",
+      "n_records": 4556,
+      "n_bytes": 38874974,
+      "n_run_ids": 90,
+      "file_sha256": "ee1c67253ef7c31918f997a76e3930e860f47384559cc0a17570ec98f1c7e9b2"
+    },
+    {
+      "path": "db_reasoning_traces.train.jsonl",
+      "source": "db:reasoning_traces.detail",
+      "table": "reasoning_traces",
+      "column": "detail",
+      "content_kind": "json",
+      "split": "train",
+      "n_records": 6985,
+      "n_bytes": 124733565,
+      "n_run_ids": 544,
+      "file_sha256": "9bd33108d1e8cfe29932eb8aa35e750628abae004b91990a012898aab29e41e1"
+    },
+    {
+      "path": "db_reasoning_traces.val.jsonl",
+      "source": "db:reasoning_traces.detail",
+      "table": "reasoning_traces",
+      "column": "detail",
+      "content_kind": "json",
+      "split": "val",
+      "n_records": 1185,
+      "n_bytes": 19742669,
+      "n_run_ids": 86,
+      "file_sha256": "8147245e94d64044e34386132966739fb9e04835e50291a0668f20473cd2635b"
+    },
+    {
+      "path": "db_memory_records.train.jsonl",
+      "source": "db:memory_records.structure_json",
+      "table": "memory_records",
+      "column": "structure_json",
+      "content_kind": "json",
+      "split": "train",
+      "n_records": 3652,
+      "n_bytes": 23802752,
+      "n_run_ids": 544,
+      "file_sha256": "3b954c2ccd5c7ad9e49bbc4dbe655a1ec8a430860c7d179ff494f0c0177d6333"
+    },
+    {
+      "path": "db_memory_records.val.jsonl",
+      "source": "db:memory_records.structure_json",
+      "table": "memory_records",
+      "column": "structure_json",
+      "content_kind": "json",
+      "split": "val",
+      "n_records": 574,
+      "n_bytes": 3695931,
+      "n_run_ids": 86,
+      "file_sha256": "8bb5ee3e3393fdc24a95f22b0dc691ada77e27744941057bd853d26d25317f30"
+    },
+    {
+      "path": "db_organism_snapshots.train.jsonl",
+      "source": "db:organism_snapshots.snapshot_json",
+      "table": "organism_snapshots",
+      "column": "snapshot_json",
+      "content_kind": "json",
+      "split": "train",
+      "n_records": 3580,
+      "n_bytes": 3381329,
+      "n_run_ids": 544,
+      "file_sha256": "3478c249fca2476b17bfce5a8f40a3edb3fb9bee6502d01d70a46333ea10cbbd"
+    },
+    {
+      "path": "db_organism_snapshots.val.jsonl",
+      "source": "db:organism_snapshots.snapshot_json",
+      "table": "organism_snapshots",
+      "column": "snapshot_json",
+      "content_kind": "json",
+      "split": "val",
+      "n_records": 569,
+      "n_bytes": 537293,
+      "n_run_ids": 86,
+      "file_sha256": "d8fd2f8c4a3f525bf2ac488a8b095cae039c234ab010646dbd9808f947404d93"
+    },
+    {
+      "path": "repo_code_py.train.jsonl",
+      "source": "repo",
+      "table": null,
+      "column": null,
+      "content_kind": "code_py",
+      "split": "train",
+      "n_records": 430,
+      "n_bytes": 3660041,
+      "n_run_ids": 0,
+      "file_sha256": "2d71f864ce06e0a20a958cddbb60b5cc8dede30a4c5dc2c4fea377f1cfa919bd"
+    },
+    {
+      "path": "repo_code_py.val.jsonl",
+      "source": "repo",
+      "table": null,
+      "column": null,
+      "content_kind": "code_py",
+      "split": "val",
+      "n_records": 74,
+      "n_bytes": 671313,
+      "n_run_ids": 0,
+      "file_sha256": "425d3e1bfe9dfa719a413dc03df11d34c5903c57e677b774efb34d9fedc32568"
+    },
+    {
+      "path": "repo_prose.train.jsonl",
+      "source": "repo",
+      "table": null,
+      "column": null,
+      "content_kind": "prose",
+      "split": "train",
+      "n_records": 104,
+      "n_bytes": 746886,
+      "n_run_ids": 0,
+      "file_sha256": "6d2298a640633c3ade3400f68f7cec70d5df23c65ba42b2019944170e117aafc"
+    },
+    {
+      "path": "repo_prose.val.jsonl",
+      "source": "repo",
+      "table": null,
+      "column": null,
+      "content_kind": "prose",
+      "split": "val",
+      "n_records": 24,
+      "n_bytes": 223186,
+      "n_run_ids": 0,
+      "file_sha256": "938d0e6e2060d11a95ee56f8991d9ef3b4118da17e77cde97510ef643e34ea18"
+    }
+  ],
+  "totals": {
+    "n_records": 50423,
+    "n_bytes": 466305398,
+    "by_kind": {
+      "json": {
+        "n_records": 49791,
+        "n_bytes": 461003972
+      },
+      "code_py": {
+        "n_records": 504,
+        "n_bytes": 4331354
+      },
+      "prose": {
+        "n_records": 128,
+        "n_bytes": 970072
+      }
+    },
+    "by_split": {
+      "train": {
+        "n_records": 43441,
+        "n_bytes": 402560032
+      },
+      "val": {
+        "n_records": 6982,
+        "n_bytes": 63745366
+      }
+    }
+  }
+}

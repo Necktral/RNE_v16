@@ -46,3 +46,10 @@ data/tmp/
 
 # Scratch de scripts de corrida (sqlite + artefactos por episodio, regenerable)
 data/reports/**/_work/
+
+# Corpus del chunker de H-Net: ~460 MB de experiencia del organismo, REGENERABLE
+# con `python -m lab.hnet_chunker.corpus`. Los shards no van al repo; el
+# manifiesto (procedencia + sha256 por shard) y los reportes de evaluación SÍ.
+data/hnet_corpus/*.jsonl
+!data/hnet_corpus/manifest.json
+!data/hnet_corpus/*_report.json
