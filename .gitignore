@@ -46,3 +46,6 @@ data/tmp/
 
 # Scratch de scripts de corrida (sqlite + artefactos por episodio, regenerable)
 data/reports/**/_work/
+
+# Local experiment evidence plane (catalogued by metadata only)
+/work/

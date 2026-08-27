@@ -10,6 +10,7 @@ de razón gobernada y herencia certificada (definición normativa: ver canon).
 |---|---|
 | [`canon/normative/CANON_RNFE_v3_2_rc1.md`](canon/normative/CANON_RNFE_v3_2_rc1.md) | **SSOT** — canon normativo vigente |
 | [`docs/analysis/00_INDEX.md`](docs/analysis/00_INDEX.md) | Auditoría línea-por-línea del código (estado real) |
+| [`docs/experiments/README.md`](docs/experiments/README.md) | Registro reproducible de experimentos y evidencia local |
 | [`docs/strategy/2026-06-17_self_sustaining_cognitive_gain.md`](docs/strategy/2026-06-17_self_sustaining_cognitive_gain.md) | Roadmap estratégico actual |
 | [`docs/history/`](docs/history/) | Snapshots históricos desfasados (fases/experimentos cerrados) |
 | [`governance/adr/`](governance/adr/) | Decisiones de arquitectura |
@@ -26,6 +27,7 @@ de razón gobernada y herencia certificada (definición normativa: ver canon).
 - `canon/`, `governance/`, `docs/` — normativa, decisiones y análisis.
 - `archive/` — cuarentena histórica (no se importa desde código vivo).
 - `data/`, `rnfe_artifacts/` — salidas de experimentos (no versionadas en su mayoría).
+- `work/` — plano local de evidencia experimental; se inventaría por metadatos y nunca se versiona.
 
 ## Cómo correr
 

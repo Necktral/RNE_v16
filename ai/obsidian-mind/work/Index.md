@@ -21,6 +21,7 @@ Incident docs live in `work/incidents/`. See `Incidents.base` for overview.
 
 - [[RNFE v16 Project Memory]] — shared memory setup and agent coordination.
 - [[RNFE v16 — Backlog de Reparación]] — 68 ítems en 31 paquetes ordenados (P0–P30); PAUSA antes de despachar P0.
+- [[RNFE v16 — Registro integral de experimentos 2026-08-07]] — snapshot reproducible, privacidad y sincronización draft.
 
 ## Review Prep
 
