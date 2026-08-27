@@ -93,8 +93,48 @@ class TestSectionDivergence:
         assert out["d_s"] >= 0.7  # Jaccard 0 ⇒ 0.7·1.0
 
     def test_relation_kind_mismatch_contributes(self):
+        # MISMO mundo (value=0.5 en ambas, mismo lado del umbral 0.85), MISMO escenario,
+        # ambas relaciones MEDIDAS, y contestan distinto ⇒ eso SÍ es deriva semántica.
         out = section_divergence(_section(relation="support"), _section(relation="contradiction"))
         assert abs(out["d_s"] - 0.3) < 1e-9  # solo el término de relación
+
+    def test_relation_flip_across_the_alarm_threshold_is_perception_not_drift(self):
+        """P12.5 — Ω DEJA DE CASTIGAR LA PERCEPCIÓN.
+
+        Un regulador bang-bang alterna `support`/`contradiction` cuando el mundo cruza su
+        umbral de alarma: la misma política produce un veredicto causal distinto porque EL
+        MUNDO ES DISTINTO.  Eso es percibir, no derivar de significado.  Ω no lo cobra.
+
+        (Es exactamente lo que hace `thermal_homeostasis` en el camino vivo: valores
+        0.86/0.83/0.87/0.84 contra alarm_threshold=0.85 ⇒ cruza el umbral en cada episodio.)
+        """
+        hot = _section(relation="contradiction", value=0.86)   # ALARM (>= 0.85)
+        cool = _section(relation="support", value=0.83)        # safe  (<  0.85)
+        out = section_divergence(hot, cool)
+        assert out["d_s"] == 0.0  # el mundo cambió de lado: la relación PUEDE cambiar
+
+    def test_unmeasured_relation_is_not_a_different_meaning(self):
+        """`no_discriminating_evidence` es una AUSENCIA de medición, no otro significado."""
+        out = section_divergence(
+            _section(relation="support"), _section(relation="no_discriminating_evidence")
+        )
+        assert out["d_s"] == 0.0
+
+    def test_relation_flip_across_scenarios_is_not_semantic_drift(self):
+        """Entre escenarios la relación habla de OTRO mundo: que difiera es lo esperable."""
+        out = section_divergence(
+            _section(scenario="thermal_homeostasis", relation="support"),
+            _section(scenario="resource_management", relation="contradiction"),
+        )
+        # d_s queda gobernado sólo por los símbolos (idénticos acá) ⇒ 0.
+        assert out["d_s"] == 0.0
+
+    def test_relation_drift_undecidable_without_world_state(self):
+        """Sin poder situar el mundo, NO se afirma deriva (ausencia ≠ evidencia)."""
+        out = section_divergence(
+            _section(relation="support", value=None), _section(relation="contradiction")
+        )
+        assert out["d_s"] == 0.0
 
     def test_formula_change_raises_d_f(self):
         out = section_divergence(

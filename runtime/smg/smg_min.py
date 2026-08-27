@@ -10,7 +10,42 @@ from runtime.storage import get_storage
 from runtime.storage.records import utc_now_iso
 
 
-RelationKind = Literal["support", "contradiction"]
+# ── Vocabulario de relaciones semióticas (SSOT) ──────────────────────────────
+#
+# El contraste factual/contrafactual tiene TRES resultados, no dos. Los dos primeros son
+# MEDICIONES (el contrafactual discriminó); el tercero es una DECLARACIÓN de que no hubo
+# nada que medir.
+#
+# `no_discriminating_evidence` NO es un tercer color decorativo: es la única forma que
+# tiene el grafo de registrar un enlace cuyo soporte causal NO SE MIDIÓ (ambas acciones
+# dejaban al organismo del mismo lado de su objetivo). Sin él, el SMG estaba OBLIGADO a
+# afirmar soporte o contradicción incluso cuando no tenía evidencia de ninguno de los dos.
+#
+# Vive acá —y no en `runtime/world/scenario.py`— porque el SMG es el módulo hoja que
+# registra estas relaciones: `runtime.world` y `runtime.reality` pueden importarlo sin
+# ciclos, y al revés no (world/__init__ arrastra el runner, que importa reality).
+
+SUPPORT = "support"
+CONTRADICTION = "contradiction"
+NO_DISCRIMINATING_EVIDENCE = "no_discriminating_evidence"
+
+RelationKind = Literal["support", "contradiction", "no_discriminating_evidence"]
+
+#: Todas las relaciones que el grafo acepta.
+VALID_RELATION_KINDS = frozenset({SUPPORT, CONTRADICTION, NO_DISCRIMINATING_EVIDENCE})
+
+#: Relaciones que constituyen evidencia causal MEDIDA (las únicas puntuables).
+MEASURED_RELATION_KINDS = frozenset({SUPPORT, CONTRADICTION})
+
+
+def is_measured_relation(relation_kind: str | None) -> bool:
+    """True si ``relation_kind`` es evidencia causal medida (no una abstención).
+
+    El eje causal sólo puede puntuarse cuando el contrafactual DISCRIMINÓ. Todo lo demás
+    —``no_discriminating_evidence``, ``None``, un valor desconocido— es un NO MEDIDO y
+    debe declararse como tal, nunca rellenarse con un número.
+    """
+    return relation_kind in MEASURED_RELATION_KINDS
 
 
 @dataclass(slots=True)
@@ -96,7 +131,7 @@ class SMGMin:
         kind: RelationKind,
         metadata: Dict[str, Any] | None = None,
     ) -> SignRelation:
-        if kind not in {"support", "contradiction"}:
+        if kind not in VALID_RELATION_KINDS:
             raise ValueError(f"Tipo de relación no soportado: {kind}")
         if source_sign_id not in self.signs or target_sign_id not in self.signs:
             raise KeyError("Signo fuente o destino inexistente")

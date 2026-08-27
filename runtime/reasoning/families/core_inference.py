@@ -103,9 +103,22 @@ def resolve_signature(state: Mapping[str, Any]):
 
 
 def optimization_direction(state: Mapping[str, Any], sig: Any) -> str:
-    direction = getattr(sig, "optimization_direction", None)
-    if isinstance(direction, str) and direction:
-        return direction
+    """Sentido de MEJORA de la firma: ``'minimize'`` o ``'maximize'``.
+
+    Las familias monótonas (effect-model, ranking de intervenciones, `_better`) preguntan
+    "¿hacia dónde es mejor?". Eso lo declara `causal_polarity`, no `optimization_direction`
+    —que declara la FORMA del objetivo (`target_band` para un regulador de umbral). Leer el
+    segundo para responder lo primero devolvía `'target_band'`, un valor que ninguna de
+    estas ramas entiende y que caía silenciosamente al `else` (invirtiendo el criterio en
+    recursos). Se deriva de la polaridad vía el SSOT de `causal_signature`.
+    """
+    if sig is not None:
+        polarity = getattr(sig, "causal_polarity", None)
+        if polarity in ("lower_is_better", "higher_is_better"):
+            return "minimize" if polarity == "lower_is_better" else "maximize"
+        direction = getattr(sig, "optimization_direction", None)
+        if direction in ("minimize", "maximize"):
+            return str(direction)
     name = scenario_name(state).lower()
     if "resource" in name or "stock" in name:
         return "maximize"

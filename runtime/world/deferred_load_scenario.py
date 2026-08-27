@@ -125,7 +125,9 @@ class DeferredLoadScenario(CognitiveScenario):
             observable_variables=frozenset({"load", "debt", "boosting"}),
             control_variables=frozenset({"boosting"}),
             main_variable="load",
-            optimization_direction="minimize",
+            # Regula la carga contra un umbral; no la minimiza sin fin. Polaridad
+            # intacta: la región segura está abajo.
+            optimization_direction="target_band",
             causal_polarity="lower_is_better",
             alarm_semantics="threshold_above",
             intervention_effects=(

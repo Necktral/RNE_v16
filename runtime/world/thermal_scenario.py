@@ -112,7 +112,12 @@ class ThermalScenario(CognitiveScenario):
             observable_variables=frozenset({"temperature", "cooling_active"}),
             control_variables=frozenset({"cooling_active"}),
             main_variable="temperature",
-            optimization_direction="minimize",
+            # El organismo REGULA, no minimiza: su política sólo actúa bajo alarma y
+            # estar bajo el umbral le BASTA. Declarar `minimize` era atestiguar a su
+            # corte un objetivo monótono que no persigue (y contra el cual se acusaba
+            # de contradicción cada vez que, correctamente, no actuaba en calma).
+            # La polaridad sigue siendo `lower_is_better`: la región segura está abajo.
+            optimization_direction="target_band",
             causal_polarity="lower_is_better",
             alarm_semantics="threshold_above",
             intervention_effects=(

@@ -34,7 +34,10 @@ class OrganismBeliefState:
     Attributes:
         alarm_probability: P(alarma) ∈ [0,1].
         intervention_efficacy: Confianza en eficacia de la intervención actual.
-        causal_support_confidence: Confianza en el soporte causal observado.
+        causal_support_confidence: Confianza en el soporte causal observado, o ``None``
+            si el episodio NO PUDO MEDIRLO (el contrafactual no discriminó: ambas
+            acciones dejaban al organismo del mismo lado de su objetivo). ``None`` es un
+            NO MEDIDO declarado, no un cero ni un neutro.
         memory_purity_estimate: Pureza estimada de la memoria activa.
         trace_integrity_confidence: Confianza en la integridad de la traza.
         regime_uncertainty: Incertidumbre total sobre el régimen actual.
@@ -42,32 +45,63 @@ class OrganismBeliefState:
 
     alarm_probability: float = 0.1
     intervention_efficacy: float = 0.5
-    causal_support_confidence: float = 0.5
+    causal_support_confidence: float | None = 0.5
     memory_purity_estimate: float = 1.0
     trace_integrity_confidence: float = 0.8
     regime_uncertainty: float = 0.3
 
     @property
+    def causal_support_measured(self) -> bool:
+        """True si el eje causal fue efectivamente medido."""
+        return self.causal_support_confidence is not None
+
+    @property
     def composite_confidence(self) -> float:
-        """Confianza compuesta [0, 1]."""
-        return min(1.0, max(0.0, (
-            0.20 * self.intervention_efficacy
-            + 0.25 * self.causal_support_confidence
-            + 0.15 * self.memory_purity_estimate
-            + 0.20 * self.trace_integrity_confidence
-            + 0.20 * (1.0 - self.alarm_probability)
-        )))
+        """Confianza compuesta [0, 1] sobre los ejes EFECTIVAMENTE MEDIDOS.
+
+        Todo eje NO MEDIDO (``None``) retira su peso y el resto se renormaliza: la confianza
+        compuesta pasa a decir "esto es lo que sé con lo que pude medir". No se rellena con
+        0.90 (falsa salud) ni con 0.20 (falso pánico) ni con 0.50 (fingir una medición neutra
+        que nadie hizo).
+
+        P12.5 — la renormalización deja de ser exclusiva del eje causal. Las FACULTADES
+        (``trace``/``purity``) están hoy tipadas ``float`` y el productor vivo siempre las
+        mide, pero si alguna llegara sin medir, este promedio debe EXCLUIRLA — no explotar ni,
+        peor, promediarla como si fuera un 0. Es el mismo idioma que usan los invariantes
+        (``constitution.py``: facultad no medida ⇒ ABSTENCIÓN, ni violación ni aprobación).
+        """
+        weighted = [
+            (0.20, self.intervention_efficacy),
+            (0.15, self.memory_purity_estimate),
+            (0.20, self.trace_integrity_confidence),
+            (0.20, 1.0 - self.alarm_probability),
+            (0.25, self.causal_support_confidence),
+        ]
+        terms = [(w, v) for w, v in weighted if v is not None]
+        total = sum(w for w, _ in terms)
+        if total <= 0.0:
+            return 0.0
+        return min(1.0, max(0.0, sum(w * v for w, v in terms) / total))
 
     def distance_to(self, other: OrganismBeliefState) -> float:
-        """L1 normalizada entre dos belief states."""
+        """L1 normalizada entre dos belief states, sobre las componentes comparables.
+
+        Un eje sólo entra si AMBOS extremos lo midieron: sin medición no hay distancia.
+        Rellenar el hueco con 0.0 afirmaría que "esa creencia no se movió" — una afirmación
+        sobre algo que nadie observó.
+        """
         components = [
             abs(self.alarm_probability - other.alarm_probability),
             abs(self.intervention_efficacy - other.intervention_efficacy),
-            abs(self.causal_support_confidence - other.causal_support_confidence),
-            abs(self.memory_purity_estimate - other.memory_purity_estimate),
-            abs(self.trace_integrity_confidence - other.trace_integrity_confidence),
             abs(self.regime_uncertainty - other.regime_uncertainty),
         ]
+        for mine, theirs in (
+            (self.memory_purity_estimate, other.memory_purity_estimate),
+            (self.trace_integrity_confidence, other.trace_integrity_confidence),
+            (self.causal_support_confidence, other.causal_support_confidence),
+        ):
+            if mine is not None and theirs is not None:
+                components.append(abs(mine - theirs))
         return sum(components) / len(components)
 
     def _replace(self, **changes: Any) -> OrganismBeliefState:

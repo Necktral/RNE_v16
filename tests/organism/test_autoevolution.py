@@ -393,6 +393,45 @@ class TestRunnerIntegration:
         )
         assert len(events) == 1
 
+    def test_measured_contradiction_does_not_quarantine_the_live_organism(self, tmp_path):
+        """P12.5 (camino vivo) — percibir una contradicción dejó de ser un delito.
+
+        `thermal_homeostasis` es un regulador bang-bang en su umbral: mide `contradiction`
+        en la mitad de sus episodios (el factual rompió donde el contrafactual habría
+        mantenido seguro).  Con la ley vieja, CADA uno de esos episodios producía una
+        violación hard de `triadic_closure` (0.20 × trace × purity < 0.50, por aritmética) y
+        mandaba al organismo a CUARENTENA — lo que a su vez lo dejaba `blocked` en el gate
+        S-I-E de autoevolución, es decir: incapaz de evolucionar, para siempre.
+
+        Ahora el hallazgo causal no vive en el producto de facultades.  El organismo mide la
+        contradicción, la REPORTA (`causal_finding`) y sigue sano.
+        """
+        from runtime.world import ScenarioEpisodeRunner
+
+        runner = ScenarioEpisodeRunner(
+            storage=_storage(tmp_path), run_id="p125", scenario="thermal_homeostasis"
+        )
+        seen_contradiction = False
+        for _ in range(6):
+            result = runner.run_episode()
+            cv = result["constitutional_validation"]
+            relation = result["episode"]["result"]["relation_kind"]
+
+            if relation == "contradiction":
+                seen_contradiction = True
+                # El hallazgo se midió y VIAJA nombrado…
+                assert cv["causal_finding"] == 0.20
+                assert cv["causal_finding_measured"] is True
+                # …y NO manda al organismo a cuarentena.
+                assert cv["verdict"] == "valid", cv
+                assert cv["hard_violation_count"] == 0
+
+            # Las FACULTADES siguen siendo gate duro en todo momento.
+            assert runner.organism_state.belief.trace_integrity_confidence >= 0.30
+            assert runner.organism_state.belief.memory_purity_estimate >= 0.40
+
+        assert seen_contradiction, "el escenario dejó de medir contradicciones: revisar B5/P12"
+
     def test_organism_continuity_across_runners(self, tmp_path):
         from runtime.world import ScenarioEpisodeRunner
 

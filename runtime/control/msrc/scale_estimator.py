@@ -168,9 +168,26 @@ class ScaleEstimator:
         metrics: Dict[str, Any],
         expected_spatial_complexity: float,
     ) -> tuple[float, Dict[str, float]]:
-        factual_delta = float(metrics.get("factual_delta", 0.0))
-        counterfactual_delta = float(metrics.get("counterfactual_delta", 0.0))
-        conflict = min(abs(factual_delta - counterfactual_delta) / 0.2, 1.0)
+        # B5 — AUSENCIA DE CONTRASTE != CERTEZA.
+        # El conflicto factual-vs-contrafactual sólo es medible si HAY contrafactual.
+        # Cuando el runner declara que el contraste no está disponible (escenario sin
+        # intervención alterna) manda `counterfactual_delta = None`. Computar
+        # `conflict = |fd - 0.0|`, o peor, leer un 0.0 fabricado y obtener `conflict = 0`,
+        # haría que el organismo se declare epistémicamente suficiente JUSTO cuando no
+        # tiene ningún contraste con qué compararse. Eso es "ausencia de dato = evidencia
+        # favorable" (brain/Gotchas.md).
+        # Tratamiento honesto: el eje queda FUERA del promedio ponderado y el resto se
+        # RENORMALIZA (patrón `unmeasured_fields` / `checks_applied`). Así la ausencia no
+        # premia ni castiga: simplemente no se puntúa un eje que no se midió.
+        factual_raw = metrics.get("factual_delta")
+        counterfactual_raw = metrics.get("counterfactual_delta")
+        conflict_measurable = factual_raw is not None and counterfactual_raw is not None
+        if conflict_measurable:
+            conflict = min(
+                abs(float(factual_raw) - float(counterfactual_raw)) / 0.2, 1.0
+            )
+        else:
+            conflict = None
 
         contradiction_signal = self._clamp(float(metrics.get("contradiction_signal", 0.0) or 0.0))
         uncertainty = self._clamp(float(metrics.get("uncertainty", 0.0) or 0.0))
@@ -191,19 +208,29 @@ class ScaleEstimator:
         if isinstance(props, list) and len(props) <= 1:
             sparse_props = 0.2
 
+        # Ejes medidos (peso, valor). El conflicto entra SOLO si fue medible.
+        axes: list[tuple[float, float]] = [
+            (0.18, contradiction_signal),
+            (0.14, uncertainty),
+            (0.10, scheduler_disagreement),
+            (0.08, self._clamp(previous_probe_failure + sparse_props)),
+            (0.10, intervention_backfire),
+            (0.10, scale_blindspot_bonus),
+        ]
+        if conflict is not None:
+            axes.append((0.30, conflict))
+
+        # Renormalización sobre los ejes efectivamente medidos: sin contraste, el 0.30 del
+        # conflicto no se rellena con un 0 favorable — se reparte entre lo que sí se midió.
+        total_weight = sum(w for w, _ in axes)
         score = (
-            0.30 * conflict
-            + 0.18 * contradiction_signal
-            + 0.14 * uncertainty
-            + 0.10 * scheduler_disagreement
-            + 0.08 * self._clamp(previous_probe_failure + sparse_props)
-            + 0.10 * intervention_backfire
-            + 0.10 * scale_blindspot_bonus
+            sum(w * v for w, v in axes) / total_weight if total_weight > 0 else 0.0
         )
         score = self._clamp(score)
 
         return score, {
-            "factual_counterfactual_conflict": conflict,
+            "factual_counterfactual_conflict": conflict if conflict is not None else 0.0,
+            "conflict_measured": 1.0 if conflict is not None else 0.0,
             "contradiction_signal": contradiction_signal,
             "uncertainty": uncertainty,
             "scheduler_disagreement": scheduler_disagreement,

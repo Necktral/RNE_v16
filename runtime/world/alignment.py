@@ -1,11 +1,18 @@
 """Alineamiento bipartito dirigido entre componentes de dos escenarios.
 
-Implementa asignación óptima entre intervenciones y proposiciones
-de dos escenarios para computar scores de alineamiento dirigido.
+Computa scores de alineamiento dirigido entre intervenciones y proposiciones
+de dos escenarios.
 
-Usa el algoritmo húngaro (scipy-free, implementación interna) sobre
-una matriz de costo que combina distancia semántica, de efecto,
-de control y contrafactual.
+- ``align_interventions``: asignación ÓPTIMA por algoritmo húngaro
+  (``_hungarian_assignment``, scipy-free, implementación interna) sobre una
+  matriz de costo que combina dirección, magnitud y rol semántico del efecto.
+- ``align_propositions``: NO es una asignación — es Jaccard sobre los
+  vocabularios (los items se emparejan por identidad de nombre, no por costo).
+- ``align_causal_graphs``: fracción de aristas coincidentes con igual polaridad.
+
+B7: el docstring previo prometía "asignación óptima" y "algoritmo húngaro"
+mientras la implementación era ``_greedy_assignment``, que no garantiza el
+óptimo. Ahora el húngaro está efectivamente implementado y la promesa es cierta.
 """
 
 from __future__ import annotations
@@ -70,9 +77,19 @@ def align_interventions(
 ) -> AlignmentResult:
     """Alineamiento bipartito dirigido de intervenciones.
 
-    Usa asignación greedy por mínimo costo (suficiente para N pequeño).
-    Para N > 10 se podría usar Hungarian, pero en RNFE los escenarios
-    tienen 2-4 intervenciones.
+    Usa asignación ÓPTIMA (algoritmo húngaro, ``_hungarian_assignment``).
+
+    B7: antes usaba ``_greedy_assignment``, que NO garantiza el óptimo — ni
+    siquiera en 2x2. Contraejemplo real: costs=[[0.0, 0.4], [0.4, 1.0]]; greedy
+    toma la celda mínima (0.0) y queda forzado a 1.0 ⇒ coste 1.0, mientras que el
+    óptimo es 0.4+0.4=0.8. El greedy es una COTA SUPERIOR del coste óptimo, o sea
+    una COTA INFERIOR del ``normalized_score``: subestimaba el alineamiento.
+
+    Esto no era cosmético: ``morphism_engine`` deriva de acá el
+    ``effect_alignment_score`` (β=0.30 del score dirigido) y la corte
+    constitucional clasifica compatibilidad con ese score (``morphism_failure``
+    dispara bajo 0.35). Un score subestimado puede declarar incompatibles a dos
+    escenarios que no lo son.
     """
     if not source and not target:
         return AlignmentResult(
@@ -97,8 +114,8 @@ def align_interventions(
         for j, t in enumerate(target):
             costs[i][j] = _intervention_distance(s, t)
 
-    # Greedy minimum-cost assignment
-    pairs, used_src, used_tgt = _greedy_assignment(costs, n_src, n_tgt)
+    # Optimal (Hungarian) minimum-cost assignment
+    pairs, used_src, used_tgt = _hungarian_assignment(costs, n_src, n_tgt)
 
     alignment_pairs = tuple(
         AlignmentPair(
@@ -210,32 +227,92 @@ def align_causal_graphs(
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
 
-def _greedy_assignment(
+def _hungarian_assignment(
     costs: list[list[float]],
     n_rows: int,
     n_cols: int,
 ) -> Tuple[list[Tuple[int, int]], set[int], set[int]]:
-    """Greedy minimum-cost assignment for small matrices.
+    """Asignación de costo mínimo ÓPTIMA (algoritmo húngaro / Kuhn-Munkres).
 
-    Returns list of (row, col) pairs, sets of used rows and cols.
+    Implementación O(n^2·m) por caminos aumentantes cortos con potenciales
+    (variante Jonker-Volgenant del húngaro), sin dependencias externas.
+    Emparejamiento máximo de cardinalidad ``min(n_rows, n_cols)`` de costo total
+    mínimo — GARANTIZADO óptimo, a diferencia del greedy anterior.
+
+    Determinismo: ante varias asignaciones de igual costo total, la elección
+    queda fijada por el orden de índices (recorridos ascendentes y desempate por
+    ``<`` estricto), de modo que el resultado es reproducible.
+
+    Args:
+        costs: Matriz de costos ``n_rows x n_cols``.
+        n_rows: Filas (source).
+        n_cols: Columnas (target).
+
+    Returns:
+        (pares (fila, col), filas usadas, columnas usadas).
     """
-    pairs: list[Tuple[int, int]] = []
-    used_rows: set[int] = set()
-    used_cols: set[int] = set()
+    if n_rows == 0 or n_cols == 0:
+        return [], set(), set()
 
-    # Flatten all cells, sort by cost
-    cells = []
-    for i in range(n_rows):
-        for j in range(n_cols):
-            cells.append((costs[i][j], i, j))
-    cells.sort(key=lambda x: x[0])
+    # El algoritmo requiere n_rows <= n_cols: si no, se transpone y se deshace al final.
+    transposed = n_rows > n_cols
+    if transposed:
+        matrix = [[costs[i][j] for i in range(n_rows)] for j in range(n_cols)]
+        n, m = n_cols, n_rows
+    else:
+        matrix = [row[:] for row in costs]
+        n, m = n_rows, n_cols
 
-    for cost, i, j in cells:
-        if i not in used_rows and j not in used_cols:
-            pairs.append((i, j))
-            used_rows.add(i)
-            used_cols.add(j)
-            if len(pairs) == min(n_rows, n_cols):
+    INF = float("inf")
+    # Potenciales duales (u sobre filas, v sobre columnas). Índices 1-based con
+    # una fila/columna centinela en 0 (convención clásica del algoritmo).
+    u = [0.0] * (n + 1)
+    v = [0.0] * (m + 1)
+    p = [0] * (m + 1)      # p[j] = fila asignada a la columna j (0 = libre)
+    way = [0] * (m + 1)    # árbol de caminos aumentantes
+
+    for i in range(1, n + 1):
+        p[0] = i
+        j0 = 0
+        minv = [INF] * (m + 1)
+        used = [False] * (m + 1)
+        while True:
+            used[j0] = True
+            i0 = p[j0]
+            delta = INF
+            j1 = 0
+            for j in range(1, m + 1):
+                if used[j]:
+                    continue
+                cur = matrix[i0 - 1][j - 1] - u[i0] - v[j]
+                if cur < minv[j]:
+                    minv[j] = cur
+                    way[j] = j0
+                if minv[j] < delta:
+                    delta = minv[j]
+                    j1 = j
+            for j in range(m + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
                 break
+        # Deshacer el camino aumentante encontrado.
+        while j0:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
 
+    pairs: list[Tuple[int, int]] = []
+    for j in range(1, m + 1):
+        if p[j] != 0:
+            row, col = p[j] - 1, j - 1
+            pairs.append((col, row) if transposed else (row, col))
+
+    pairs.sort()
+    used_rows = {i for i, _ in pairs}
+    used_cols = {j for _, j in pairs}
     return pairs, used_rows, used_cols

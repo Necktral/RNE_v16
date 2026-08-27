@@ -313,7 +313,9 @@ class GridThermalScenario(CognitiveScenario):
             observable_variables=frozenset({"global_temp_mean", "global_temp_max", "cooling_cells_count"}),
             control_variables=frozenset({"cooling_active"}),
             main_variable="global_temp_mean",
-            optimization_direction="minimize",
+            # Regula sobre el agregado global, no minimiza: actúa bajo alarma (o bajo
+            # hotspot) y estar bajo el umbral BASTA. Polaridad intacta: seguro es abajo.
+            optimization_direction="target_band",
             causal_polarity="lower_is_better",
             alarm_semantics="threshold_above",
             intervention_effects=(

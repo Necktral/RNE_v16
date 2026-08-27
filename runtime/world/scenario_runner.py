@@ -39,6 +39,7 @@ from runtime.organism.viability import ViabilityKernel
 from runtime.reasoning.context import build_reasoning_context, resolve_reasoning_mode
 from runtime.reasoning.scheduler_meta.meta_scheduler import MetaScheduler
 from runtime.reality.belief_state import BeliefState, build_belief_state, compute_belief_shift
+from runtime.world.causal_signature import improvement_direction
 from runtime.world.compatibility import ScenarioCompatibilityGraph
 from runtime.smg import SMGMin
 from runtime.storage import get_storage
@@ -268,8 +269,13 @@ class ScenarioEpisodeRunner:
         if not is_actuation_enabled():
             return OverrideDecision(fired=False, guard_reason="actuation_disabled"), None
         mv = self.scenario.config.main_variable
+        # La guarda del override pregunta "¿la alterna MEJORA?" — o sea el SENTIDO de
+        # mejora, no la FORMA del objetivo. Leer `optimization_direction` acá era leer la
+        # forma (`target_band` en un regulador de umbral) y caer al `else` de
+        # `_safety_margin`, que la interpreta como maximize: la guarda habría concluido
+        # que enfriar EMPEORA. Se deriva de la polaridad vía el SSOT de la firma.
         try:
-            direction = str(self.scenario.causal_signature.optimization_direction)
+            direction = improvement_direction(self.scenario.causal_signature)
         except Exception:
             direction = "minimize"
         allowed = list(self.scenario.config.interventions)
@@ -316,6 +322,72 @@ class ScenarioEpisodeRunner:
         )
         candidate = sim_cache.get(decision.to_intervention) if decision.fired else None
         return decision, candidate
+
+    def _select_counterfactual_intervention(
+        self, factual_intervention: str
+    ) -> "tuple[str | None, str]":
+        """Elige el contrafactual COMO CONTRASTE de la acción factual (B5).
+
+        El contrafactual existe para responder "¿qué habría pasado si NO hubiera
+        hecho ESTO?". Si coincide con la acción factual no hay contraste: el
+        organismo se compara contra sí mismo y el delta es idénticamente 0.
+
+        Antes esto era ``interventions[1]`` — un ÍNDICE FIJO. Como todas las
+        políticas de RNFE devuelven ``interventions[0]`` bajo alarma y
+        ``interventions[1]`` si no, el contrafactual COLISIONABA con el factual en
+        todo el régimen de calma: medido, 45% de los episodios en
+        thermal_homeostasis, 55% en resource_management y **100%** en
+        grid_thermal_5x5 (que nunca tuvo contraste, jamás).
+
+        Peor: las CUATRO firmas causales declaran
+        ``counterfactual_policy="opposite_intervention"`` y ``causal_attestation``
+        exporta esa política al certificado. El organismo le atestiguaba a la corte
+        una política contrafactual que el runner no ejecutaba.
+
+        Acá se implementa la política declarada: la intervención OPUESTA a la
+        factual. Con 2 intervenciones (todos los escenarios reales) es la otra.
+        Con más, se elige la de dirección de efecto opuesta y, entre ésas, la de
+        mayor distancia de magnitud; desempate determinista por orden de la config.
+
+        Returns:
+            (contra_intervención, razón). ``None`` ⇒ el contraste NO ESTÁ
+            DISPONIBLE (escenario de una sola intervención). Eso NO es "contraste
+            cero": es ausencia de medición, y se declara como tal.
+        """
+        candidates = [
+            iv for iv in self.scenario.config.interventions if iv != factual_intervention
+        ]
+        if not candidates:
+            # Una sola intervención: no hay alterna posible. Ausencia de contraste,
+            # no contraste nulo. El delta NO se reporta como 0.0 (ver run_episode).
+            return None, "no_alternative_intervention"
+        if len(candidates) == 1:
+            return candidates[0], "opposite_intervention"
+
+        # 3+ intervenciones: la más contrastante según la firma causal.
+        effects = {
+            e.intervention_name: e
+            for e in getattr(self.scenario.causal_signature, "intervention_effects", ())
+        }
+        factual_effect = effects.get(factual_intervention)
+        if factual_effect is None:
+            return candidates[0], "opposite_intervention_fallback_order"
+
+        def contrast_key(name: str) -> "tuple[int, float]":
+            eff = effects.get(name)
+            if eff is None:
+                return (0, 0.0)
+            opposite_direction = int(
+                eff.expected_direction != factual_effect.expected_direction
+            )
+            magnitude_gap = abs(
+                eff.expected_magnitude - factual_effect.expected_magnitude
+            )
+            return (opposite_direction, magnitude_gap)
+
+        # max() es estable: ante empate total conserva el orden de config ⇒ determinista.
+        best = max(candidates, key=contrast_key)
+        return best, "most_contrastive_intervention"
 
     def _apply_knob_changes(self, changes: Dict[str, Any]) -> None:
         """Aplica una modificación aceptada sobre los mandos reales del runner."""
@@ -820,14 +892,16 @@ class ScenarioEpisodeRunner:
                 self._experience_bias = {"avoided": intervention, "chose": alternative}
                 intervention = alternative
 
-        # 6. Simular contrafactual (sin intervención o con opuesta)
-        counter_intervention = (
-            self.scenario.config.interventions[1]
-            if len(self.scenario.config.interventions) > 1
-            else self.scenario.config.interventions[0]
+        # 6. Simular contrafactual como CONTRASTE de la acción factual (B5).
+        # Se elige RELATIVO a `intervention` (la opuesta, que es la política que las
+        # firmas causales declaran), no por índice fijo. Si el escenario no admite
+        # alterna, el contraste queda NO DISPONIBLE y se declara — no se finge un 0.
+        counter_intervention, counterfactual_reason = self._select_counterfactual_intervention(
+            intervention
         )
+        counterfactual_available = counter_intervention is not None
         counterfactual = self.scenario.simulate_counterfactual(
-            intervention=counter_intervention,
+            intervention=counter_intervention if counterfactual_available else intervention,
             external_input=external_input,
         )
 
@@ -1016,6 +1090,11 @@ class ScenarioEpisodeRunner:
             counter_intervention = intervention
             factual = candidate_transition
             intervention = intervention_override.to_intervention
+            # B5: ambos caminos de override GARANTIZAN to_intervention != greedy
+            # (`a12_matches_greedy` y el filtro `_norm(iv) != _norm(greedy)`), así que
+            # acá el contraste SIEMPRE existe: el greedy desplazado es la alterna real.
+            counterfactual_available = True
+            counterfactual_reason = "displaced_greedy_intervention"
             relation_kind = self.scenario.evaluate_relation_kind(
                 factual=factual, counterfactual=counterfactual
             )
@@ -1071,9 +1150,27 @@ class ScenarioEpisodeRunner:
         factual_delta = float(factual.state.get(self.scenario.config.main_variable, 0.0)) - float(
             observation.state.get(self.scenario.config.main_variable, 0.0)
         )
-        counterfactual_delta = float(counterfactual.state.get(self.scenario.config.main_variable, 0.0)) - float(
-            observation.state.get(self.scenario.config.main_variable, 0.0)
+        # B5 — MEDIR, NO FABRICAR. Sin alterna posible no hay contraste que medir: el
+        # delta contrafactual queda AUSENTE (None), no en 0.0. Un 0.0 acá se leería como
+        # "factual y contrafactual coinciden" ⇒ `conflict = 0` en
+        # `scale_estimator._compute_epistemic_insufficiency` ⇒ el organismo concluiría que
+        # sabe perfectamente lo que hace JUSTO cuando no tiene contraste alguno.
+        # (Familia "ausencia de dato = evidencia favorable"; ver brain/Gotchas.md.)
+        # Mismo idioma que core_inference.py y causal_attestation.py: None = no medido.
+        counterfactual_delta = (
+            float(counterfactual.state.get(self.scenario.config.main_variable, 0.0))
+            - float(observation.state.get(self.scenario.config.main_variable, 0.0))
+            if counterfactual_available
+            else None
         )
+        # Declaración explícita del contraste (patrón `checks_applied` / `unmeasured_fields`).
+        counterfactual_contrast = {
+            "available": counterfactual_available,
+            "counter_intervention": counter_intervention,
+            "factual_intervention": intervention,
+            "reason": counterfactual_reason,
+            "unmeasured_fields": [] if counterfactual_available else ["counterfactual_delta"],
+        }
         episode_payload = {
             "episode_id": episode_id,
             "timestamp": utc_now_iso(),
@@ -1100,6 +1197,7 @@ class ScenarioEpisodeRunner:
                 "reasoning_sequence": reasoning["sequence"],
                 "factual_delta": factual_delta,
                 "counterfactual_delta": counterfactual_delta,
+                "counterfactual_contrast": counterfactual_contrast,
                 "intervention_effect": relation_kind,
                 "alarm_transition": observation.alarm,
                 "neural_comparisons": neural_comparisons,
@@ -1202,6 +1300,28 @@ class ScenarioEpisodeRunner:
             "hard_violation_count": constitutional_validation.hard_violation_count,
             "soft_violation_count": constitutional_validation.soft_violation_count,
             "margin_to_threshold": constitutional_validation.margin_to_threshold,
+            # P12 — la abstención VIAJA. Sin estas claves, un lector no puede distinguir
+            # "no se detectó violación" de "se verificó sano": `is_valid` sólo responde lo
+            # primero. `is_fully_verified` responde lo segundo, y `abstained_invariants`
+            # dice CUÁLES no se pudieron mirar y por qué eje.
+            "is_fully_verified": constitutional_validation.is_fully_verified,
+            "abstained_invariants": list(constitutional_validation.abstained_invariants),
+            "unmeasured_axes": list(constitutional_validation.unmeasured_axes),
+            # P12.5 — el HALLAZGO causal viaja NOMBRADO y **SIN CONSUMIDOR**.
+            #
+            # `causal_finding` es el veredicto de la última medición contrafactual
+            # (0.90 soporte / 0.20 contradicción / None = no discriminó). Ya NO entra en el
+            # producto de facultades (`triadic_closure`): medir una contradicción dejó de ser
+            # una violación constitucional — el organismo puede descubrir que su modelo causal
+            # era falso sin morirse por eso.
+            #
+            # ⚠ NADIE LO CONSUME. "Contradicción persistente ⇒ mi modelo causal está mal ⇒
+            # debería bajar la ganancia de mi razonamiento" es una señal REAL que hoy no tiene
+            # a dónde ir: no existe el órgano que module la ganancia (es P-TALLO, no este
+            # paquete). Se deja MEDIDA, EXPUESTA y PERSISTIDA para que ese órgano la encuentre.
+            # Que esta clave exista NO significa que la señal esté atendida.
+            "causal_finding": constitutional_validation.causal_finding,
+            "causal_finding_measured": constitutional_validation.causal_finding_measured,
         }
         episode_result["viability_assessment"] = {
             "is_viable": viability_assessment.is_viable,
